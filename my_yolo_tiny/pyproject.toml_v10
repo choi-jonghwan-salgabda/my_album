@@ -1,0 +1,30 @@
+[tool.poetry]
+# --- 필수 필드 시작 ---
+name = "my-yolo-tiny"  # 프로젝트 이름 (필수)
+version = "0.1.0"     # 프로젝트 버전 (필수)
+description = "A small project for YOLO object detection" # 프로젝트 설명 (필수)
+authors = ["choi-jonghwan <salgabda@naver.com>"] # 저자 정보 (필수)
+# --- 필수 필드 끝 ---
+
+readme = "README.md"  # README 파일 (선택 사항이지만 흔히 사용됨)
+
+# --- 의존성 시작 ---
+[tool.poetry.dependencies]
+python = ">=3.10" # 또는 필요에 따라 "^3.10" 등
+PyYAML = ">=6.0"
+ultralytics = "^8.3.128" # ultralytics 패키지 의존성 (버전 범위 지정)
+
+# 로컬 패키지 의존성 수정
+# 로컬 경로에 있는 패키지 의존성 (develop 모드) - 이 부분은 원래 파일에도 있었음
+my-utils = { path = "../my_utils", develop = true }
+# 만약 다른 의존성들이 [project] 섹션의 dependencies에 더 있었다면 여기에 추가합니다.
+
+# --- 의존성 끝 ---
+
+# build-system 섹션과 다른 섹션들은 그대로 유지합니다.
+wcwidth = "^0.2.13"
+
+[build-system]
+requires = ["poetry-core"] # 특정 버전 범위 대신 Poetry가 호환되는 버전을 찾도록 합니다.
+build-backend = "poetry.core.masonry.api"
+#requires = ["poetry-core>=2.0.0,<3.0.0"]

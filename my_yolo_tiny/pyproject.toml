@@ -1,0 +1,19 @@
+[tool.poetry]
+name = "my-yolo-tiny" # 프로젝트 이름 (my-yolo-tiny)
+version = "0.1.0"    # 프로젝트 버전 (필요에 따라 수정)
+description = ""     # 프로젝트 설명 (필요에 따라 추가)
+authors = ["Your Name <you@example.com>"] # 작성자 정보 (필요에 따라 수정)
+readme = "README.md" # README 파일 (필요에 따라 수정)
+packages = [{include = "src"}] # <-- 중요! 소스 코드가 src 디렉토리에 있다고 Poetry에게 알려줍니다.
+
+[tool.poetry.dependencies]
+python = ">=3.10"
+PyYAML = ">=6.0"
+ultralytics = "^8.3.128"
+# 로컬 패키지 의존성
+my-utils = { path = "../my_utils", develop = true }
+wcwidth = "^0.2.13" # <-- wcwidth를 이 섹션 안으로 옮겨야 합니다.
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"

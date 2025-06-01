@@ -1,0 +1,7 @@
+    LR: 1e-3
+    EPOCHS: 10
+    BATCH_SIZE: 32
+    NUM_WORKERS: 2
+    img_size: 224 # 이미지 크기 기본값 설정
+    model_name: 'resnet34'
+    SEED: 42

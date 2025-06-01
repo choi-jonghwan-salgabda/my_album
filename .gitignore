@@ -1,0 +1,40 @@
+# 디렉토리 무시
+logs/
+tmp/
+data/
+.cache/
+.git/
+output/checkpoints/
+
+# 확장자별 무시
+*.log
+# 특정 파일 무시
+backup.tar.gz
+# Byte-code files
+*.pyc
+__pycache__/
+
+# Virtual environment
+venv/
+.venv/
+
+# Editor/IDE specific files
+.vscode/        # VS Code 설정 파일들 (개인 설정이라 보통 무시)
+.idea/          # PyCharm 같은 IDE 설정 파일
+
+# OS generated files
+.DS_Store       # macOS
+Thumbs.db       # Windows
+
+# Logs and databases
+*.log
+*.sqlite3       # SQLite 데이터베이스 파일 (프로젝트에 따라 다름)
+
+# Package installer files
+pip-log.txt
+pip-debug.log
+
+# Project specific files (네 프로젝트에 맞게 추가!)
+# my_sensitive_data.csv
+# large_backup_file.zip
+

@@ -1,0 +1,9 @@
+.env
+data/
+*.png
+aihubshell
+default/
+DU/baseline_code/wandb/
+wandb/
+DU/CRAFT-pytorch-master/result
+Mertric/__pycache__

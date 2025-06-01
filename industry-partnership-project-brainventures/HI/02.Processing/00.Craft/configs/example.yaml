@@ -1,0 +1,231 @@
+# @package _global_
+
+dataset_base_path: "/data/ephemeral/home/industry-partnership-project-brainventures/data/Fastcampus_project/"   # Change your path
+
+datasets:
+  train_dataset:
+    _target_: ${dataset_path}.OCRDataset
+    image_path: ${dataset_base_path}images/test
+    annotation_path: ${dataset_base_path}jsons/test.json
+    transform: ${transforms.train_transform}
+  val_dataset:
+    _target_: ${dataset_path}.OCRDataset
+    image_path: ${dataset_base_path}images/val
+    annotation_path: ${dataset_base_path}jsons/val.json
+    transform: ${transforms.val_transform}
+  test_dataset:
+    _target_: ${dataset_path}.OCRDataset
+    image_path: ${dataset_base_path}images/val
+    annotation_path: ${dataset_base_path}jsons/val.json
+    transform: ${transforms.test_transform}
+  predict_dataset:
+    _target_: ${dataset_path}.OCRDataset
+    image_path: ${dataset_base_path}images/test
+    annotation_path: null
+    transform: ${transforms.test_transform}
+
+dataloaders:
+  train_dataloader:
+    batch_size: 4
+    shuffle: True
+    num_workers: 4
+  val_dataloader:
+    batch_size: 4
+    shuffle: False
+    num_workers: 4
+  test_dataloader:
+    batch_size: 4
+    shuffle: False
+    num_workers: 4
+  predict_dataloader:
+    batch_size: 1
+    shuffle: False
+    num_workers: 4
+
+image_size:
+  max_size : 800
+  min_width : 800
+  min_height : 600
+
+transforms:
+  train_transform:
+    _target_: ${dataset_path}.CRAFTTransforms
+    transforms:
+      - _target_: albumentations.Resize
+        width: ${image_size.min_width}
+        height: ${image_size.min_height}
+        p: 1.0
+      - _target_: albumentations.LongestMaxSize
+        max_size: ${image_size.max_size}
+        p: 1.0
+      - _target_: albumentations.PadIfNeeded
+        min_width: ${image_size.min_width}
+        min_height: ${image_size.min_height}
+        border_mode: 0
+        p: 1.0
+      - _target_: albumentations.Normalize
+        mean: [0.485, 0.456, 0.406]
+        std: [0.229, 0.224, 0.225]
+    keypoint_params:
+      _target_: albumentations.KeypointParams
+      format: 'xy'
+      remove_invisible: False # True -> False
+  val_transform:
+    _target_: ${dataset_path}.CRAFTTransforms
+    transforms:
+      - _target_: albumentations.Resize
+        width: ${image_size.min_width}
+        height: ${image_size.min_height}
+        p: 1.0
+      - _target_: albumentations.LongestMaxSize
+        max_size:  ${image_size.max_size}
+        p: 1.0
+      - _target_: albumentations.PadIfNeeded
+        min_width: ${image_size.min_width}
+        min_height: ${image_size.min_height}
+        border_mode: 0
+        p: 1.0
+      - _target_: albumentations.Normalize
+        mean: [0.485, 0.456, 0.406]
+        std: [0.229, 0.224, 0.225]
+    keypoint_params:
+      _target_: albumentations.KeypointParams
+      format: 'xy'
+      remove_invisible: True
+  test_transform:
+    _target_: ${dataset_path}.CRAFTTransforms
+    transforms:
+      - _target_: albumentations.Resize
+        width: ${image_size.min_width}
+        height: ${image_size.min_height}
+        p: 1.0
+      - _target_: albumentations.LongestMaxSize
+        max_size:  ${image_size.max_size}
+        p: 1.0
+      - _target_: albumentations.PadIfNeeded
+        min_width: ${image_size.min_width}
+        min_height: ${image_size.min_height}
+        border_mode: 0
+        p: 1.0
+      - _target_: albumentations.Normalize
+        mean: [0.485, 0.456, 0.406]
+        std: [0.229, 0.224, 0.225]
+    keypoint_params:
+      _target_: albumentations.KeypointParams
+      format: 'xy'
+      remove_invisible: True
+  predict_transform:
+    _target_: ${dataset_path}.CRAFTTransforms
+    transforms:
+      - _target_: albumentations.Resize
+        width: ${image_size.min_width}
+        height: ${image_size.min_height}
+        p: 1.0
+      - _target_: albumentations.LongestMaxSize
+        max_size: ${image_size.max_size}
+        p: 1.0
+      - _target_: albumentations.PadIfNeeded
+        min_width: ${image_size.min_width}
+        min_height: ${image_size.min_height}
+        border_mode: 0
+        p: 1.0
+      - _target_: albumentations.Normalize
+        mean: [0.485, 0.456, 0.406]
+        std: [0.229, 0.224, 0.225]
+    keypoint_params: null
+
+collate_fn:
+  _target_: ${dataset_path}.CRAFTCollateFN
+  text_threshold: 0.7
+  link_threshold: 0.4
+  low_text: 0.4
+  gaussian_kernel_size: 7
+
+modules:
+  lightning_module:
+    _target_: ${lightning_path}.OCRPLModule
+  lightning_data_module:
+    _target_: ${lightning_path}.OCRDataPLModule
+
+models:
+  # Encoder 설정 (backbone) - VGG16으로 변경
+  encoder:
+    _target_: ocr.models.backbones.VGGBackbone
+    model_name: vgg16_bn
+    pretrained: True
+    features_only: True
+    out_indices: [1, 2, 3, 4] 
+    
+  # Decoder 설정 (특징 맵 디코딩)
+  decoder:
+    _target_: ocr.models.decoders.CRAFTDecoder
+    in_channels: [64, 128, 256, 512]  # VGG16의 특징 맵 채널
+    out_channels: 128                  # 출력 채널 수 (CRAFT는 더 작은 채널 사용)
+    
+  # Head 설정 (CRAFT 출력 헤드)
+  head:
+    _target_: ocr.models.heads.CRAFTHead
+    in_channels: 128                   # decoder 출력과 일치
+    out_channels: 2                    # 2개 채널: 문자 영역 맵 + 어피니티 맵
+    postprocess:
+      text_threshold: 0.05             # 텍스트 영역 검출 임계값 (기존 0.7에서 낮춤)
+      link_threshold: 0.05             # 문자 간 연결성 임계값 (기존 0.4에서 낮춤)
+      low_text: 0.05                   # 낮은 신뢰도 텍스트 영역 임계값 (기존 0.4에서 낮춤)
+      min_size: 3                      # 최소 텍스트 영역 크기
+   
+  # 손실 함수 설정
+  loss:
+    _target_: ocr.models.losses.CRAFTLoss
+    region_weight: 1.0                 # 문자 영역 맵 손실 가중치
+    affinity_weight: 1.0               # 문자 연결성 맵 손실 가중치
+    ohem_ratio: 3.0                    # Online Hard Example Mining 비율
+    eps: 1e-6                          # 수치 안정성을 위한 작은 값
+    
+  # 옵티마이저 설정 - 학습률 감소
+  optimizer:
+    _target_: torch.optim.Adam
+    lr: 0.0001                         # CRAFT는 더 낮은 학습률 사용
+    weight_decay: 0.00001              # 가중치 감쇠 조정
+    
+  # 학습률 스케줄러 설정 - MultiStepLR로 변경
+  scheduler:
+    _target_: torch.optim.lr_scheduler.MultiStepLR
+    milestones: [30, 70, 90]           # 30, 70, 90 에폭에서 학습률 감소
+    gamma: 0.1                         # 감소 비율 (10배 감소)
+
+# 모델 구성을 위한 추가 설정
+model:
+  _target_: ocr.models.CRAFT           # CRAFT 모델 클래스
+  backbone: ${models.encoder}          # 인코더(백본) 참조
+  decoder: ${models.decoder}           # 디코더 참조
+  head: ${models.head}                 # 헤드 참조
+  loss: ${models.loss}                 # 손실 함수 참조
+  
+  # CRAFT 특화 파라미터
+  text_threshold: 0.7                  # 텍스트 영역 검출 임계값
+  link_threshold: 0.4                  # 문자 간 연결성 임계값
+  low_text: 0.4                        # 낮은 신뢰도 텍스트 영역 임계값
+  
+  # 훈련 관련 추가 설정
+  pretrained: True                     # 사전 학습된 모델 사용
+  freeze_backbone: False               # 백본 동결 여부
+  
+  # 옵티마이저 참조
+  optimizer: ${models.optimizer}
+  scheduler: ${models.scheduler}
+
+dataset_path: ocr.datasets
+model_path: ocr.models
+encoder_path: ocr.models.backbones
+decoder_path: ocr.models.decoders
+head_path: ocr.models.heads
+loss_path: ocr.models.losses
+lightning_path: ocr.lightning_modules
+
+hydra:
+  run:
+    dir: 'outputs/${exp_name}'
+
+log_dir: 'outputs/${exp_name}/logs'
+checkpoint_dir: 'outputs/${exp_name}/checkpoints'
+submission_dir: 'outputs/${exp_name}/submissions'

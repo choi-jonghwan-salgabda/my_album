@@ -1,0 +1,23 @@
+program: runners/train.py
+method: bayes # or grid/random
+metric:
+  name: val_f1 # or val_loss
+  goal: maximize # or minimize   
+  # maximize: 클수록 좋다 (예: f1, accuracy)
+  # minimize: 작을수록 좋다 (예: loss)
+
+parameters:
+  optimizer:
+    values: ["Adam", "SGD"]
+  models.optimizer.lr:
+    min: 0.00001   # 1e-5를 명시적 소수점으로 변경
+    max: 0.01      # 1e-2를 명시적 소수점으로 변경
+    distribution: log_uniform  # 분포 유형 명시
+  models.optimizer.weight_decay:
+    values: [0.0, 0.0001, 0.001]
+  batch_size:
+    values: [4, 8, 16]
+  trainer.max_epochs:
+    value: 10
+  preset:
+    value: example

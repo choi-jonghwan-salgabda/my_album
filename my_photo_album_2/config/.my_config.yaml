@@ -1,0 +1,33 @@
+# 얼굴 인식 시스템 설정 (JSON 생성 및 얼굴 인덱싱 공통 사용)
+# 얼굴 인식 시스템 구성 파일 (my_photo_album_2)
+data_path: '/home/owner/SambaData/OwnerData/'
+
+# 📂 원본 이미지가 있는 폴더 (라벨 없음)
+raw_image_dir: /home/owner/SambaData/OwnerData/train/images
+
+# 📝 얼굴 정보를 JSON으로 저장할 폴더
+cropped_faces_dir: data/raw_photos/jsons
+
+# 🎯 얼굴 인덱싱 결과 저장 경로 (embedding 포함)
+index_output: data/face_index.pkl
+
+# 🧠 얼굴 검출에 사용할 모델
+face_model: mediapipe  # 또는 "cnn", "hog"
+
+# 📌 얼굴 검출 단계 - MediaPipe 기준 신뢰도 (0.0 ~ 1.0)
+min_detection_confidence: 0.5
+
+# 📌 얼굴 비교 단계 - 임베딩 벡터 간 거리 임계값
+tolerance: 0.6
+
+# 🎥 크롭된 얼굴 resize 크기 (224x224 권장)
+target_size: [224, 224]
+
+# 🔍 검색 시 보여줄 최대 결과 수 (null이면 제한 없음)
+top_k: null
+
+# 🗂️ 얼굴을 잘라 저장할지 여부 (true면 indexed_faces에 저장됨)
+use_copy: true
+
+# 📊 인덱싱 시각화 결과 이미지 저장 위치
+visualization_output: static/results/index_distribution.png

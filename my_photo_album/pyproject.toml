@@ -1,0 +1,25 @@
+[tool.poetry]
+name = "my-photo-album"
+version = "0.1.0"
+description = "나의 사진첩 프로젝트"
+authors = ["salgabda <salgabda@naver.com>"]
+
+package-mode = false  # ✅ 이 줄 추가 (최상단 [tool.poetry] 아래)
+
+
+[tool.poetry.dependencies]
+python = "^3.10"
+fastapi = "^0.100.0"
+uvicorn = {extras = ["standard"], version = "^0.34.2"}
+python-multipart = ">=0.0.6"
+opencv-python-headless = "^4.8.0"
+Pillow = "^9.0.0"
+face-recognition = ">=1.3.0,<2.0.0"
+PyYAML = "^6.0"
+scikit-learn = "^1.6.1"
+matplotlib = "^3.10.1"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
+

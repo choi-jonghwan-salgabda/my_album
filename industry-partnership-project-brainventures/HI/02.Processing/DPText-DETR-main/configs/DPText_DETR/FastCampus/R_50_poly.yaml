@@ -1,0 +1,27 @@
+_BASE_: "../Base.yaml"
+
+DATASETS:
+  TRAIN: ("fastcampus_train_poly_pos",)
+  TEST: ("fastcampus_valid_poly_pos",)
+
+MODEL:
+  WEIGHTS: "/data/ephemeral/home/DPText-DETR-main/pretrain.pth"
+
+INPUT:
+  MIN_SIZE_TRAIN: (480, 512, 544, 576, 608, 640)  # 적절한 이미지 크기
+  MAX_SIZE_TRAIN: 960
+
+SOLVER:
+  IMS_PER_BATCH: 4 # RTX 3090에 적합한 배치 크기
+  BASE_LR: 1e-4
+  LR_BACKBONE: 1e-5
+  WARMUP_ITERS: 100
+  STEPS: (2000,)
+  MAX_ITER: 3000
+  CHECKPOINT_PERIOD: 1000
+
+TEST:
+  EVAL_PERIOD: 1000
+  DET_ONLY: True
+
+OUTPUT_DIR: "output/r_50_poly/fastcampus/batch_1"

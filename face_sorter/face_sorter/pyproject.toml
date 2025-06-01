@@ -1,0 +1,19 @@
+[tool.poetry]
+name = "face_sorter"
+version = "0.1.0"
+description = "Desktop face clustering and labeling system"
+authors = ["Your Name <your@email.com>"]
+packages = [{ include = "face_sorter" }]
+
+[tool.poetry.dependencies]
+python = "^3.10"
+insightface = "^0.7.3"
+opencv-python = "^4.9"
+scikit-learn = "^1.4"
+matplotlib = "^3.8"
+numpy = "^1.26"
+tqdm = "^4.66"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"

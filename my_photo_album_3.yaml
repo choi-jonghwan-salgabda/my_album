@@ -1,0 +1,42 @@
+project:
+  name: my_photo_album_3
+  root_dir: my_photo_album_3/                               # 👈 프로젝트 폴더
+  config:                                                   # 👈 구성 파일 폴더
+    config_path: my_photo_album_3.yaml                      # 👈 사용자 설정 파일
+  dataset:                                                  # 👈 데이터 폴더 - 원보니미지에 대한 처리정보
+    dataset_dir: ~/SambaData/OwnerData/                      # 👈 원본 이미지 (라벨 없음)
+    raw_image_dir: ${dataset_dir}train/images              # 👈 원본 이미지 (라벨 없음)
+    raw_jsons_dir: ${dataset_dir}train/jsons               # 👈 원본 이미지의 라벨 파일
+    detected_list_path: ${dataset_dir}detected_image.lst   # 👈 목적대상이 검출된 원본 이미지 목록
+    undetect_list_path: ${dataset_dir}undetect_image.lst   # 👈 목적대상이 검출되지않은 원본 이미지 목록
+    failed_list_path: ${dataset_dir}failed_image.lst               # 👈 일기중 실패한 원본 이미지 목록
+  src:                                                      # 👈 소스 코드 폴더
+    face_indexer_landmark_path: face_indexer_landmark.py    # 👈 얼굴 인덱싱 (MediaPipe 기반)
+    face_search_web: face_search_web.py                     # 👈 검색 웹서버 (FastAPI)
+    config_loader: config_loader.py                         # 👈 YAML 구성 로더
+    face_detector: face_detector.py                         # 👈 얼굴 검출 + 해시 + JSON 생성 라이브러리
+    (face_reviewer: face_reviewer.py)                       # 👈 (예정) 라벨링 UI
+  output:                                                   # 👈 결과 폴더
+    deceted_faces_dir: deceted_faces/                       # 👈 검출된 목적(얼굴) 이미지 (인덱싱용)
+    face_index: face_index.pkl                              # 👈 얼굴 인덱싱 결과 (embedding 포함)
+    results_dir: results/                                   # 👈 검색 결과 이미지 시각화 및 index plot
+    work_logs_dir: work_logs/                                   # 👈 작업 과정 이력을 기록
+  templates:                                                # 👈 UI 템플릿
+    search_html: search.html                                # 👈 검색 UI 템플릿
+  pyproject_path: pyproject.toml                            #   poetry: pyproject.toml                                            # 👈 Poetry 설정
+  requirements: requirements.txt                                            # 👈 Pip 설정
+  README: README.md                                                   # 👈 프로젝트 설명서
+  LICENSE: LICENSE                                                     # 👈 프로젝트 라이센스
+models:
+  detection_scale_factor: 1.1
+  detection_min_neighbors: 5
+  detection_min_size:
+  - 30
+  - 30
+  supported_image_extensions:
+  - .jpg
+  - .jpeg
+  - .png
+  - .bmp
+  - .tiff
+

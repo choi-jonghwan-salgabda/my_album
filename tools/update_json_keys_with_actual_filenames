@@ -1,0 +1,186 @@
+import os
+import sys
+import json
+import logging
+import argparse  # argparse 추가
+from collections import OrderedDict  # 키 순서 유지를 위해 OrderedDict 사용
+
+# --- 초기 설정 및 로거 설정 ---
+worker_name = os.path.splitext(os.path.basename(__file__))[0]
+worker_dir = os.path.dirname(os.path.abspath(__file__))
+project_root = os.path.abspath(os.path.join(worker_dir, '..'))
+
+# 프로젝트 루트를 sys.path에 추가 (my_utility 사용 위함)
+if project_root not in sys.path:
+    sys.path.insert(0, project_root)
+
+try:
+    from my_utility import setup_logger
+    logger = setup_logger(log_file=f"{worker_name}.log", console=True,
+                          file_level=logging.INFO, console_level=logging.INFO)
+    logger.info(f"{worker_name}.py 용 로거 초기화 완료.")
+    logger.info(f"프로젝트 루트: {project_root}")
+except ImportError as e:
+    # my_utility 로드 실패 시 기본 로거 사용
+    logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+    logger = logging.getLogger(worker_name)
+    logger.warning(f"my_utility 로드 실패 ({e}). 기본 로거를 사용합니다.")
+except Exception as e:
+    print(f"로거 설정 중 예상치 못한 오류 발생: {e}")
+    sys.exit(1)
+
+# --- 기본 경로 정의 ---
+# JSON 파일 및 이미지 하위 디렉토리의 기본 경로
+BASE_JSON_DIR = "/data/ephemeral/home/Upstage/brainventures/data/jsons"
+
+def update_json_keys_with_actual_filenames(image_dir, json_path):
+    """
+    이미지 디렉토리의 실제 파일명을 기준으로 JSON 파일의 'images' 키를 업데이트합니다.
+
+    Args:
+        image_dir (str): 실제 이미지 파일이 있는 디렉토리 경로.
+        json_path (str): 업데이트할 JSON 파일 경로.
+    """
+    logger.info("="*50)
+    logger.info("JSON 키 업데이트 작업을 시작합니다...")
+    logger.info(f"이미지 디렉토리 : {image_dir}")
+    logger.info(f"대상 JSON 파일  : {json_path}")
+    logger.info("="*50)
+
+    # --- 이미지 디렉토리 유효성 검사 ---
+    if not os.path.isdir(image_dir):
+        logger.error(f"이미지 디렉토리를 찾을 수 없습니다: {image_dir}")
+        return
+
+    # --- 이미지 디렉토리 스캔 및 기본 이름 맵 생성 ---
+    # key: 소문자 기본 이름, value: 실제 파일명 (확장자 포함)
+    image_base_map = {}
+    logger.info(f"이미지 디렉토리({image_dir}) 스캔 중...")
+    try:
+        image_files_count = 0
+        for filename in os.listdir(image_dir):
+            file_path = os.path.join(image_dir, filename)
+            if os.path.isfile(file_path):
+                base_name, _ = os.path.splitext(filename)
+                # 소문자 기본 이름을 키로 사용 (덮어쓰기 가능성 있음 - 마지막 파일 기준)
+                image_base_map[base_name.lower()] = filename
+                image_files_count += 1
+        logger.info(f"{image_files_count}개의 이미지 파일을 찾았고, 기본 이름 맵 생성 완료.")
+    except OSError as e:
+        logger.error(f"이미지 디렉토리({image_dir}) 스캔 중 오류 발생: {e}")
+        return
+
+    if not image_base_map:
+        logger.warning("이미지 디렉토리에 파일이 없습니다. 업데이트를 진행할 수 없습니다.")
+        return
+
+    # --- JSON 파일 로드 ---
+    logger.info(f"JSON 파일({json_path}) 로드 중...")
+    try:
+        # JSON 로드 시 키 순서 유지를 위해 object_pairs_hook 사용
+        with open(json_path, 'r', encoding='utf-8') as f:
+            data = json.load(f, object_pairs_hook=OrderedDict)
+        logger.info("JSON 파일 로드 성공.")
+    except FileNotFoundError:
+        logger.error(f"JSON 파일을 찾을 수 없습니다: {json_path}")
+        return
+    except json.JSONDecodeError as e:
+        logger.error(f"JSON 파일 디코딩 오류: {json_path} - {e}")
+        return
+    except Exception as e:
+        logger.error(f"JSON 파일 읽기 중 예상치 못한 오류 발생: {json_path} - {e}")
+        return
+
+    # --- 'images' 키 존재 및 타입 확인 ---
+    if 'images' not in data or not isinstance(data['images'], dict):
+        logger.error(f"JSON 파일에 'images' 키가 없거나 딕셔너리 형태가 아닙니다: {json_path}")
+        return
+
+    # --- JSON 키 업데이트 ---
+    # 키 순서를 유지하면서 업데이트하기 위해 OrderedDict 사용
+    updated_images_data = OrderedDict()
+    original_images_data = data['images'] # 이미 OrderedDict로 로드됨
+    updated_count = 0
+    missing_count = 0
+    processed_count = 0
+
+    logger.info("JSON 'images' 키 업데이트 시작...")
+    for original_key, image_data in original_images_data.items():
+        processed_count += 1
+        # 원본 키에서 확장자 제외하고 소문자로 변환
+        original_base_name, _ = os.path.splitext(original_key)
+        base_name_lower = original_base_name.lower()
+
+        # 이미지 맵에서 실제 파일명 찾기
+        if base_name_lower in image_base_map:
+            actual_filename = image_base_map[base_name_lower]
+            # 실제 파일명으로 데이터 추가
+            updated_images_data[actual_filename] = image_data
+            if actual_filename != original_key:
+                logger.info(f"키 업데이트: '{original_key}' -> '{actual_filename}'")
+                updated_count += 1
+            else:
+                 # 키가 동일하면 로그 불필요, 그냥 추가
+                 pass
+        else:
+            # 이미지 디렉토리에서 해당 기본 이름을 가진 파일을 찾지 못한 경우
+            logger.warning(f"이미지 디렉토리에서 '{original_key}'에 해당하는 파일을 찾을 수 없습니다 (기본 이름: {base_name_lower}). 이 항목은 제외됩니다.")
+            missing_count += 1
+
+    logger.info("JSON 'images' 키 업데이트 완료.")
+
+    # --- 업데이트된 데이터로 교체 ---
+    data['images'] = updated_images_data
+
+    # --- 업데이트된 JSON 파일 저장 ---
+    # 백업 파일 생성 (선택 사항)
+    backup_json_path = json_path + ".bak"
+    try:
+        shutil.copy2(json_path, backup_json_path)
+        logger.info(f"원본 JSON 파일 백업 완료: {backup_json_path}")
+    except Exception as e:
+        logger.warning(f"JSON 파일 백업 실패: {e}")
+
+    logger.info(f"업데이트된 JSON 파일 저장 중: {json_path}")
+    try:
+        with open(json_path, 'w', encoding='utf-8') as f:
+            # indent=2 : 가독성을 위해 들여쓰기
+            # ensure_ascii=False : 한글 등이 깨지지 않도록 설정
+            json.dump(data, f, indent=2, ensure_ascii=False)
+        logger.info("JSON 파일 저장 완료.")
+    except IOError as e:
+        logger.error(f"업데이트된 JSON 파일 저장 실패: {json_path} - {e}")
+    except Exception as e:
+        logger.error(f"JSON 파일 저장 중 예상치 못한 오류 발생: {json_path} - {e}")
+
+    # --- 결과 요약 로깅 ---
+    logger.info("="*50)
+    logger.info("JSON 키 업데이트 작업 요약:")
+    logger.info(f"  - 처리된 원본 키 수 : {processed_count}")
+    logger.info(f"  - 업데이트된 키 수  : {updated_count}")
+    logger.info(f"  - 이미지 못 찾은 키 수 : {missing_count}")
+    logger.info(f"  - 최종 저장된 키 수 : {len(updated_images_data)}")
+    logger.info("="*50 + "\n")
+
+# --- 메인 실행 블록 ---
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(
+        description="이미지 디렉토리의 실제 파일명을 기준으로 JSON 파일의 'images' 키를 업데이트합니다.",
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter
+    )
+
+    # 외부 인자로 'test', 'train', 'val' 중 하나를 받도록 설정
+    parser.add_argument('set_name', type=str, choices=['test', 'train', 'val'],
+                        help="처리할 데이터셋 이름 (예: test, train, val)")
+
+    args = parser.parse_args()
+
+    # 인자를 기반으로 동적 경로 생성
+    set_name = args.set_name
+    image_dir = os.path.join(BASE_JSON_DIR, f"{set_name}_nonexist", "imgs")
+    json_path = os.path.join(BASE_JSON_DIR, f"{set_name}.json")
+
+    logger.info(f"'{set_name}' 데이터셋에 대한 처리를 시작합니다.")
+
+    # 동적으로 생성된 경로를 사용하여 함수 호출
+    update_json_keys_with_actual_filenames(image_dir, json_path)

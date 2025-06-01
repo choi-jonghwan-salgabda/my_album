@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html>
+<head><title>Face Search</title></head>
+<body>
+<h2>Upload a face to search</h2>
+<form action="/search" enctype="multipart/form-data" method="post">
+  <input name="file" type="file" accept="image/*">
+  <input type="submit">
+</form>
+<hr>
+{% if results %}
+<h3>Results:</h3>
+<div style="display: flex; flex-wrap: wrap;">
+  {% for r in results %}
+    <div style="margin: 5px; text-align: center;">
+      <img src="{{ r.path }}" width="120"><br>
+      <small>{{ r.distance | round(3) }}</small>
+    </div>
+  {% endfor %}
+</div>
+{% endif %}
+</body>
+</html>

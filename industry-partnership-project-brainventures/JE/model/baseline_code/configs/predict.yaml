@@ -1,0 +1,16 @@
+defaults:
+  - _self_
+  - preset: example
+  - override hydra/hydra_logging: disabled
+  - override hydra/job_logging: disabled
+
+seed: 42
+exp_name: "dbnet_training_predict"
+wandb: True
+project_name: "dbnet_training"
+
+wandb: true
+exp_version: "dbnet_training_predict"
+
+checkpoint_path: null
+minified_json: False

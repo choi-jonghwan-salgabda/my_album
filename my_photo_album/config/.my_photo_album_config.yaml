@@ -1,0 +1,10 @@
+# 프로젝트 설정 파일
+# 얼굴 인덱싱 및 검색 시스템용
+
+data_path: /data/ephemeral/home/data/images/train  # 원본 이미지 폴더 (label 없음)
+cropped_faces_dir: data/indexed_faces  # 얼굴만 잘라 저장될 폴더
+index_output: data/face_index.pkl  # 인덱싱 결과 저장 경로
+face_model: cnn  # 'hog' 또는 'cnn' (정확도 우선이면 cnn 권장)
+tolerance: 0.6  # 유사도 판단 기준 거리 임계값
+top_k: null  # top_k 제한 없음 (전체 보여주기 위함)
+use_copy: false  # 이미지 복사하지 않고 원본 사용

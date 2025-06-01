@@ -1,0 +1,47 @@
+# ⚙️1. 프로그램 환경설정
+## 1) 필요한 라이브러리 설치
+import os
+import sys
+
+### 2) 전역변수의 정의
+FileName = os.path.basename(__file__)
+print(f"{FileName} : 지금 일하는 파일이름은")
+
+SORC_DIR = os.path.dirname(os.path.abspath(__file__))
+print(f"{SORC_DIR} : 지금 일하는 파일이 있는 디렉토리(SORC_DIR)")
+
+UTIL_DIR = os.path.abspath(os.path.join(SORC_DIR, 'my_utility'))
+print(f"{UTIL_DIR} : 도움되는 라이브러리 디렉토리(UTIL_DIR)")
+
+# 각 디렉토리 확인 후 없으면 종료
+for directory in [SORC_DIR, UTIL_DIR]:
+    if not os.path.exists(directory):
+        print(f"Error: {directory} 가 존재하지 않습니다.")
+        sys.exit(1)
+
+from my_utility  import setup_logger, get_logger, combine_paths, load_config, update_config
+from pprint import pprint
+
+yaml_path = os.path.join(UTIL_DIR, 'my_config.yaml')
+config = load_config(yaml_path=yaml_path)
+
+PRJT_DIR = config.get('PRJT_DIR', os.path.abspath('../'))
+print(f"{PRJT_DIR} : 지금 일하는 프로젝트 디렉토리(PRJT_DIR)")
+ 
+LOGS_DIR = combine_paths(PRJT_DIR, config.get('LOGS_DIR', 'logs'))
+print(f"{LOGS_DIR} : 지금 일하는 프로젝트의 log 디렉토리(LOGS_DIR)")
+
+log = setup_logger(log_dir=LOGS_DIR, console=True)
+log.info(f"프로그램 : {FileName}시작, log는 =====>ㅣ {LOGS_DIR}")
+#===================== 여기까지가 기본설정임 ============================
+
+
+
+# 실행
+#===================== 여기부터가 기본 main 설정임 =======================
+if __name__ == "__main__":
+# 경로 설정
+    DATA_DIR = os.path.join(PRJT_DIR, 'data', 'datasets')
+    log.info(f"{DATA_DIR} : 프로젝트의 data 디렉토리")
+    
+    log.error(f"display_images_from_json(DATA_DIR = {DATA_DIR}, mode = {'test'})")

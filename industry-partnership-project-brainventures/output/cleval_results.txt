@@ -1,0 +1,7 @@
+===== CLEval Evaluation Results =====
+Detection Recall: 0.1395
+Detection Precision: 0.0940
+Detection Harmonic Mean (F1): 0.1123
+Split Cases: 2724
+Merge Cases: 2516
+Character Overlaps: 20

@@ -1,0 +1,40 @@
+[
+  {
+    "ocr": "책표지_총류_000002.jpg",
+    "id": 1,
+    "bbox": [
+      {
+        "x": 1.1875,
+        "y": 3.916666666666667,
+        "width": 95.3125,
+        "height": 35.91666666666667,
+        "rotation": 0,
+        "original_width": 1600,
+        "original_height": 1200
+      },
+      {
+        "x": 1.1875,
+        "y": 39.83333333333333,
+        "width": 70.8125,
+        "height": 36.916666666666664,
+        "rotation": 0,
+        "original_width": 1600,
+        "original_height": 1200
+      },
+      {
+        "x": 75.3125,
+        "y": 62.25000000000001,
+        "width": 17.4375,
+        "height": 11.666666666666666,
+        "rotation": 0,
+        "original_width": 1600,
+        "original_height": 1200
+      }
+    ],
+    "transcription": [
+      "시나리오",
+      "플래닝",
+      "유정식 지음"
+    ]
+  }
+]

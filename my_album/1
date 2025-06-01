@@ -1,0 +1,1000 @@
+ 1002  poetry remove face-recognition face-recognition-models
+ 1003  poetry run pip uninstall face_recognition face_recognition_models -y
+ 1004  poetry remove face-recognition face-recognition-models
+ 1005  poetry run pip install face_recognition
+ 1006  poetry run pip install git+https://github.com/ageitgey/face_recognition_models.git
+ 1007  poetry add fastapi uvicorn[standard] python-multipart opencv-python-headless Pillow PyYAML
+ 1008  poetry export -f requirements.txt --without-hashes > requirements.txt
+ 1009  ls
+ 1010  poetry self add poetry-plugin-export
+ 1011  poetry export -f requirements.txt --without-hashes > requirements.txt
+ 1012  poetry run python src/face_indexer.py
+ 1013  history > 1
+ 1014  vi 1
+ 1015  conda deactivate
+ 1016  poetry shell
+ 1017  # 1. face-recognition-models 제거
+ 1018  poetry remove face-recognition-models
+ 1019  # 2. pip로 직접 설치 (Poetry 환경 안에서)
+ 1020  poetry run pip install git+https://github.com/ageitgey/face_recognition_models.git
+ 1021  # 3. 나머지 의존성은 poetry로 설치 or requirements로 pip 설치
+ 1022  poetry install --no-root
+ 1023  poetry run python src/face_indexer.py
+ 1024  cd my_photo_album/
+ 1025  poetry run python src/face_indexer.py
+ 1026  poetry run pip install git+https://github.com/ageitgey/face_recognition_models.git
+ 1027  git+https://github.com/ageitgey/face_recognition_models.git
+ 1028  poetry run pip install -r requirements.pip.txt
+ 1029  cd ..
+ 1030  git+https://github.com/ageitgey/face_recognition_models.git
+ 1031  poetry run pip install -r requirements.pip.txt
+ 1032  ls
+ 1033  cd my_photo_album/
+ 1034  poetry run python src/face_indexer.py
+ 1035  # Poetry에서 관련 패키지 제거
+ 1036  poetry remove face-recognition face-recognition-models
+ 1037  # Poetry 가상환경 내에서 pip 제거
+ 1038  poetry run pip uninstall face_recognition face_recognition_models -y
+ 1039  # face_recognition은 pip로 설치
+ 1040  poetry run pip install face_recognition
+ 1041  # face_recognition_models는 GitHub에서 수동 설치
+ 1042  poetry run pip install --force-reinstall git+https://github.com/ageitgey/face_recognition_models.git
+ 1043  poetry add fastapi uvicorn[standard] python-multipart opencv-python-headless Pillow PyYAML
+ 1044  poetry run python src/face_indexer.py
+ 1045  # 기존 가상환경 제거
+ 1046  poetry env remove python
+ 1047  # 새 환경 생성
+ 1048  poetry install
+ 1049  poetry run python src/face_indexer.py
+ 1050  poetry run pip install face_recognition
+ 1051  poetry run pip install git+https://github.com/ageitgey/face_recognition_models.git
+ 1052  poetry run python -c "import face_recognition_models; print(face_recognition_models.__file__)"
+ 1053  poetry run pip install setuptools
+ 1054  poetry run python -c "import face_recognition_models; print(face_recognition_models.__file__)"
+ 1055  poetry run python src/face_indexer.py
+ 1056  poetry add scikit-learn
+ 1057  poetry run python src/face_indexer.py
+ 1058  poetry add matplotlib
+ 1059  poetry run python src/face_indexer.py
+ 1060  poetry run python src/face_indexer.py ../config/my_config.yaml
+ 1061  ls ../config/my_config.yaml
+ 1062  poetry run python src/face_indexer.py ../config/my_config.yaml
+ 1063  pwd
+ 1064  poetry run python src/face_indexer.py ./config/my_config.yaml
+ 1065  ls home/owner/SambaData/Backup/MyProject/my_photo_album/config/my_config.yaml
+ 1066  ls /home/owner/SambaData/Backup/MyProject/my_photo_album/config/my_config.yaml
+ 1067  ls
+ 1068  pwd
+ 1069  ls /home/owner/SambaData/Backup/MyProject/my_photo_album/config/my_config.yaml
+ 1070  ls /home/owner/SambaData/Backup/MyProject/my_photo_album/my_photo_album/config/my_config.yaml
+ 1071  ls
+ 1072  ls /home/owner/SambaData/Backup/MyProject/my_photo_album/my_photo_album/config/my_config.yaml
+ 1073  ls config/my_config.yaml
+ 1074  ls my_config.yaml
+ 1075  ls config/my_config.yaml
+ 1076  ls config/.my_config.yaml
+ 1077  ls /home/owner/SambaData/Backup/MyProject/my_photo_album/my_photo_album/config/.my_config.yaml
+ 1078  ls config/.my_config.yaml
+ 1079  ls /home/owner/SambaData/Backup/MyProject/my_photo_album/config/.my_config.yaml
+ 1080  poetry run python src/face_indexer.py ./.config/my_config.yaml
+ 1081  ls /home/owner/SambaData/Backup/MyProject/my_photo_album/config/my_config.yaml
+ 1082  pwd
+ 1083  poetry run python src/face_indexer.py ./config/.my_config.yaml
+ 1084  ls config/.my_config.yaml
+ 1085  pwd
+ 1086  poetry run python src/face_indexer.py ./config/.my_config.yaml
+ 1087  pwd
+ 1088  ls
+ 1089  poetry run python src/face_indexer.py config/.my_config.yaml 
+ 1090  ls /home/owner/SambaData/Backup/MyProject/my_photo_album/config/.my_config.yaml
+ 1091  poetry run python src/face_indexer.py config/.my_config.yaml 
+ 1092  history > 1
+ 1093  vi 1
+ 1094  cd SambaData/Backup/FastCamp/
+ 1095  ls
+ 1096  du or
+ 1097  du org
+ 1098  du -h --block-size=1G org
+ 1099  sudo shutdown -h now
+ 1100  conda deactivate
+ 1101  cd SambaData/Backup/MyProject/
+ 1102  ls
+ 1103  cd my_photo_album/
+ 1104  ls
+ 1105  poetry shell
+ 1106  poetry --version
+ 1107  ls
+ 1108  ls config/
+ 1109  ls -al config/
+ 1110  poetry run python src/face_indexer.py  config/.my_config.yaml 
+ 1111  vi config/.my_config.yaml 
+ 1112  ls -al config/
+ 1113  ls -al config
+ 1114  vi config/.my_config.yaml 
+ 1115  vi config/.my_photo_album_config.yaml 
+ 1116  poetry run python src/face_indexer.py  config/.my_config.yaml 
+ 1117  ls
+ 1118  ls ..
+ 1119  ls -al
+ 1120  poetry run python src/face_indexer.py  config/.my_config.yaml 
+ 1121  poetry add numpy
+ 1122  poetry run python src/face_indexer.py  config/.my_config.yaml 
+ 1123  ls
+ 1124  vi pyproject.toml 
+ 1125  bash poetry.sh
+ 1126  poetry run python src/face_indexer.py  config/.my_config.yaml 
+ 1127  sudo shutdown -h now
+ 1128  cd SambaData/Backup/FastCamp/Myproject/my_photo_album_2/
+ 1129  conda deactivate
+ 1130  ls
+ 1131  poetry --version
+ 1132  bash ../poetry.sh 
+ 1133  poetry run python ./src/face_indexer_landmark.py 
+ 1134  ls config/
+ 1135  ls -al
+ 1136  ls -al config/
+ 1137  vi config/.my_config.yaml 
+ 1138  cd SambaData/Backup/FastCamp/Myproject/my_photo_album_2/
+ 1139  poetry --version
+ 1140  vi config/.my_config.yaml 
+ 1141  poetry run python ./src/face_indexer_landmark.py 
+ 1142  conda deactivate
+ 1143  poetry run python ./src/face_indexer_landmark.py 
+ 1144  exit
+ 1145  cd SambaData/Backup/FastCamp/Myproject/my_photo_album_2/
+ 1146  poety run ubicorn src.face_search_web:app --reload --host 0.0.0.0 --port 8000
+ 1147  poetry run ubicorn src.face_search_web:app --reload --host 0.0.0.0 --port 8000
+ 1148  poetry run uvicorn src.face_search_web:app --reload --host 0.0.0.0 --port 8000
+ 1149  exit
+ 1150  conda deactivate
+ 1151  pwd
+ 1152  ls 'home/owner/SambaData/Backup/FastCamp/org' | wc -l
+ 1153  ls 'home/owner/SambaData/Backup/FastCamp' | wc -l
+ 1154  ls '/home/owner/SambaData/Backup/FastCamp/org' | wc -l
+ 1155  conda deactivate
+ 1156  cd SambaData/Backup/FastCamp/Myproject/my_photo_album_2/
+ 1157  sudo ufw allow 8000
+ 1158  exit
+ 1159  conda deactivate
+ 1160  ls
+ 1161  cd
+ 1162  cd SambaData/Backup/FastCamp/Myproject/my_photo_album_2/
+ 1163  poetry run python src/face_indexer_landmark.py
+ 1164  sudo shutdown -h now
+ 1165  cd SambaData/OwnerData/내가족/
+ 1166  ls
+ 1167  du
+ 1168  cd
+ 1169  cd SambaData/Backup/FastCamp/Myproject/my_photo_album_2/
+ 1170  ls
+ 1171  conda deactivate
+ 1172  poetry shell
+ 1173  poetry run python src/face_indexer_landmark.py
+ 1174  ps -ef
+ 1175  ps -ef | grep ㅈ듀
+ 1176  ps -ef | grep web
+ 1177  ps -ef | grep face
+ 1178  suco kill 22074
+ 1179  sudo kill 22074
+ 1180  ps -ef | grep face
+ 1181  sudo kill 22074
+ 1182  ps -ef | grep face
+ 1183  sudo reboot
+ 1184  conda deactivate
+ 1185  cd SambaData/Backup/FastCamp/Myproject/my_photo_album_2/
+ 1186  ls
+ 1187  poetry shell
+ 1188  poetry run uvicorn src.face_search_web:app --reload --host 0.0.0.0 --port 8000
+ 1189  conda deactivate
+ 1190  poetry shell
+ 1191  cd src
+ 1192  ls
+ 1193  mkdir templates
+ 1194  ls
+ 1195  cd SambaData/Backup/FastCamp/Myproject/
+ 1196  ls
+ 1197  finc ./ -type f -name "*.log" 
+ 1198  find ./ -type f -name "*.log" 
+ 1199  find ./ -type f -name "*my_photo_labum*" 
+ 1200  find ./ -type f -name "*my_photo_*" 
+ 1201  find ./ -type f -name "*my_photo_album*" 
+ 1202  find ../ -type f -name "*my_photo_album*" 
+ 1203  conda deactivate
+ 1204  glances
+ 1205  exit
+ 1206  cd SambaData/Backup/FastCamp/
+ 1207  ls
+ 1208  cd Myproject/my_photo_album_2/
+ 1209  conda deactivate
+ 1210  ls
+ 1211  ps  -ef  | grep face
+ 1212  poetry shell
+ 1213  poetry run python src/face_indexer_landmark.py
+ 1214  cd SambaData/Backup/FastCamp/Myproject/my_photo_album_2/
+ 1215  poetry shell
+ 1216  conda deactivate
+ 1217  poetry shell
+ 1218  poetry run uvicorn src.face_search_web:app --reload --host 0.0.0.0 --port 8000
+ 1219  sudo apt install glances
+ 1220  poetry run uvicorn src.face_search_web:app --reload --host 0.0.0.0 --port 8000
+ 1221  sudo swapon --show
+ 1222  poetry run uvicorn src.face_search_web:app --reload --host 0.0.0.0 --port 8000
+ 1223  sudo shutdown -h now
+ 1224  conda deactivate
+ 1225  poetry shell
+ 1226  ㅣㄴ
+ 1227  ls
+ 1228  ls src
+ 1229  conda deactivate
+ 1230  poetry shell
+ 1231  poetry run uvicorn src.face_search_web:app --reload --host 0.0.0.0 --port 8000
+ 1232  su
+ 1233  sudo shutdown -h now
+ 1234  conda deactivate
+ 1235  cd SambaData/Backup/FastCamp/Myproject/my_photo_album_2/
+ 1236  poetry run uvicorn src.face_search_web:app --reload --host 0.0.0.0 --port 8000
+ 1237  ping 211.171.200.5
+ 1238  df -k
+ 1239  df -h
+ 1240  du data 
+ 1241  du -h data 
+ 1242  ls -al
+ 1243  cd data
+ 1244  ls -al
+ 1245  du -h
+ 1246  poetry run uvicorn src.face_search_web:app --reload --host 0.0.0.0 --port 8000
+ 1247  cd ..
+ 1248  cd my_photo_album_2/
+ 1249  poetry run uvicorn src.face_search_web:app --reload --host 0.0.0.0 --port 8000
+ 1250  df -h
+ 1251  cd ~/SambaData/ShareData/
+ 1252  ls
+ 1253  du
+ 1254  ls
+ 1255  du -sh
+ 1256  mv -r * ../SsamData/
+ 1257  mv * ../SsamData/
+ 1258  df -h
+ 1259  exit
+ 1260  ls "/home/owner/SambaData/Backup/FastCamp/org/20120727_160144.jpg"
+ 1261  exit
+ 1262  ls "/home/owner/SambaData/Backup/FastCamp/org/1859.jpg"
+ 1263  exit
+ 1264  cd SambaData/OwnerData/
+ 1265  ls
+ 1266  ls  train/
+ 1267  sudo swapon --show
+ 1268  free -h
+ 1269  conda deactivate
+ 1270  df -h
+ 1271  cd ~/SambaData/Backup/FastCamp/Myproject/my_photo_album_2/
+ 1272  ls
+ 1273  vi config/.my_config.yaml 
+ 1274  vi ../setup_my_photo_album_2.py 
+ 1275  ls ..
+ 1276  ls config/
+ 1277  vi config/.my_config.yaml 
+ 1278  ls
+ 1279  rm =*
+ 1280  ls
+ 1281  ls -al
+ 1282  rm log
+ 1283  cd logs/
+ 1284  ls
+ 1285  vi empty_face.lst 
+ 1286  vi in_face.lst 
+ 1287  mkdir empty
+ 1288  ls
+ 1289  mkdit in_face
+ 1290  mkdir in_face
+ 1291  ls
+ 1292  mv empty_face.lst empty_face.sh
+ 1293  mv in_face.lst in_face.sh
+ 1294  bash empty_face.sh
+ 1295  ls empt
+ 1296  ls
+ 1297  bash in_face.sh 
+ 1298  vi in_face.sh 
+ 1299  ls
+ 1300  vi empty_face.lst 
+ 1301  vi empty_face.sh
+ 1302  ls ~/SambaData/Backup/FastCamp/org/
+ 1303  ls ~/SambaData/Backup/FastCamp/org/ | wc -l
+ 1304  vi empty_face.sh
+ 1305  vi in_face.sh
+ 1306  vi empty_face.sh
+ 1307  bash in_face.sh 
+ 1308  bash empty_face.sh
+ 1309  ls
+ 1310  ls -al
+ 1311  du
+ 1312  mv empty empty_face
+ 1313  du
+ 1314  ls empty_face*
+ 1315  vi empty_face.sh
+ 1316  bash empty_face.sh
+ 1317  vi empty_face.sh
+ 1318  bash empty_face.sh
+ 1319  vi empty_face.sh
+ 1320  vi in_face.sh
+ 1321  bash in_face.sh
+ 1322  vi in_face.sh
+ 1323  bash in_face.sh
+ 1324  vi in_face.sh
+ 1325  cp "/home/owner/SambaData/Backup/FastCamp/org/$R5U7TKQ.jpg" ./empty_face/
+ 1326  ls "/home/owner/SambaData/Backup/FastCamp/org/$R5U7TKQ.jpg"
+ 1327  ls "/home/owner/SambaData/Backup/FastCamp/org/\$R5U7TKQ.jpg"
+ 1328  vi in_face.sh
+ 1329  cp "/home/owner/SambaData/Backup/FastCamp/org/\$R5U7TKQ.jpg" ./empty_face/
+ 1330  ls
+ 1331  ls in_face/
+ 1332  ls empty_face/
+ 1333  du
+ 1334  vi in_face.sh
+ 1335  bash in_face.sh
+ 1336  vi in_face.sh
+ 1337  cp "/home/owner/SambaData/Backup/FastCamp/org/\$R5U7TKQ.jpg" ./in_face/
+ 1338  ls in_face/
+ 1339  rm empty_face/ in_face/
+ 1340  cd in_face/
+ 1341  ls
+ 1342  rm *
+ 1343  cd ../in_face/
+ 1344  rm *
+ 1345  cd ..
+ 1346  ls
+ 1347  bash in_face.sh
+ 1348  ls in_face
+ 1349  bash empty_face.sh
+ 1350  exit
+ 1351  glances
+ 1352  df -h
+ 1353  ls
+ 1354  df -h
+ 1355  sudo shutdown -h now
+ 1356  sudo dhutdown -h now
+ 1357  sudo shutdown -h now
+ 1358  conda deactivate
+ 1359  python setup_full_my_photo_album_3.py 
+ 1360  ls
+ 1361  python setup_full_my_photo_album_3.py 
+ 1362  poetry shell
+ 1363  bash poetry.sh
+ 1364  poetry run python setup_full_my_photo_album_3.py 
+ 1365  sudo shutdown -h now
+ 1366  ls
+ 1367  poetry run python setup_full_my_photo_album_3.py 
+ 1368  ㅣㄴ
+ 1369  ls
+ 1370  cd *_3
+ 1371  ls
+ 1372  cd ..
+ 1373  rm -rf *_3
+ 1374  ls
+ 1375  poetry run python setup_full_my_photo_album_3.py 
+ 1376  ls
+ 1377  cd *_3
+ 1378  ls
+ 1379  poetry run python setup_full_my_photo_album_3.pycd ..
+ 1380  cd ..
+ 1381  rm -rf *_3
+ 1382  poetry run python setup_full_my_photo_album_3.py
+ 1383  cd *_3
+ 1384  ls
+ 1385  cd ..
+ 1386  rm -rf *_3
+ 1387  poetry run python setup_full_my_photo_album_3.py
+ 1388  rm -rf *_3
+ 1389  poetry run python setup_full_my_photo_album_3.py
+ 1390  cd ..
+ 1391  rm -rf *_3
+ 1392  poetry run python setup_full_my_photo_album_3.py
+ 1393  ls
+ 1394  cd Myproject/
+ 1395  ls
+ 1396  vf *_3
+ 1397  cd *_3
+ 1398  ls
+ 1399  mv ../my_photo_album_3.yaml  ./config
+ 1400  cp my_photo_album_3.yaml ./config/
+ 1401  mkdir config
+ 1402  cp -f my_photo_album_3.yaml ./config/
+ 1403  cp  my_photo_album_3.yaml ./config/
+ 1404  mv  my_photo_album_3.yaml ./config/
+ 1405  cd ..
+ 1406  poetry run python setup_full_my_photo_album_3.py
+ 1407  python setup_full_my_photo_album_3.py 
+ 1408  cd  *_3
+ 1409  python setup_full_my_photo_album_3.py 
+ 1410  python ./src/setup_full_my_photo_album_3.py 
+ 1411  ls
+ 1412  python src/setup_full_my_photo_album_3.py 
+ 1413  ls
+ 1414  ls src
+ 1415  python src/setup_full_my_photo_album_3.py 
+ 1416  pwd
+ 1417  python src/setup_full_my_photo_album_3.py 
+ 1418  conda deactivate
+ 1419  poetry shell
+ 1420  conda activate
+ 1421  python src/setup_full_my_photo_album_3.py 
+ 1422  ls ./config/my_photo_album_3.yaml
+ 1423  python src/setup_full_my_photo_album_3.py 
+ 1424  conda deactivate
+ 1425  python src/setup_full_my_photo_album_3.py 
+ 1426  python src/setup_full_my_photo_album_3.py  my_photo_album_3.yaml
+ 1427  python src/setup_full_my_photo_album_3.py  config/my_photo_album_3.yaml
+ 1428  bash ../poeyry.sh
+ 1429  bash ../poetry.sh
+ 1430  ls
+ 1431  vi ../poetry.sh
+ 1432  python src/setup_full_my_photo_album_3.py  config/my_photo_album_3.yaml
+ 1433  ls 
+ 1434  rm *_3
+ 1435  rm -rf *_3
+ 1436  python src/setup_full_my_photo_album_3.py  config/my_photo_album_3.yaml
+ 1437  ls 
+ 1438  rm -rf *_3
+ 1439  python src/setup_full_my_photo_album_3.py  config/my_photo_album_3.yaml
+ 1440  mv ./src/setup_full_my_photo_album_3.py  ../
+ 1441  ls
+ 1442  cd ..
+ 1443  python setup_full_my_photo_album_3.py  my_photo_album_3.yaml
+ 1444  ls
+ 1445  python setup_full_my_photo_album_3.py  my_photo_album_3.yaml
+ 1446  cd *_3
+ 1447  ls
+ 1448  rm -rf *_3
+ 1449  ls
+ 1450  ls -al
+ 1451  poetry run python ./src/save_face_json_with_polygon.py 
+ 1452  ls config/my_photo_album_3.yaml
+ 1453  poetry run python ./src/save_face_json_with_polygon.py 
+ 1454  ls
+ 1455  poetry run python ./src/save_face_json_with_polygon.py 
+ 1456  ls /home/owner/SambaData/OwnerData/train/images | wc -l
+ 1457  mv -r home/owner/SambaData/OwnerData/train/
+ 1458  mv /home/owner/SambaData/OwnerData/train/* /home/owner/SambaData/OwnerData/train/images/
+ 1459  mv /home/owner/SambaData/OwnerData/train/* /home/owner/SambaData/OwnerData/train/images
+ 1460  mkdir /home/owner/SambaData/OwnerData/train/images
+ 1461  mv /home/owner/SambaData/OwnerData/train/* /home/owner/SambaData/OwnerData/train/images
+ 1462  mv -r /home/owner/SambaData/OwnerData/train/* /home/owner/SambaData/OwnerData/train/images
+ 1463  mv -rf /home/owner/SambaData/OwnerData/train/* /home/owner/SambaData/OwnerData/train/images
+ 1464  mv -R /home/owner/SambaData/OwnerData/train/* /home/owner/SambaData/OwnerData/train/images
+ 1465  mv -P /home/owner/SambaData/OwnerData/train/* /home/owner/SambaData/OwnerData/train/images
+ 1466  mv help
+ 1467  mv --help
+ 1468  mv /home/owner/SambaData/OwnerData/train/ /home/owner/SambaData/OwnerData/train/images
+ 1469  ls /home/owner/SambaData/OwnerData/train/
+ 1470  ls
+ 1471  ls /home/owner/SambaData/OwnerData/train/images/
+ 1472  poetry run python ./src/save_face_json_with_polygon.py 
+ 1473  ls /home/owner/SambaData/OwnerData/train/images/
+ 1474  poetry run python ./src/save_face_json_with_polygon.py 
+ 1475  ls ../*_2/src/*landmark.py
+ 1476  cd ../*_2
+ 1477  ls
+ 1478  conda deactivate
+ 1479  bash ../poetry.sh
+ 1480  poetry run python ./src/face_indexer_landmark.py 
+ 1481  conda deactivate
+ 1482  poetry shell
+ 1483  poetry run python ./src/face_indexer_landmark.py 
+ 1484  poetry run python src/face_indexer_landmark.py 
+ 1485  poetry run python ./src/face_indexer_landmark.py 
+ 1486  cp ../*_3/config/*.yaml ../config
+ 1487  conda deactivate
+ 1488  cp ../*_2/src/*landmark.py .
+ 1489  ls
+ 1490  mv *landmark.py ./src
+ 1491  poetry run python ./src/face_indexer_landmark.py 
+ 1492  poetry add sklearn
+ 1493  poetry run python ./src/face_indexer_landmark.py 
+ 1494  poetry shell
+ 1495  poetry run pip install sklearn
+ 1496  poetry run python ./src/face_indexer_landmark.py 
+ 1497  poetry add Union
+ 1498  poetry run python ./src/face_indexer_landmark.py 
+ 1499  poetry add Union
+ 1500  poetry run python ./src/face_indexer_landmark.py 
+ 1501  export TF_CPP_MIN_LOG_LEVEL=2
+ 1502  poetry run python ./src/face_indexer_landmark.py 
+ 1503  ls
+ 1504  cd *_3
+ 1505  ls
+ 1506  cd ..
+ 1507  poetry run python ./src/face_indexer_landmark.py 
+ 1508  ㅣㄴ
+ 1509  rm -rf *_3
+ 1510  ls
+ 1511  poetry run python ./src/face_indexer_landmark.py 
+ 1512  ls
+ 1513  rm -rf *_3
+ 1514  ls
+ 1515  poetry run python ./src/face_indexer_landmark.py 
+ 1516  ls
+ 1517  poetry run python ./src/face_indexer_landmark.py 
+ 1518  ls
+ 1519  rm -rf *_3
+ 1520  ls
+ 1521  poetry run python ./src/face_indexer_landmark.py 
+ 1522  ls
+ 1523  ls logs
+ 1524  ㅣㄴ
+ 1525  poetry run python ./src/face_indexer_landmark.py 
+ 1526  ㅣㄴ
+ 1527  ls
+ 1528  poetry run python ./src/face_indexer_landmark.py 
+ 1529  ㅣㄴ
+ 1530  ls
+ 1531  poetry run python ./src/face_indexer_landmark.py 
+ 1532  ㅣls src
+ 1533  ls src
+ 1534  poetry run python ./src/face_indexer_landmark.py 
+ 1535  ls
+ 1536  rm -rf my_photo_album_3/
+ 1537  ls
+ 1538  ls -al
+ 1539  poetry run python ./src/face_indexer_landmark.py 
+ 1540  ls -al
+ 1541  poetry run python ./src/face_indexer_landmark.py 
+ 1542  conda config --set auto_activate_base false
+ 1543  conda deactivate
+ 1544  sudo reboot
+ 1545  poetry run python ./src/face_indexer_landmark.py 
+ 1546  0
+ 1547  poetry run python ./src/face_indexer_landmark.py 
+ 1548  pip uninstall mediapipe -y
+ 1549  pip install mediapipe --upgrade
+ 1550  ㅔㅛ쇄ㅜ --ㅍㄷㄱ냐ㅜ
+ 1551  python --version
+ 1552  python3.10 --version
+ 1553  poetry env use python3.10
+ 1554  poetry shell
+ 1555  python --version
+ 1556  python3.10 --version
+ 1557  poetry env use /path/to/your/python3.10
+ 1558  poetry env use python3.10
+ 1559  pwd
+ 1560  poetry env use /home/owner/SambaData/Backup/FastCamp/Myproject/my_photo_album_3/python3.10
+ 1561  poetry shell
+ 1562  poetry env use /home/owner/SambaData/Backup/FastCamp/Myproject/my_photo_album_3/python3.10
+ 1563  poetry env use python3.10
+ 1564  # Poetry에게 이 프로젝트는 Python 3.10을 사용하도록 지시
+ 1565  poetry env use python3.10
+ 1566  # 이후 poetry shell 또는 poetry run 사용
+ 1567  poetry shell
+ 1568  # (가상환경 진입)
+ 1569  python --version
+ 1570  # 가상 환경 정보 보기 (선택 사항, 환경 이름 확인용)
+ 1571  poetry env info
+ 1572  # 가상 환경 활성화 (환경 이름을 직접 지정하거나, Poetry가 자동으로 찾도록 시도)
+ 1573  # Poetry가 자동으로 찾도록 시도 (가장 간단)
+ 1574  poetry env activate .
+ 1575  # 또는 환경 이름을 직접 지정
+ 1576  # poetry env activate my-photo-album-3-B9ubZvJ1-py3.10
+ 1577  poetry env activate
+ 1578  python --version
+ 1579  poetry shell
+ 1580  python --version
+ 1581  poetry env activate
+ 1582  python --version
+ 1583  source /home/owner/.cache/pypoetry/virtualenvs/my-photo-album-3-B9ubZvJ1-py3.10/bin/activate
+ 1584  python --version
+ 1585  ls ..
+ 1586  ls
+ 1587  # --rev 옵션을 사용하여 태그 또는 커밋 지정
+ 1588  poetry add git+https://github.com/ageitgey/face_recognition_models.git --rev v0.3.0
+ 1589  poetry env list
+ 1590  # Python 3.10 기반 환경 삭제 시도
+ 1591  poetry env remove python3.10
+ 1592  # 어떤 환경이 있는지 확인 (예: my-photo-album-3-...-py3.10 또는 py3.11)
+ 1593  poetry env list
+ 1594  # 해당 환경 삭제 (예시)
+ 1595  poetry env remove python3.10
+ 1596  # 또는
+ 1597  poetry env remove python3.11
+ 1598  # 또는 전체 이름 사용
+ 1599  # poetry env remove my-photo-album-3-B9ubZvJ1-py3.11
+ 1600  poetry env remove my-photo-album-3-B9ubZvJ1-py3.10
+ 1601  poetry env list
+ 1602  poetry cache clear --all pypi
+ 1603  # 그 다음 다시 시도
+ 1604  poetry env list
+ 1605  # 예시 (정확한 명령어는 다를 수 있음)
+ 1606  python3 /path/to/install-poetry.py --uninstall
+ 1607  # 또는 pipx uninstall poetry 등
+ 1608  python3 /path/to/install-poetry.py --uninstall
+ 1609  poetry env list
+ 1610  which poetry
+ 1611  echo $PATH
+ 1612  pipx uninstall poetry 
+ 1613  pip uninstall poetry 
+ 1614  deactivate
+ 1615  poetry --version
+ 1616  which poetry
+ 1617  echo $PATH
+ 1618  poetry --version
+ 1619  curl -sSL https://install.python-poetry.org | python3.10 -
+ 1620  poetry add git+https://github.com/ageitgey/face_recognition_models.git --rev v0.3.0
+ 1621  source ~/.bashrc
+ 1622  poetry --version
+ 1623  echo $PATH
+ 1624  ls -l /home/owner/.local/bin/poetry
+ 1625  # 공식 권장 설치 명령어
+ 1626  curl -sSL https://install.python-poetry.org | python3.10 -
+ 1627  curl -sSL https://install.python-poetry.org | python3.10 - --uninstall
+ 1628  echo $PATH
+ 1629  which poetry
+ 1630  poetry --version
+ 1631  ls -l /home/owner/.local/bin/poetry
+ 1632  source ~/.bashrc
+ 1633  poetry --version
+ 1634  curl -sSL https://install.python-poetry.org | python3.10 -
+ 1635  poetry --version
+ 1636  ㅔㅛ쇄ㅜ --ㅍㄷㄱ냐ㅐㅜ
+ 1637  python --version
+ 1638  poetry add git+https://github.com/ageitgey/face_recognition_models.git --rev v0.3.0
+ 1639  poetry run python --version
+ 1640  poetry env info
+ 1641  # 가상 환경 활성화 (경로는 실제 환경에 맞게 자동으로 찾아줍니다)
+ 1642  source $(poetry env info --path)/bin/activate
+ 1643  # 활성화 후 터미널 프롬프트가 변경됩니다 (예: (my-photo-album-3-...) owner@...)
+ 1644  # 이제 python --version 을 실행합니다
+ 1645  python --version
+ 1646  poetry add git+https://github.com/ageitgey/face_recognition_models.git#v0.3.0
+ 1647  poetry add git+https://github.com/ageitgey/face_recognition_models.git#37fc551
+ 1648  git --version
+ 1649  mkdir /tmp/git_test && cd /tmp/git_test
+ 1650  # 2. 저장소 클론 시도
+ 1651  git clone https://github.com/ageitgey/face_recognition_models.git
+ 1652  # 3. 클론된 디렉토리로 이동
+ 1653  cd face_recognition_models
+ 1654  # 4. 특정 커밋(37fc551)으로 이동(checkout) 시도
+ 1655  git checkout 37fc551
+ 1656  git checkout v0.3.0
+ 1657  git fetch --tags origin
+ 1658  git checkout v0.3.0
+ 1659  git tag -l
+ 1660  cd ~/SambaData/Backup/FastCamp/Myproject/my_photo_album_3
+ 1661  git config --global --list
+ 1662  # SSH URL 사용 시도 (커밋 해시 사용)
+ 1663  poetry add git+ssh://git@github.com/ageitgey/face_recognition_models.git#37fc551
+ 1664  poetry install
+ 1665  poetry lock
+ 1666  poetry install
+ 1667  # 홈 디렉토리 같은 곳으로 이동
+ 1668  cd ~
+ 1669  # 저장소 클론 (이미 있다면 삭제 후 다시 클론)
+ 1670  rm -rf face_recognition_models # 기존 것이 있다면 삭제
+ 1671  git clone https://github.com/ageitgey/face_recognition_models.git
+ 1672  # 클론된 디렉토리로 이동
+ 1673  cd face_recognition_models
+ 1674  # 특정 커밋으로 이동 (이전에 실패했지만 다시 시도)
+ 1675  # 만약 여기서 또 실패하면, 일단 최신 상태로 진행해야 할 수도 있습니다.
+ 1676  git checkout 37fc551
+ 1677  # 또는 태그 시도
+ 1678  # git checkout v0.3.0
+ 1679  ls -al ~/.ssh
+ 1680  eval "$(ssh-agent -s)"
+ 1681  ssh-add ~/.ssh/id_rsa
+ 1682  cat ~/.ssh/id_rsa.pub
+ 1683  ssh -T git@github.com
+ 1684  ssh-add -l
+ 1685  ssh-keygen -t ed25519 -C "your_email@example.com"
+ 1686  eval "$(ssh-agent -s)"
+ 1687  ssh-add ~/.ssh/id_ed25519
+ 1688  cat ~/.ssh/id_ed25519.pub
+ 1689  ssh -T git@github.com
+ 1690  poetry add git+ssh://git@github.com/ageitgey/face_recognition_models.git#37fc551
+ 1691  cd ~/SambaData/Backup/FastCamp/Myproject/my_photo_album_3
+ 1692  poetry add git+ssh://git@github.com/ageitgey/face_recognition_models.git#37fc551
+ 1693  cd SambaData/Backup/FastCamp/Myproject/*_3
+ 1694  ls
+ 1695  poetry env use python3.10
+ 1696  sudo add-apt-repository ppa:deadsnakes/ppa
+ 1697  python -versipn
+ 1698  python --versipn
+ 1699  python --version
+ 1700  sudo apt update
+ 1701  sudo apt install python3.10 python3.10-venv python3.10-dev
+ 1702  python --version
+ 1703  poetry env use python3.10
+ 1704  python --version
+ 1705  python3.10 --version
+ 1706  # face_recognition 추가
+ 1707  poetry add face_recognition
+ 1708  # face_recognition_models (git, 특정 태그 사용) 추가
+ 1709  # 이전에 pip으로 처리하셨지만, Python 3.10 환경에서는 Poetry로 다시 시도해볼 가치가 있습니다.
+ 1710  poetry add git+https://github.com/ageitgey/face_recognition_models.git#v0.3.0
+ 1711  # sklearn (scikit-learn) 추가
+ 1712  poetry add scikit-learn
+ 1713  # setuptools는 보통 다른 패키지의 의존성으로 자동 설치되거나
+ 1714  # 빌드 시스템에 이미 명시되어 있어 명시적으로 추가할 필요가 없을 수 있습니다.
+ 1715  # 만약 특정 버전이 필요하다면 poetry add setuptools 로 추가합니다.
+ 1716  poetry add face_recognition
+ 1717  poetry add git+https://github.com/ageitgey/face_recognition_models.git#v0.3.0
+ 1718  # 가상 환경 정보 보기 (선택 사항, 환경 이름 확인용)
+ 1719  poetry env info
+ 1720  # 가상 환경 활성화 (환경 이름을 직접 지정하거나, Poetry가 자동으로 찾도록 시도)
+ 1721  # Poetry가 자동으로 찾도록 시도 (가장 간단)
+ 1722  poetry env activate .
+ 1723  # 또는 환경 이름을 직접 지정
+ 1724  # poetry env activate my-photo-album-3-B9ubZvJ1-py3.10
+ 1725  poetry env activate
+ 1726  source /home/owner/.cache/pypoetry/virtualenvs/my-photo-album-3-B9ubZvJ1-py3.10/bin/activate
+ 1727  python --version
+ 1728  poetry add face_recognition
+ 1729  bash ../poetry.
+ 1730  bash ../tools/poetry.
+ 1731  bash ../tools/poetry.sh
+ 1732  . /home/owner/.cache/pypoetry/virtualenvs/my-photo-album-3-B9ubZvJ1-py3.10/bin/activate
+ 1733  poetry add git+https://github.com/ageitgey/face_recognition_models.git#v0.3.0
+ 1734  poetry add scikit-learn
+ 1735  poetry env remove my-photo-album-3-B9ubZvJ1-py3.11
+ 1736  python3 /path/to/install-poetry.py --uninstall
+ 1737  deactivate
+ 1738  poetry add git+https://github.com/ageitgey/face_recognition_models.git --rev v0.3.0
+ 1739  curl -sSL https://install.python-poetry.org | python3.10 -
+ 1740  sudo shutdown -h now
+ 1741  ls
+ 1742  poetry
+ 1743  ls
+ 1744  poetry env remove python
+ 1745  poetry env use python3.10
+ 1746  poetry install
+ 1747  poetry run pip install -r requirements.txt
+ 1748  poetry lock
+ 1749  poetry install# 1. 환경 제거 및 생성
+ 1750  poetry env remove python
+ 1751  poetry env use python3.10
+ 1752  # 2. Poetry 패키지 등록 및 설치
+ 1753  poetry add mediapipe numpy opencv-python Pillow matplotlib PyYAML
+ 1754  poetry lock
+ 1755  poetry install
+ 1756  # 3. pip로만 설치 가능한 패키지 처리
+ 1757  poetry run pip install -r requirements.txt
+ 1758  poetry env remove python
+ 1759  poetry lock
+ 1760  poetry install
+ 1761  poetry env remove python
+ 1762  poetry env use python3.10
+ 1763  poetry lock
+ 1764  poetry install
+ 1765  poetry env remove python
+ 1766  poetry env use python3.10
+ 1767  poetry add mediapipe numpy opencv-python Pillow matplotlib PyYAML
+ 1768  poetry lock
+ 1769  poetry install
+ 1770  cd ..
+ 1771  poetry env remove python
+ 1772  poetry env use python3.10cd *_3
+ 1773  cd *_3
+ 1774  poetry env remove python
+ 1775  cd ..
+ 1776  poetry env remove python
+ 1777  poetry env use python3.10
+ 1778  poetry env remove python
+ 1779  cd *_3
+ 1780  poetry env remove python
+ 1781  poetry env use python3.10
+ 1782  poetry lock
+ 1783  poetry install
+ 1784  ls
+ 1785  cd ..
+ 1786  poetry install
+ 1787  poetry run pip install -r my_photo_album_3/requirements.txt
+ 1788  pip install --upgrade pip
+ 1789  ls
+ 1790  poetry run python
+ 1791  poetry 
+ 1792  poetry add mediapipe numpy opencv-python Pillow matplotlib PyYAML
+ 1793  cd *_3
+ 1794  ls
+ 1795  ls -al
+ 1796  ls -al src
+ 1797  # 1. 환경 초기화
+ 1798  poetry env remove python
+ 1799  poetry env use python3.10
+ 1800  # 2. 의존성과 프로젝트 설치
+ 1801  poetry install
+ 1802  # 3. pip 전용 패키지 설치
+ 1803  poetry run pip install -r requirements.txt
+ 1804  cd ..
+ 1805  poetry env remove python
+ 1806  cd *_3
+ 1807  poetry env remove python
+ 1808  cd ..
+ 1809  poetry env remove python
+ 1810  cd *_3
+ 1811  ls
+ 1812  poetry env remove python
+ 1813  poetry env use python3.10
+ 1814  poetry env remove python
+ 1815  ls
+ 1816  poetry env use python3.10
+ 1817  ls
+ 1818  poetry lock
+ 1819  poetry install
+ 1820  ls
+ 1821  poetry add mediapipe numpy opencv-python Pillow matplotlib PyYAML
+ 1822  poetry run pip install -r requirements.txt
+ 1823  ls
+ 1824  poetry run python
+ 1825  poetry run python ./src/face_indexer_landmark.py 
+ 1826  poetry env remove python
+ 1827  poetry lock
+ 1828  poetry env use python3.10
+ 1829  poetry lock
+ 1830  poetry install
+ 1831  poetry run pip install -r requirements.txt
+ 1832  poetry add mediapipe numpy opencv-python Pillow matplotlib PyYAML
+ 1833  poetry run python ./src/face_indexer_landmark.py 
+ 1834  sudo apt-get update
+ 1835  sudo apt-get install libffi6
+ 1836  poetry run python ./src/face_indexer_landmark.py 
+ 1837  sudo apt-get install libffi6sudo dnf install libffi  # 또는 sudo yum install libffi
+ 1838  sudo apt-get update
+ 1839  sudo apt-get install libffi6
+ 1840  sudo apt-get install libffi-dev
+ 1841  apt search libffi
+ 1842  sudo apt-get update
+ 1843  sudo apt-get install libffi6
+ 1844  poetry run python ./src/face_indexer_landmark.py 
+ 1845  poetry env remove python
+ 1846  poetry install
+ 1847  poetry lock
+ 1848  poetry install
+ 1849  poetry env use python3.10
+ 1850  poetry lock
+ 1851  poetry add mediapipe numpy opencv-python Pillow matplotlib PyYAML
+ 1852  poetry run pip install -r requirements.txt
+ 1853  poetry run python ./src/face_indexer_landmark.py 
+ 1854  sudo apt update
+ 1855  sudo apt install libffi-dev
+ 1856  ㅗ---
+ 1857  sudo reboot
+ 1858  poetry run python ./src/face_indexer_landmark.py 
+ 1859  poetry env remove python
+ 1860  poetry env use python3.10
+ 1861  poetry add mediapipe numpy opencv-python Pillow matplotlib PyYAML
+ 1862  poetry update package
+ 1863  poetry update
+ 1864  poetry update package
+ 1865  poetry env remove python
+ 1866  poetry env use python3.10
+ 1867  poetry add mediapipe numpy opencv-python Pillow matplotlib PyYAML
+ 1868  poetry update package
+ 1869  poetry lock
+ 1870  poetry install
+ 1871  poetry run pip install -r requirements.txt
+ 1872  pip install --upgrade pip
+ 1873  poetry run python ./src/face_indexer_landmark.py 
+ 1874  poetry add mediapipe numpy opencv-python Pillow matplotlib PyYAML
+ 1875  ls
+ 1876  sudo apt update
+ 1877  sudo apt install libffi-dev
+ 1878  apt list --upgradable
+ 1879  sudo apt install libffi-dev
+ 1880  sudo find / -name libffi.so.6 2>/dev/null
+ 1881  sudo find / -name libffi.so.6 2
+ 1882  sudo find / -name "libffi.so.6 2"
+ 1883  sudo find / -name "*libffi.so.6 2*"
+ 1884  sudo apt update
+ 1885  sudo apt install libffi-dev
+ 1886  sudo find / -name "*libffi.so.6 2*"
+ 1887  sudo find / -name "*libffi*"
+ 1888  poetry lock
+ 1889  poetry install
+ 1890  sudo apt install libffi-dev
+ 1891  # 예시: /usr/lib/x86_64-linux-gnu/ 에 libffi.so.7 파일이 있고 .so.6이 필요하며 해당 디렉터리가 올바른 위치일 경우
+ 1892  cd /usr/lib/x86_64-linux-gnu/
+ 1893  sudo ln -s libffi.so.7 libffi.so.6
+ 1894  sudo shutsown -h now
+ 1895  sudo shutdown -h now
+ 1896  poetry run python ./src/face_indexer_landmark.py 
+ 1897  CD ..
+ 1898  LS
+ 1899  cd ..
+ 1900  ls
+ 1901  curl -sSL https://install.python-poetry.org | python3 -
+ 1902  mkdir my_album
+ 1903  cd my_album
+ 1904  poetry init
+ 1905  poetry add opencv-python
+ 1906  poetry update package
+ 1907  poetry add opencv-python
+ 1908  poetry add package@latest
+ 1909  poetry add opencv-python dlib face_recognition pandas numpy
+ 1910  poetry show
+ 1911  ls
+ 1912  poetry init --no-interaction
+ 1913  ls
+ 1914  poetry add opencv-python dlib face_recognition pandas numpy
+ 1915  ls
+ 1916  poetry show
+ 1917  mkdir sorc
+ 1918  cd sorc/
+ 1919  mkdir config
+ 1920  cd ..
+ 1921  cp ../my_photo_album_3/config/my_photo_album_3.yaml config/my_album.yaml
+ 1922  ls
+ 1923  mv sorc/config/ ..
+ 1924  mv sorc/config ..
+ 1925  cd sorc/
+ 1926  ls
+ 1927  mv config ../
+ 1928  cd ..
+ 1929  cp ../my_photo_album_3/config/my_photo_album_3.yaml config/my_album.yaml
+ 1930  cd config/
+ 1931  ls
+ 1932  'cd ..
+ 1933  cd ..
+ 1934  mkdir util
+ 1935  python ./util/config_namager.py 
+ 1936  ls config/
+ 1937  python ./util/config_namager.py 
+ 1938  ls
+ 1939  cd util/
+ 1940  ls 
+ 1941  ls ../config/my_album.yaml
+ 1942  cd ..
+ 1943  python ./util/config_namager.py 
+ 1944  python ./util/config_manager.py.py 
+ 1945  python ./util/config_manager.py
+ 1946  python ./util/face_detection.py 
+ 1947  poetry add cv2
+ 1948  poetry add opencv-python
+ 1949  poetry update package
+ 1950  poetry shell
+ 1951  poetry env activate
+ 1952  python
+ 1953  poetry env info
+ 1954  poetry env activate
+ 1955  poetry remove opencv-python
+ 1956  poetry add opencv-python
+ 1957  python
+ 1958  poetry env info
+ 1959  poetry shell
+ 1960  poetry env activate
+ 1961  poetry show
+ 1962  import cv2
+ 1963  print(cv2.__version__)
+ 1964  python
+ 1965  poetry env activate
+ 1966  poetry show
+ 1967  python
+ 1968  sudo shutdown -h now
+ 1969  echo $PYTHONPATH
+ 1970  poetry env list
+ 1971  poetry run which python
+ 1972  poetry run python -c "import sys; print(sys.path)"
+ 1973  poetry env remove python
+ 1974  rm -rf ~/.cache/pypoetry/virtualenvs
+ 1975  poetry env remove python
+ 1976  conda env list
+ 1977  which
+ 1978  which python
+ 1979  Poetry env info
+ 1980  find ~/ -iname "python*"
+ 1981  sudo apt-get remove atom
+ 1982  sudo apt remove atom
+ 1983  sudo apt purge atom
+ 1984  rm -rf ~/.atom
+ 1985  find ~/ -iname "python*"
+ 1986  ls -ld /home/owner/ls
+ 1987  rm -rf ~/anaconda3
+ 1988  find ~/ -iname "python*"
+ 1989  sudo apt remove cursor
+ 1990  rm -rf ~/.cursor-server
+ 1991  find ~/ -iname "python*"
+ 1992  conda remove sympy
+ 1993  find ~/ -iname "python*"
+ 1994  conda remove pytorch python-dateutil
+ 1995  conda clean --all
+ 1996  find ~/ -iname "python*"
+ 1997  conda env list
+ 1998  rm -rf /home/owner/ls
+ 1999  find ~/ -iname "python*"
+ 2000  sudo reboot
+ 2001  history > 1

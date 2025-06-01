@@ -1,0 +1,219 @@
+# my_yolo_tiny/config/my_yolo_tiny.yaml
+
+project:
+  name: my_album      # 프로젝트 이름
+  root_dir: ${PWD}        # 현재 작업 디렉토리를 root_dir로 설정 꼭 문자열 경로여야함.
+
+  paths:
+    datasets: # 데이터 폴더 - 원본 이미지 처리 정보
+      datasets_dir: ~/SambaData/OwnerData/train/
+      raw_image_dir:            ${project.paths.datasets.datasets_dir}/images # config_loader가 ${변수} 치환을 지원해야 합니다.
+      raw_jsons_dir:            ${project.paths.datasets.datasets_dir}/jsons
+      detected_dir:             ${project.paths.datasets.datasets_dir}/detected/
+      undetect_dir:             ${project.paths.datasets.datasets_dir}/undetect/
+      detected_objects_dir:     ${project.paths.datasets.detected_dir}/objects/     # 검출된 객체 저장 (얼굴/기타)
+      detected_list_path:       ${project.paths.datasets.detected_dir}/detected_jsons.lst
+      undetect_objects_dir:     ${project.paths.datasets.undetect_dir}/objects/     # 검출된 객체 저장 (얼0xEB><0><0x8E>기타)
+      undetect_list_path:       ${project.paths.datasets.undetect_dir}/undetect_jsons.lst
+
+    outputs: # 결과 폴더
+      outputs_dir: ${project.root_dir}/outputs/
+      results_dir:              ${project.paths.outputs.outputs_dir}/results/
+
+  source: # 소스 코드 폴더
+    src_dir: ${project.root_dir}/src/
+    # face_indexer_landmarker: face_indexer_landmark.py # 필요시 유지
+    # face_search_web: ${src_dir}/face_search_web.py # 필요시 유지
+    config_loader:    ${project.source.src_dir}/config_loader.py
+    object_detector:  ${project.source.src_dir}/object_detector.py # YOLO 객체 검출 코드 파일
+    # face_detector: ${src_dir}/face_detector.py # 필요시 유지
+    # face_reviewer: ${src_dir}/face_reviewer.py # 필요시 유지
+
+    templates: # UI 템플릿
+      # templates_dir: ${src_dir}/templates/ # ${src_dir} 참조 (loader 지원 필요)
+      templates_dir:  ${project.source.src_dir}/templates/ # 또는 root_dir 기준으로 명시
+      search_html:    ${project.source.templates.templates_dir}/search.html
+
+  pyproject_toml_path: ${project.root_dir}/pyproject.toml
+
+  # requirements: ${root_dir}/requirements.txt # Poetry 사용으로 제거
+  README:   ${project.root_dir}/README.md
+  LICENSE:  ${project.root_dir}/LICENSE
+
+models:
+  models_dir: ${project.root_dir}/models/
+
+  # 어떤 모델 설정을 사용할지 선택 (model_selection을 이 위치로 옮기는 것이 일반적입니다)
+  model_selection : 1 # 1로 설정하여 YOLO 모델 사용을 나타냅니다.
+  min_detection_confidence: 0.4
+
+  face_recognition:
+    model_name: dlib
+    # dlib 모델 파일(dat 파일들)이 있는 디렉토리 경로
+    # 예시: /usr/share/dlib-models 또는 사용자가 다운로드 받은 경로
+    models_dir: ${models.models_dir}/dlib # <-- 실제 경로로 수정 필요
+    # 개별 모델 파일 경로는 dlib_models_dir 아래에 있다고 코드에서 가정합니다.
+    face_rec_model_name: dlib_face_recognition_resnet_model_v1.dat # <-- 실제 경로로 수정 필요data
+    landmark_model_name: shape_predictor_68_face_landmarks.dat # <-- 실제 경로로 수정 필요data
+  # YOLO 객체 검출 관련 설정
+  object_yolo_tiny_model:
+    # 얼굴 검출에 초점을 맞춘 YOLO 모델 설정
+    face_detection_model: # 키 이름을 변경
+      model_name: yolov8n-face.pt # 사용할 모델 명칭
+      model_weights_path: ${models.models_dir}/yolov8n-face.pt # 얼굴 검출에 사용할 YOLO 모델 파일 경로
+      confidence_threshold: 0.25
+      use_cpu: True # CPU 사용 여부 (이전 블록에서 가져옴)
+      imgsz: 640 # YOLO 입력 이미지 크기 (이전 블록에서 가져옴)
+      # 필요한 경우 classes_to_detect도 여기에 포함
+
+    # 일반 객체 검출에 사용될 수 있는 YOLO 모델 설정 (필요하다면)
+    object_detection_model:
+      model_name: yolov8n
+      model_weights_path: ${models.models_dir}/yolov8n.pt
+      confidence_threshold: 0.25
+      iou_threshold: 0.45
+      classes_to_detect: [0, 15, 16, 65, 67, 68, 69]
+      use_cpu: True # CPU 사용 여부 (이전 블록에서 가져옴)
+      imgsz: 640 # YOLO 입력 이미지 크기 (이전 블록에서 가져옴)
+
+  # 이미지/영상 처리 관련 설정 (models 섹션 아래에 하위 섹션으로 위치)
+processing:
+  supported_image_extensions:
+  - .jpg
+  - .jpeg
+  - .png
+  - .bmp
+  - .tiff
+  - .gif
+  - .webp
+
+  frame_skip: 1 # 영상 처리 시 프레임 스킵
+  output_format: image # 결과 저장 형식
+
+  # 기존 얼굴 검출 관련 설정 (YOLO 사용 시 불필요하거나 다른 섹션으로 분리 고려)
+  # detection_scale_factor: 1.1
+  # detection_min_neighbors: 5
+  # detection_image_size:
+  # - 224
+  # - 224
+  # detection_min_size:
+  # - 30
+  # - 30
+  # min_detection_confidence: 0.4
+  # tolerance: 0.2
+  # ... (기존 설정) ...
+
+  # --- 추가된 JSON/데이터 구조 키 설정 ---
+  # JSON 파일에서 특정 데이터를 찾을 때 사용할 키 이름들을 정의합니다.
+  # 이렇게 하면 키 이름이 변경되어도 이 설정 파일만 수정하면 됩니다.
+json_keys:
+  # JSON 파일의 최상위 정보 키들
+  user_profile:
+    key: "user_profile"
+    username:
+      key: "user_name"
+      name: "salgabda"
+    email_info:
+      key: "email"
+      email: "salgaba@naver.com"
+  image_info_key:
+    key: "image_info"
+    resolution:
+      key: "resolution"
+      width_key: "width"
+      height_key: "height"
+      channels_key: "channels"
+    image_name_key: "image_name"
+    image_path_key: "image_path"
+    image_hash_key: "image_hash"
+    # JSON 파일 내에서 감지된 객체(detected_obj) 리스트에 접근하는 키
+  object_info_key:
+    object_name_key: "detected_obj"
+    object_box_xyxy_key: "box_xyxy"
+    object_box_xywh_key: "box_xywh"
+    object_confidence_key: "confidence"
+    object_class_id_key: "class_id"
+    object_class_name_key: "class_name"
+    object_label_key: "label" # 얼굴 라벨 (e.g., "face")
+    object_index_key: "index"  
+    face_info_key:
+        face_name_key: "detected_face"
+        face_box_xyxy_key: "bbox_xyxy" # 얼굴 영역 바운딩 박스 (detection 결과)
+        face_confidence_key: "confidence" # 얼굴 감지 confidence (detection 결과)
+        face_class_id_key: "class_id"
+        face_class_name_key: "class_name"
+        face_label_key: "label" # 얼굴 라벨 (e.g., "face")
+        # 함수 설명 및 목표에 따라 가정된 키들 (실제 JSON에 있어야 함)
+        face_embedding_key: "embedding" # 얼굴 임베딩 벡터 데이터 키
+        face_id_key: "face_id" # 고유 얼굴 ID 키
+        # 'box' 키는 JSON 예시에 있는 'box_xyxy'와 다를 수 있으므로 명확히 구분 (예: 'face_box_in_obj')
+        # 여기서는 함수에서 사용된 'box' 키를 그대로 사용한다고 가정
+        face_box_key: "box" # 얼굴 바운딩 박스 (추출/임베딩 과정에서 사용될 수도 있는 키)
+        # 필요에 따라 다른 얼굴 메타데이터 키 추가
+# --- JSON/데이터 구조 키 설정 끝 ---
+
+indexing: # 벡터 인덱싱 및 검색 설정
+  # 사용할 인덱싱 라이브러리 (FAISS 또는 Annoy)
+  # 현재는 FAISS (CPU 버전)에 맞춰 설명합니다.
+  library: faiss
+
+  # 인덱스 및 메타데이터 파일이 저장될 기본 디렉토리
+  # 이 디렉토리 아래에 인덱스 파일과 메타데이터 파일이 생성됩니다.
+  index_output_dir: ${project.root_dir}/index/
+
+  # FAISS 인덱스 파일 저장 경로
+  # index_output_dir 아래에 저장되도록 정의합니다.
+  index_file_path: ${indexing.index_output_dir}/face_index.faiss
+
+  # 얼굴 이미지별 메타데이터 저장 경로
+  # JSON Lines 형식으로 저장하는 것을 추천합니다.
+  metadata_path: ${indexing.index_output_dir}/face_metadata.jsonl
+
+  # 얼굴 특징 벡터 차원 (사용하는 얼굴 특징 추출 모델에 따라 달라집니다.)
+  # dlib의 resnet 모델은 기본적으로 128차원 벡터를 생성합니다.
+  embedding_dim: 128 # dlib 사용 시 128로 설정
+
+  # --- FAISS 인덱스 타입 및 관련 파라미터 설정 ---
+  # CPU 환경과 12GB 메모리를 고려한 추천 설정입니다.
+
+  # 사용할 FAISS 인덱스 타입
+  # 주요 CPU 지원 인덱스 타입: IndexFlatL2, IndexFlatIP, IndexIVFFlat, IndexIVFPQ 등
+  # IndexFlatL2 또는 IndexIVFFlat을 추천합니다.
+  faiss_index_type: IndexFlatL2 # 초기 추천: 단순 L2 거리 기반, 구현 간단, 메모리 효율 좋음
+
+  # IndexIVFFlat 사용 시 필요한 파라미터
+  # faiss_index_type을 IndexIVFFlat으로 변경 시 아래 설정들을 사용합니다.
+  # IndexIVFFlat은 인덱스를 nlist 개의 Voronoi 셀로 나누어 검색 속도를 높입니다.
+  # nlist: 100 # 클러스터 개수 (적절한 값 선택이 중요)
+  # nprobe: 10 # 검색 시 탐색할 셀 개수 (nlist <= nprobe 일수록 정확도 높지만 느려짐)
+
+  # IndexIVFPQ 사용 시 필요한 파라미터 (IndexIVFFlat보다 메모리 사용량 더 줄일 수 있음)
+  # faiss_index_type을 IndexIVFPQ으로 변경 시 아래 설정들을 사용합니다.
+  # IndexIVFPQ은 특징 벡터를 압축하여 저장합니다 (정확도 손실 가능).
+  M: 8 # 각 특징 벡터를 몇 개의 하위 벡터로 나눌 것인지 (embedding_dim의 약수여야 좋음, 예: 128차원을 8개로 나누면 각 16차원)
+  nbits: 8 # 각 하위 벡터를 몇 비트로 압축할 것인지 (보통 8비트)
+  nlist: 100 # IndexIVFPQ도 IVFFlat 기반이므로 nlist 필요
+  # nprobe: 10 # 검색 시 탐색할 셀 개수
+
+  # 검색 시 사용할 유사도 측정 기준
+  # L2: 유클리디안 거리 (값이 작을수록 유사)
+  # IP: 내적 (값이 클수록 유사, 벡터가 정규화된 경우 코사인 유사도와 동일)
+  similarity_metric: L2 # IndexFlatL2/IndexIVFFlat 사용 시 L2, IndexFlatIP 사용 시 IP
+
+  # 검색 결과로 반환할 가장 유사한 얼굴 개수 (Top-K 검색)
+  top_k_search_results: 10 # 예시: 가장 유사한 10개 얼굴 반환
+
+  # --- 클러스터링 설정 (인덱싱 후 선택적으로 수행) ---
+  clustering:
+    # 사용할 클러스터링 알고리즘
+    algorithm: dbscan # 또는 kmeans
+    # DBSCAN 파라미터
+    dbscan_eps: 0.5 # 클러스터를 형성할 최대 거리 (유사도 임계값, 0.0~1.0 사이 값으로 정규화된 벡터라면 적절한 값 탐색 필요)
+    dbscan_min_samples: 5 # 클러스터를 형성하기 위한 최소 샘플(얼굴 이미지) 수
+
+    # K-Means 파라미터 (algorithm: kmeans 선택 시)
+    # kmeans_n_clusters: 100 # 생성할 클러스터 개수 (사전에 알기 어렵다면 휴리스틱 필요)
+    # kmeans_random_state: 42 # 재현성을 위한 랜덤 시드
+
+  # batch 처리시 batch의 크기
+  batch_sizeL: 4

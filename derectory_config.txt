@@ -1,0 +1,75 @@
+MyProject/
+├── my_utils/
+│    ├── src/
+│    │   └── my_utils/
+│    │       └── photo_utils/
+│    │           ├── __init__.py
+│    │           └── configger.py  # 공용 configger 코드가 위치
+│    ├── pyproject.toml
+│    └── ...
+├── my_photo_album/
+│    ├── config/.my_config.yaml              # 구성 파일
+│    ├── data/raw_photos/                    # 원본 이미지
+│    ├── data/indexed_faces/                # 얼굴 crop
+│    ├── data/face_index.pkl                 # 인덱스 저장 결과
+│    ├── sorc/
+│    │   ├── face_indexer.py                # 인덱싱
+│    │   ├── face_search_web.py            # 웹 서버
+│    │   ├── face_labeler.py              # 라벨링 UI
+│    │   └── config_loader.py              # 설정 로더
+│    ├── templates/search.html              # 검색 UI
+│    ├── static/results/                   # 결과 이미지 (복사 비사용 시 미활용)
+│    ├── README.md
+├── my_album/
+│    ├── config/.my_config.yaml              # 구성 파일
+│    ├── data/raw_photos/                    # 원본 이미지
+│    ├── data/indexed_faces/                # 얼굴 crop
+│    ├── data/face_index.pkl                 # 인덱스 저장 결과
+│    ├── sorc/
+│    │   ├── face_indexer.py                # 인덱싱
+│    │   ├── face_search_web.py            # 웹 서버
+│    │   ├── face_labeler.py              # 라벨링 UI
+│    │   └── config_loader.py              # 설정 로더
+│    ├── templates/search.html              # 검색 UI
+│    ├── static/results/                   # 결과 이미지 (복사 비사용 시 미활용)
+│    ├── README.md
+├── my_photo_album_1/
+│    ├── config/.my_config.yaml              # 구성 파일
+│    ├── data/raw_photos/                    # 원본 이미지
+│    ├── data/indexed_faces/                # 얼굴 crop
+│    ├── data/face_index.pkl                 # 인덱스 저장 결과
+│    ├── sorc/
+│    │   ├── face_indexer.py                # 인덱싱
+│    │   ├── face_search_web.py            # 웹 서버
+│    │   ├── face_labeler.py              # 라벨링 UI
+│    │   └── config_loader.py              # 설정 로더
+│    ├── templates/search.html              # 검색 UI
+│    ├── static/results/                   # 결과 이미지 (복사 비사용 시 미활용)
+│    ├── README.md
+├── my_photo_album_2/
+│    ├── config/.my_config.yaml              # 구성 파일
+│    ├── data/raw_photos/                    # 원본 이미지
+│    ├── data/indexed_faces/                # 얼굴 crop
+│    ├── data/face_index.pkl                 # 인덱스 저장 결과
+│    ├── sorc/
+│    │   ├── face_indexer.py                # 인덱싱
+│    │   ├── face_search_web.py            # 웹 서버
+│    │   ├── face_labeler.py              # 라벨링 UI
+│    │   └── config_loader.py              # 설정 로더
+│    ├── templates/search.html              # 검색 UI
+│    ├── static/results/                   # 결과 이미지 (복사 비사용 시 미활용)
+│    ├── README.md
+├── my_photo_album_3/
+│    ├── config/.my_config.yaml              # 구성 파일
+│    ├── data/raw_photos/                    # 원본 이미지
+│    ├── data/indexed_faces/                # 얼굴 crop
+│    ├── data/face_index.pkl                 # 인덱스 저장 결과
+│    ├── sorc/
+│    │   ├── face_indexer.py                # 인덱싱
+│    │   ├── face_search_web.py            # 웹 서버
+│    │   ├── face_labeler.py              # 라벨링 UI
+│    │   └── config_loader.py              # 설정 로더
+│    ├── templates/search.html              # 검색 UI
+│    ├── static/results/                   # 결과 이미지 (복사 비사용 시 미활용)
+│    ├── README.md
+

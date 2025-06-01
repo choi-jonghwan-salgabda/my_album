@@ -1,0 +1,24 @@
+# from mysyslib import combine_paths
+ROOT_DIR: "/data/ephemeral/home/Upstage"
+resnet34_path:
+  PROJ_DIR:       $(ROOT_DIR)/ResNet34
+  worker_path:
+    WORK_DIR:    ${PROJ_DIR}/sorc          # 이프로젝트에서 일하는 일꾼코드들의 모아둔 곳입니다.
+    LOG_DIR:     ${PROJ_DIR}/logs          # 이프로젝트의 일꾼들이 일한 흔적들입니다.
+    MODEL_DIR:   ${PROJ_DIR}/models        #_DIR:     ${PROJ_DIR}./config    # 이프로젝트의 일꾼들이 일한 흔적들입니다.
+  dataset_path:
+    DATA_DIR:    $~/data/images          # 모델 생성에 필요한 데이터 경로를 사용자 환경에 맞게 지정합니다.
+    IMAGES_DIR:   ${DATAS_DIR}/train       # Data중 이미지.
+    JSONS_DIR:    ${DATAS_DIR}        # Data중 json
+    TEST_DIR:    ${DATAS_DIR}/test        # Data중 json
+  output_path:
+    OUTPUT_DIR:  ${PROJ_DIR}/outputs       # 출력물의 모든것을 저장하는 곳.-모델 생성과정의 checkpoint와 학습후 결과에 필요한 경로를 사용자 환경에 맞게 지정합니다.
+  MESSAGE:
+    START: '발자욱 만들기 시작'
+    PROJ_DIR: '프로젝트 위치 (PROJ_DIR)'
+    WORK_DIRl:  '일꾼들이 있는곳 (WORK_DIR)'
+    DATA_DIR: '데이터 있는곳 (DATA_DIR)' # YAML 값이 반영된 경로 출력
+    IMAGES_DIR: '익혀야할 사진 있는곳 (IMAGES_DIR)' # YAML 값이 반영된 경로 출력
+    OUTPUT_DIR: '익히고 만들어 낸것들 (OUTPUT_DIR)'
+    LOG_DIR:  '발자욱을 모아둔곳 (LOG_DIR)'
+    ENDED: '발자욱 만들기 마침'

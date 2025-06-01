@@ -1,0 +1,6 @@
+export`KEY_COUNTRY="KR"
+export KEY_PROVINCE="Seoul"
+export KEY_CITY="Dondeamun-Gu"
+export KEY_ORG="MyHomeCompeny"
+export KEY_EMAIL="salgabda@naver.com"
+export KEY_OU="MyFamily"

@@ -1,0 +1,500 @@
+    2  mv org ~/data/
+    3  mv dup ~/data/
+    4  python organize_photos_editting.py  --target_dir ~/output/ --orgniz_dir org --duplic_dir ./dup
+    5  ls
+    6  python organize_photos_editting.py  --target_dir ~/output/ --orgniz_dir org --duplic_dir ./dup
+    7  python organize_photos_editting.py  --target_dir ~/output/ --orgniz_dir org --duplic_dir ./dup
+    8  ls
+    9  mv dup ~/data/
+   10  mv org ~/data/
+   11  python organize_photos_editting.py  --target_dir ~/output/ --orgniz_dir org --duplic_dir ./dup
+   12  ls
+   13  du org
+   14  cp ~/data/a
+   15  ls ~/data/
+   16  ls ~/data/a
+   17  ls
+   18  ls ~/data/a
+   19  ls ~/data/aihub/
+   20  ls ~/data/aihub/Fastcampus_project/
+   21  cp ~/data/aihub/Fastcampus_project/sample_image/ ~/output/
+   22  cp ~/data/aihub/Fastcampus_project/sample_image ~/output/
+   23  cp -r  ~/data/aihub/Fastcampus_project/sample_image ~/output/
+   24  du ~/output/
+   25  python organize_photos_editting.py  --target_dir ~/output/ --orgniz_dir org --duplic_dir ./dup
+   26  python organize_photos_editting.py  --target_dir ~/output/ --orgniz_dir org --duplic_dir ./dup
+   27  ls
+   28  python review_photos.py 
+   29  conda install matplotlib Pillow
+   30  python review_photos.py 
+   31  sudo apt update
+   32  sudo apt install -y fonts-nanum
+   33  apt update
+   34  apt install -y fonts-nanum
+   35  fc-list | grep Nanum
+   36  python review_photos.py 
+   37  fc-cache -f -v
+   38  python review_photos.py 
+   39  python review_photos.py  (base) root@instance-15230:~/Upstage/tools# python review_photos.py 
+   40  2025-04-16 15:44:36,376 - WARNING - findfont: Font family ['NanumGothic'] not found. Falling back to DejaVu Sans.
+   41  2025-04-16 15:44:36,377 - INFO - Matplotlib 폰트를 'DejaVu Sans'(/opt/conda/lib/python3.10/site-packages/matplotlib/mpl-data/fonts/ttf/DejaVuSans.ttf)으로 설정했습니다.
+   42  usage: review_photos.py [-h] --map_file MAP_FILE [--debug]
+   43  review_photos.py: error: the following arguments are required: --map_file
+   44  review_photos.py: error: the following arguments are required: --map_file 
+   45  ls
+   46  review_photos.py: error: the following arguments are required: --map_file update_json_keys_with_actual_filenames
+   47  cd ..
+   48  ls
+   49  cd tools/
+   50  ls
+   51  ls -al
+   52  python organize_photos_editting.py  --target_dir ~/output/ --orgniz_dir org --duplic_dir ./dup
+   53  mv org ~/output/
+   54  mv dup  ~/output/
+   55  mv dup  -f ~/output/
+   56  mv dup  -rf ~/output/
+   57  mv -i dup  ~/output/
+   58  mv -f dup  ~/output/
+   59  du ~/output/
+   60  du dup
+   61  rm -rf dup
+   62  cp -r  ~/data/aihub/Fastcampus_project/sample_image ~/output/
+   63  python organize_photos_editting.py  --target_dir ~/output/ --orgniz_dir org --duplic_dir ./dup
+   64  review_photos.py --map_file update_json_keys_with_actual_filenames
+   65  ls
+   66  review_photos.py --map_file organize_photos_map.json
+   67  python review_photos.py --map_file organize_photos_map.json
+   68  import matplotlib.font_manager
+   69  matplotlib.font_manager._rebuild()
+   70  python
+   71  python font_test.py 
+   72  python review_photos.py --map_file organize_photos_map.json
+   73  python review_photos.py --map_file organize_photos_map.json
+   74  python review_photos.py --map_file organize_photos_map.json
+   75  python review_photos.py --map_file organize_photos_map.json
+   76  python review_photos.py --map_file organize_photos_map.json
+   77  python review_photos.py --map_file organize_photos_map.json
+   78  python review_photos.py --map_file organize_photos_map.json
+   79  python review_photos.py --map_file organize_photos_map.json
+   80  python review_photos.py --map_file organize_photos_map.json
+   81  ls
+   82  du
+   83  ls
+   84  rm -rf org dup
+   85  rm *.log
+   86  ls
+   87  vi __init__.py
+   88  vi __init__.py
+   89  cd ResNet34/
+   90  conda deactivate
+   91  conda create --name resnet34 python=3.10
+   92  conda activate resnet34
+   93  ls
+   94  pip install -r requirements.txt 
+   95  python ./sorc/myresnet.py 
+   96  python ./sorc/train_myresnet.py 
+   97  ls sorc/
+   98  python ./sorc/train_myresnet.py 
+   99  cd ResNet34/
+  100  conda deactivate
+  101  conda activate resnet.env
+  102  conda env list
+  103  conda activate resner34
+  104  conda activate resnet34
+  105  python ./sorc/train_myresnet.py 
+  106  python ./sorc/train_myresnet.py 
+  107  conda deactivate
+  108  cd ResNet34/
+  109  conda activate resnet
+  110  conda env list
+  111  conda activate resnet34
+  112  ls
+  113  python ./sorc/train_myresnet.py 
+  114  python ./sorc/train_myresnet.py 
+  115  python ./sorc/train_myresnet.py 
+  116  python ./sorc/train_myresnet.py 
+  117  python ./sorc/train_myresnet.py 
+  118  python ./sorc/train_myresnet.py 
+  119  python ./sorc/train_myresnet.py 
+  120  python ./sorc/train_myresnet.py 
+  121  python ./sorc/train_myresnet.py 
+  122  python ./sorc/train_myresnet.py 
+  123  python ./sorc/train_myresnet.py 
+  124  python ./sorc/train_myresnet.py 
+  125  python ./sorc/train_myresnet.py 
+  126  python ./sorc/train_myresnet.py 
+  127  python ./sorc/find_similar_faces.py 
+  128  pip install face_recognitio
+  129  pip install face_recognition
+  130  sudo apt-get update
+  131  sudo apt-get install build-essential cmake
+  132  sudo apt-get install libopenblas-dev liblapack-dev # 선택 사항이지만, dlib 성능에 도움될 수 있음
+  133  sudo apt-get install libx11-dev # GUI 관련 기능 사용 시 필요할 수 있음
+  134  apt-get update
+  135  apt-get install build-essential cmake
+  136  apt-get install libx11-dev # GUI 관련 기능 사용 시 필요할 수 있음
+  137  apt-get install libopenblas-dev liblapack-dev # 선택 사항이지만, dlib 성능에 도움될 수 있음
+  138  python ./sorc/find_similar_faces.py 
+  139  pip install face_recognition
+  140  python ./sorc/find_similar_faces.py 
+  141  cd
+  142  ls
+  143  cd data/
+  144  ls
+  145  sfpt -P 5410 ftpuser@jongsook.iptime.org
+  146  sftp -P 5410 ftpuser@jongsook.iptime.org
+  147  ls
+  148  conda deactivate
+  149  curl -sSL https://install.python-poetry.org | python3 -
+  150  poetry --version
+  151  apt-get update
+  152  poetry --version
+  153  curl -sSL https://install.python-poetry.org | python3 -
+  154  poetry --version
+  155  echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.bashrc
+  156  source ~/.bashrc
+  157  poetry --version
+  158  export PATH="$HOME/.local/bin:$PATH"
+  159  mksir face_sorter
+  160  mkdir face_sorter
+  161  cd face_sorter/
+  162  poetry install
+  163  poetry shell
+  164  conda deactivate
+  165  ls
+  166  cd face_sorter
+  167  poetry install
+  168  poetry env info
+  169  poetry init
+  170  poetry init
+  171  ls
+  172  cd face_sorter
+  173  poetry install
+  174  poetry install
+  175  poetry shell
+  176  poetry env activate
+  177  poetry env info --path
+  178  poetry self add poetry-plugin-shell
+  179  poetry env info
+  180  poetry env activate
+  181  poetry install
+  182  poetry install
+  183  conda deactivate
+  184  poetry install
+  185  poetry env activate
+  186  python setup_project.py 
+  187  poetry install
+  188  python setup_project.py 
+  189  poetry install
+  190  ls
+  191  cd face_sorter/
+  192  ls
+  193  python ./sorc/find_similar_faces.py 
+  194  pip install face_recognition
+  195  python ./sorc/find_similar_faces.py 
+  196  ㅣㄴ
+  197  ls
+  198  ls
+  199  rm -rf "\${PROJ_DIR}"/
+  200  ls -al
+  201  ls
+  202  cd data/
+  203  ls
+  204  cd ..
+  205  ls
+  206  python ./sorc/find_similar_faces.py 
+  207  python ./sorc/find_similar_faces.py --image_dir ~/data/test 
+  208  ls ~/data
+  209  python ./sorc/find_similar_faces.py mode build_index --image_dir ~/data/test 
+  210  python ./sorc/find_similar_faces.py mode 'build_index' --image_dir ~/data/test 
+  211  python ./sorc/find_similar_faces.py build_index --image_dir ~/data/test 
+  212  ㅣㄴ
+  213  ls
+  214  cd log
+  215  ls
+  216  cd ..
+  217  ls
+  218  ls -al
+  219  cd ResNet34/
+  220  ls
+  221  cd ../RedNet34/
+  222  ls
+  223  cd logs/
+  224  ls
+  225  cd ../outputs/
+  226  ls
+  227  ls -al
+  228  cd ..
+  229  mv * ../ResNet34/
+  230  ls
+  231  cd Upstage/ResNet34/
+  232  ls
+  233  python ./sorc/find_similar_faces.py search --image_dir ~/images/test 
+  234  python ./sorc/find_similar_faces.py search --query_image  ~/data/images/test 
+  235  python ./sorc/find_similar_faces.py mode 'build_index' --image_dir ~/data/images/train 
+  236  python ./sorc/find_similar_faces.py mode 'build_index' --image_dir ~/data/images/train 
+  237  python ./sorc/find_similar_faces.py mode 'build_index' --image_dir ~/data/images/train 
+  238  python ./sorc/find_similar_faces.py mode 'build_index' --image_dir ~/data/images/train 
+  239  python ./sorc/find_similar_faces.py mode 'build_index' --image_dir ~/data/images/train 
+  240  python ./sorc/find_similar_faces.py mode 'build_index' --image_dir ~/data/images/train 
+  241  conda env list
+  242  conda deactive
+  243  conda deactivatee
+  244  conda deactivate
+  245  conda activate resnet34
+  246  pip install omegaconf
+  247  python ./sorc/find_similar_faces.py mode 'build_index' --image_dir ~/data/images/train 
+  248  conda activate resnet34
+  249  python ./sorc/find_similar_faces.py mode 'build_index' --image_dir ~/data/images/train 
+  250  python ./sorc/find_similar_faces.py 'build_index' --image_dir ~/data/images/train 
+  251  python ./sorc/find_similar_faces.py 'build_index' --image_dir ~/data/images/train --force-reindex
+  252  python ./sorc/find_similar_faces.py 'build_index' --image_dir ~/data/images/train --force-reindex action
+  253  python ./sorc/find_similar_faces.py 'build_index' --image_dir ~/data/images/train --force-reindex store_true
+  254  python ./sorc/find_similar_faces.py 'build_index' --image_dir ~/data/images/train --force-reindex 'store_true'
+  255  python ./sorc/find_similar_faces.py build_index --image_dir ~/data/images/train --force-reindex store_true
+  256  python ./sorc/find_similar_faces.py build_index --image_dir ~/data/images/train --force-reindex action="store_true"e
+  257  python ./sorc/find_similar_faces.py build_index --image_dir ~/data/images/train --force-reindex action="store_true"
+  258  python ./sorc/find_similar_faces.py build_index --image_dir ~/data/images/train action="store_true"
+  259  python ./sorc/find_similar_faces.py build_index --image_dir ~/data/images/train --force-reindex action="store_true"
+  260  python ./sorc/find_similar_faces.py build_index --image_dir ~/data/images/train --force-reindex
+  261  python ./sorc/find_similar_faces.py build_index --image_dir ~/data/images/train --force-reindex
+  262  # --force_reindex 기능을 활성화하려면 이렇게 사용합니다:
+  263  python ./sorc/find_similar_faces.py build_index --image_dir ~/da
+  264  python ./sorc/find_similar_faces.py search --image_dir ~/data/images/test
+  265  python ./sorc/find_similar_faces.py search --image_dir ~/data/images/test
+  266  python ./sorc/find_similar_faces.py search --image_dir ~/data/images/test
+  267  python ./sorc/find_similar_faces.py search --image_dir ~/data/images/test
+  268  python ./sorc/find_similar_faces.py search --query_image ~/data/images/test
+  269  ls ~/data/images/
+  270  python ./sorc/find_similar_faces.py search --query_image ~/data/images/test
+  271  python ./sorc/find_similar_faces.py search --query_image ~/data/images/test
+  272  python ./sorc/find_similar_faces.py search --query_image ~/data/images/test
+  273  python ./sorc/find_similar_faces.py search --query_image ~/data/images/test
+  274  python ./sorc/find_similar_faces.py search --query_image ~/data/images/test
+  275  ls /data/ephemeral/home/data/images/test
+  276  python ./sorc/find_similar_faces.py search --query_image ~/data/images/test/KakaoTalk_20250418_091913675_02.jpg
+  277  conda deactivate
+  278  conda activate resnet34
+  279  python ./sorc/find_similar_faces.py search --query_image ~/data/images/test/KakaoTalk_20250418_091913675_02.jpg
+  280  cd 
+  281  cd Upstage/ResNet34/
+  282  python ./sorc/find_similar_faces.py search --query_image ~/data/images/test/KakaoTalk_20250418_091913675_02.jpg
+  283  cd ~/Upstage/ResNet34/
+  284  conda config --set auto_activate_base false
+  285  conda deactivate
+  286  conda activate resnet34
+  287  python ./sorc/find_similar_faces.py search --query_image ~/data/images/test/KakaoTalk_20250418_091913675_02.jpg
+  288  python ./sorc/find_similar_faces.py search --query_image ~/data/images/test/KakaoTalk_20250418_091913675.jpg
+  289  poentry --version
+  290  curl -sSL https://install.python-poetry.org | python3 -
+  291  export PATH="$HOME/.local/bin:$PATH"
+  292  poentry --version
+  293  source ~/.bashrc      # 또는 source ~/.zshrc
+  294  poentry --version
+  295  echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.bashrc
+  296  source ~/.bashrc
+  297  poentry --version
+  298  curl -sSL https://install.python-poetry.org | python3 -
+  299  poentry --version
+  300  echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.bashrc
+  301  poentry --version
+  302  echo 'export PATH="$HOME/.local/bin:$PATH"'
+  303  echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.bashrc
+  304  source ~/.bashrc
+  305  poentry --version
+  306  poetry --version
+  307  cd ~/Upstage/
+  308  mkdir ~/face_finder_project
+  309  cd ~/face_finder_project
+  310  ls
+  311  poetry init # 이름, 버전 등 입력 (기본값 사용 가능)
+  312  ls
+  313  mkdir uploads results static
+  314  mkdir static/results # 결과 이미지를 웹으로 제공할 경우 필요
+  315  pwd
+  316  cd ..
+  317  mv face_finder_project Upstage/
+  318  echo $VIRTUAL_ENV
+  319  source $(poetry env info --path)/bin/activate
+  320  poetry env info
+  321  cd Upstage/face_finder_project/
+  322  ls
+  323  poetry env info
+  324  poetry env info
+  325  poetry env info
+  326  poetry shell
+  327  . /data/ephemeral/home/.cache/pypoetry/virtualenvs/face-finder-project-pRoLg7uv-py3.10/bin/activate
+  328  poetry install
+  329  touch README.md
+  330  poetry install
+  331  poetry install --no-root
+  332  poetry instalㅣ
+  333  poetry install
+  334  ㅣㄴ
+  335  ls
+  336  vi main.py 
+  337  history > 1
+  338  vi 1
+  339  rm 1
+  340  poetry install --no-root
+  341  mkdir workers
+  342  cp ../ResNet34/* .
+  343  cp -r ../ResNet34/* .
+  344  ls
+  345  ls sorc
+  346  rm .sorc/myresnet.py
+  347  rm ./sorc/myresnet.py
+  348  rm -rf workers/
+  349  ls
+  350  poetry shell
+  351  . /data/ephemeral/home/.cache/pypoetry/virtualenvs/face-finder-project-pRoLg7uv-py3.10/bin/activate
+  352  ㅣㄴ
+  353  ls
+  354  ls .sorc
+  355  ls ./sorc
+  356  poetry install
+  357  Run `poetry lock`
+  358  poetry lock
+  359  poetry install
+  360  poetry install --no-root
+  361  poetry install --no-root
+  362  poetry lock
+  363  poetry install --no-root
+  364  poetry lock
+  365  poetry install --no-root
+  366  python ./sorc/find_similar_faces.py 
+  367  poetry lock
+  368  poetry install --no-root
+  369  python ./sorc/find_similar_faces.py 
+  370  poetry add face_recognition_models
+  371  python ./sorc/find_similar_faces.py 
+  372  poetry install --no-root
+  373  python ./sorc/find_similar_faces.py 
+  374  poetry install --no-root
+  375  python ./sorc/find_similar_faces.py 
+  376  python ./sorc/find_similar_faces.py 
+  377  poetry remove face-recognition face-recognition-models
+  378  poetry add face-recognition face-recognition-models
+  379  poetry install --no-root
+  380  poetry lock
+  381  poetry install --no-root
+  382  poetry remove face-recognition face-recognition-models
+  383  poetry add face-recognition face-recognition-models
+  384  poetry install --no-root
+  385  python ./sorc/find_similar_faces.py 
+  386  poetry remove face-recognition-models
+  387  poetry add git+https://github.com/ageitgey/face_recognition_models.git
+  388  python ./sorc/find_similar_faces.py 
+  389  poetry run pip install git+https://github.com/ageitgey/face_recognition_models.git
+  390  python ./sorc/find_similar_faces.py 
+  391  poetry remove face-recognition-models
+  392  poetry add git+https://github.com/ageitgey/face_recognition_models.git
+  393  poetry update
+  394  poetry update
+  395  poetry install
+  396  poetry install
+  397  package-mode = false
+  398  package-mode = false
+  399  poetry install --no-root
+  400  poetry --version
+  401  python ./sorc/find_similar_faces.py 
+  402  poetry install --no-root
+  403  poetry --version
+  404  python ./sorc/find_similar_faces.py 
+  405  poetry install --no-root
+  406  poetry --version
+  407  python ./sorc/find_similar_faces.py 
+  408  ls
+  409  ls
+  410  pip install git+https://github.com/ageitgey/face_recognition_models
+  411  poetry install --no-root
+  412  poetry lock
+  413  poetry install --no-root
+  414  python ./sorc/find_similar_faces.py 
+  415  poetry remove face-recognition-models
+  416  pip install git+https://github.com/ageitgey/face_recognition_models
+  417  python ./sorc/find_similar_faces.py 
+  418  pip install git+https://github.com/ageitgey/face_recognition_models
+  419  python ./sorc/find_similar_faces.py 
+  420  pip install -r requirements.txt 
+  421  python ./sorc/find_similar_faces.py 
+  422  poetry install --no-root
+  423  python ./sorc/
+  424  copy ../ResNet34/*.yaml
+  425  cp ../ResNet34/*.yaml
+  426  cp ../ResNet34/*.yaml .
+  427  ls ../ResNet34/
+  428  ls ..
+  429  ls ../
+  430  ls ../ResNet34/
+  431  ls ./sorc
+  432  cp ../ResNet34/sorc/*.yaml ./sorc
+  433  ls ../ResNet34/sorc/
+  434  ls ../ResNet34/sorc/../
+  435  ls ../
+  436  ls ../ResNet34/
+  437  ls ../ResNet34/sorc/
+  438  ls ../ResNet34/
+  439  ls -al ../ResNet34/
+  440  ls ../ResNet34/.*.yaml .
+  441  cp ../ResNet34/.*.yaml .
+  442  ls
+  443  ls -al
+  444  python ./sorc/find_similar_faces.py 
+  445  python ./sorc/find_similar_faces.py 
+  446  python ./sorc/find_similar_faces.py 
+  447  python ./sorc/find_similar_faces.py 
+  448  python ./sorc/find_similar_faces.py 
+  449  python ./sorc/find_similar_faces.py build_index --force_reindex
+  450  python ./sorc/main.py
+  451  ython ./sorc/main.py
+  452  python ./sorc/main.py
+  453  python sorc/main.py
+  454  ls
+  455  cp main.py ./sorc/
+  456  python sorc/main.py
+  457  poetry run uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+  458  ls
+  459  exit
+  460  python ./sorc/server_main.py 
+  461  history
+  462  history > 1
+  463    362  source $(poetry env info --path)/bin/activate
+  464  source $(poetry env info --path)/bin/activate
+  465  poetry env info --path
+  466  ls
+  467    361  echo $VIRTUAL_ENV
+  468  echo $VIRTUAL_ENV
+  469  history grep petry > 1
+  470  history | grep petry > 1
+  471  history | grep poetry > 1
+  472  history | grep poetry  > 1
+  473  history | grep poetry
+  474  history | grep poetry > 1
+  475  vi 1
+  476  python ./sorc/server_main.py 
+  477  ps -ef
+  478  ps -ef | grep FastAIP
+  479  poetry run uvicorn server_main:app --host 0.0.0.0 --port 8000 --reload
+  480  poetry run uvicorn server_main:app --host 0.0.0.0 --port 8000 --reload
+  481  poetry run uvicorn ./sorc/server_main:app --host 0.0.0.0 --port 8000 --reload
+  482  touch sorc/__init__.py
+  483  poetry run uvicorn ./sorc/server_main:app --host 0.0.0.0 --port 8000 --reload
+  484  ls -l sorc/
+  485  poetry run uvicorn sorc.server_main:app --host 0.0.0.0 --port 8000 --reload
+  486  ㅣㄴ
+  487  ls
+  488  ls ../
+  489  rm -rf ../face_finder_projec
+  490  ㅣㄴ *.ㅣㅐㅎ
+  491  ls *.log
+  492  ls ../*.log
+  493  find ../ -iname "*.log"
+  494  curl http://127.0.0.1:8000
+  495  source $(poetry env info --path)/bin/activate
+  496  cd face_finder_project/
+  497  ls
+  498  source $(poetry env info --path)/bin/activate
+  499  python ./sorc/find_similar_faces_cnn.py build_index --force_reindex
+  500  python ./sorc/find_similar_faces_cnn.py build_index --force_reindex
+  501  history > 1

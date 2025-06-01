@@ -1,0 +1,9 @@
+# ninja log v5
+0	692	1744359156214204420	/data/ephemeral/home/DPText-DETR-main/build/temp.linux-x86_64-cpython-310/data/ephemeral/home/DPText-DETR-main/adet/layers/csrc/cuda_version.o	bc2b6fdc6b2d1ce
+0	4242	1744359159754282839	/data/ephemeral/home/DPText-DETR-main/build/temp.linux-x86_64-cpython-310/data/ephemeral/home/DPText-DETR-main/adet/layers/csrc/DeformAttn/ms_deform_attn_cpu.o	7727ecf0ff47c494
+0	14651	1744359170166513495	/data/ephemeral/home/DPText-DETR-main/build/temp.linux-x86_64-cpython-310/data/ephemeral/home/DPText-DETR-main/adet/layers/csrc/vision.o	aa64e4bb57e188
+0	15658	1744359171174535825	/data/ephemeral/home/DPText-DETR-main/build/temp.linux-x86_64-cpython-310/data/ephemeral/home/DPText-DETR-main/adet/layers/csrc/DeformAttn/ms_deform_attn_cuda.o	aa00d65174af119f
+22	751	1744359172518565600	/data/ephemeral/home/DPText-DETR-main/build/temp.linux-x86_64-cpython-310/data/ephemeral/home/DPText-DETR-main/adet/layers/csrc/cuda_version.o	e88040325587c3d8
+21	4253	1744359176010642959	/data/ephemeral/home/DPText-DETR-main/build/temp.linux-x86_64-cpython-310/data/ephemeral/home/DPText-DETR-main/adet/layers/csrc/DeformAttn/ms_deform_attn_cpu.o	e59fe4bd7d2f95eb
+22	14708	1744359186462874498	/data/ephemeral/home/DPText-DETR-main/build/temp.linux-x86_64-cpython-310/data/ephemeral/home/DPText-DETR-main/adet/layers/csrc/vision.o	7dbdcc63ed3b79eb
+22	16002	1744359187762903298	/data/ephemeral/home/DPText-DETR-main/build/temp.linux-x86_64-cpython-310/data/ephemeral/home/DPText-DETR-main/adet/layers/csrc/DeformAttn/ms_deform_attn_cuda.o	80bdc425a10e5d0

@@ -1,0 +1,69 @@
+{
+	"annotations": [
+		{
+			"bbox": [
+				2,
+				435,
+				879,
+				353
+			],
+			"id": 1,
+			"text": "양손잡",
+			"image_id": 1
+		},
+		{
+			"bbox": [
+				32,
+				807,
+				1535,
+				340
+			],
+			"id": 2,
+			"text": "기업의 비밀",
+			"image_id": 1
+		},
+		{
+			"bbox": [
+				886,
+				444,
+				407,
+				338
+			],
+			"id": 3,
+			"text": "xxx",
+			"image_id": 1
+		}
+	],
+	"cropLabels": [],
+	"images": [
+		{
+			"file_name": "책표지_총류_000005.jpg",
+			"date_created": "20210218",
+			"width": 1600,
+			"id": 1,
+			"height": 1200
+		}
+	],
+	"info": {
+		"date_created": "20210218",
+		"name": "책표지_총류_000005",
+		"description": ""
+	},
+	"metadata": [
+		{
+			"area": "",
+			"wordfont": "활자체",
+			"outline": "",
+			"illuminance": "",
+			"wordsize": "중",
+			"light": "",
+			"wordconnection": "빈공간으로 나뉨",
+			"subclass": "총류",
+			"weather": "",
+			"device": "스마트폰",
+			"wordcolor": "여러색",
+			"class": "책표지",
+			"wordorientation": "가로"
+		}
+	]
+}
