@@ -113,7 +113,7 @@ json_keys:
     username:
       key: "user_name"
       name: "salgabda"
-    email_info:
+    email:
       key: "email"
       email: "salgaba@naver.com"
   image_info_key:
@@ -128,7 +128,8 @@ json_keys:
     image_hash_key: "image_hash"
     # JSON 파일 내에서 감지된 객체(detected_obj) 리스트에 접근하는 키
   object_info_key:
-    object_name_key: "detected_obj"
+    key: "detected_obj"
+    label_mask : "***"
     object_box_xyxy_key: "box_xyxy"
     object_box_xywh_key: "box_xywh"
     object_confidence_key: "confidence"
@@ -137,7 +138,8 @@ json_keys:
     object_label_key: "label" # 얼굴 라벨 (e.g., "face")
     object_index_key: "index"  
     face_info_key:
-        face_name_key: "detected_face"
+        key: "detected_face"
+        label_mask : "***"
         face_box_xyxy_key: "bbox_xyxy" # 얼굴 영역 바운딩 박스 (detection 결과)
         face_confidence_key: "confidence" # 얼굴 감지 confidence (detection 결과)
         face_class_id_key: "class_id"

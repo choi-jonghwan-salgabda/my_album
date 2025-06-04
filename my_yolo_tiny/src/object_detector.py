@@ -19,7 +19,7 @@ from ultralytics import YOLO # ultralytics의 YOLO 모델
 try:
     from my_utils.config_utils.SimpleLogger import logger, calc_digit_number, get_argument, visual_length
     from my_utils.config_utils.configger import configger
-    from my_utils.photo_utils.object_utils import rotate_image_if_needed, compute_sha256, load_json, save_object_json_with_polygon, save_cropped_face_image, read_json_with_config_keys, write_json_from_config
+    from my_utils.object_utils.photo_utils import rotate_image_if_needed, compute_sha256, JsonConfigHandler, _get_string_key_from_config # JsonConfigHandler 임포트
 except ImportError as e:
     # 실제 발생한 예외 e를 출력하여 원인 파악
     print(f"모듈 임포트 중 오류 발생: {e}")
@@ -31,13 +31,14 @@ DEFAULT_STATUS_TEMPLATE  = {
     "total_input_found":         {"value": 0,  "msg": "총 입력 파일 수 (지원 확장자 기준)"},
     "req_process_count":         {"value": 0,  "msg": "총 처리 요청 파일 수"},
     "error_extension":   {"value": 0,  "msg": "지원되지 않는 확장자로 건너뛴 파일 수"},
+    "error_input_file_process":        {"value": 0,  "msg": "입력파일 읽기 오류 수"},
     "error_image_rotation":          {"value": 0,  "msg": "이미지 회전중 오류 발생 파일 수"},
     "error_input_file_read":        {"value": 0,  "msg": "입력 파일 읽기 오류 수"},
-    "error_input_file_process":        {"value": 0,  "msg": "입렫파일 읽기 오류 수"},
-    "total_object_count":      {"value": 0,  "msg": "검출된 총 객체 수"},
-    "detection_object_file":     {"value": 0,  "msg": "객체가 검출된 파일 수"},
     "undetection_object_file":   {"value": 0,  "msg": "객체가 검출되지 않은 파일 수"},
-    "error_copied_input_file": {"value": 0, "msg": "오류발생 잉ㅂ력팡ㄹ 보관시 실패 수"},
+    "detection_object_file":     {"value": 0,  "msg": "객체가 검출된 파일 수"},
+    "error_copied_input_file": {"value": 0, "msg": "객체가없는 파일 복사 중 오류 발생 수"},
+    "error_output_input_file": {"value": 0, "msg": "출력물 저장처리 오류"},
+    "total_object_count":      {"value": 0,  "msg": "검출된 총 객체 수"},
     "total_output_files":        {"value": 0,  "msg": "총 출력 파일수"}
 } 
 
@@ -196,6 +197,7 @@ def detect_object(
     input_path: Path, 
     output_dir: Path, 
     undetect_objects_dir: Path, 
+    json_handler: JsonConfigHandler, # JsonConfigHandler 인스턴스 추가
     undetect_list_path: Path, 
     model:YOLO
     )->dict:
@@ -234,15 +236,15 @@ def detect_object(
     # 4. 검출된 객체 수 확인
     # 4.1 검출된 정보를 확인할 설정값을 각저옴. 
     try:
-        base_cfg = base_config.get("object_info_key") # base_config는 json_keys 전체여야 함
-        object_name_key             = base_cfg.get("object_name_key", "detected_obj")
-        object_box_xyxy_key         = base_cfg.get("object_box_xyxy_key", "box_xyxy")
-        object_box_xywh_key         = base_cfg.get("object_box_xywh_key", "box_xywh")
-        object_confidence_key       = base_cfg.get("object_confidence_key", "confidence")
-        object_class_id_key         = base_cfg.get("object_class_id_key", "class_id")
-        object_class_name_key       = base_cfg.get("object_class_name_key", "class_name")
-        object_label_key            = base_cfg.get("object_label_key", "label")
-        object_index_key            = base_cfg.get("object_index_key", "index")
+        object_name_key       = base_config.get("object_info_key", {}).get("key", "detected_obj") # base_config는 json_keys 전체여야 함
+        object_label_mask     = base_config.get("object_info_key", {}).get("label_mask", "detected_obj") # base_config는 json_keys 전체여야 함
+        object_box_xyxy_key   = base_config.get("object_info_key", {}).get("object_box_xyxy_key", "box_xyxy")
+        object_box_xywh_key   = base_config.get("object_info_key", {}).get("object_box_xywh_key", "box_xywh")
+        object_confidence_key = base_config.get("object_info_key", {}).get("object_confidence_key", "confidence")
+        object_class_id_key   = base_config.get("object_info_key", {}).get("object_class_id_key", "class_id")
+        object_class_name_key = base_config.get("object_info_key", {}).get("object_class_name_key", "class_name")
+        object_label_key      = base_config.get("object_info_key", {}).get("object_label_key", "label")
+        object_index_key      = base_config.get("object_info_key", {}).get("object_index_key", "index")
     except Exception as e:
         logger.error(f"detect_object: base_config에서 설정 키 로딩 실패 ('{input_path.name}'): {e}")
         return status
@@ -250,7 +252,8 @@ def detect_object(
     # 4.2 검출된 정보를 확인. 
     processed_ditec_obj_data = []
     index_per_class = {}
-    if results[0].boxes is not None and len(results[0].boxes) > 0:
+    amount_object = len(results[0].boxes)
+    if results[0].boxes is not None and amount_object > 0:
         # if results[0].boxes is not None: # boxes가 있는지 확인
         # If files_with_objects_detected > 0, results[0].boxes is guaranteed to be non-empty.
         # So, `if results[0].boxes is not None:` is redundant here.
@@ -267,7 +270,6 @@ def detect_object(
                 index_per_class[class_name] = {"count": 0}
 
             index_per_class[class_name]["count"] += 1
-            object_index_in_class = index_per_class[class_name]["count"] # 현재 객체의 순번
 
             # 필요한 정보들을 딕셔너리로 구성
             ditec_obj_info = {
@@ -276,13 +278,13 @@ def detect_object(
                 object_confidence_key: confidence,
                 object_class_id_key: class_id,
                 object_class_name_key: class_name,
-                object_label_key: class_name, # <- 순번 값을 직접 할당
-                object_index_key: object_index_in_class # <- 수정: object_index_key 사용
+                object_label_key: object_label_mask, # <- 순번 값을 직접 할당
+                object_index_key: index_per_class[class_name]["count"] # 현재 객체의 순번
                 # 필요에 따라 다른 정보(예: 마스크, 키포인트 등) 추가
             }
             processed_ditec_obj_data.append(ditec_obj_info)
 
-        status["total_object_count"]["value"] += len(results[0].boxes)
+        status["total_object_count"]["value"] += amount_object
         status["detection_object_file"]["value"] += 1
         logger.info(f'"{input_path.name}"에서 [{status["total_object_count"]["value"]}]개의 객체를 검출 했습니다.')
 
@@ -295,6 +297,7 @@ def detect_object(
             logger.info(f"처리 실패 이미지 '{input_path}'의 경로를 '{undetect_list_path}'에 기록했습니다.")
         except Exception as file_e:
             logger.error(f"'{undetect_list_path}'에 실패 이미지 경로를 기록하는 중 오류 발생: {file_e}")
+            status["error_output_input_file"]["value"] += 1
 
         # 미검출 이미지 복사
         try:
@@ -317,8 +320,7 @@ def detect_object(
     json_output_path = output_dir / output_file_name
 
     try:
-        write_json_from_config(
-            config = base_config, # base_config는 run_main에서 전달된 json_cfg (json_keys 섹션)
+        json_handler.write_json( # JsonConfigHandler의 write_json 메소드 사용
             image_path  = input_path,
             image_hash  = image_hash_value,
             width = width,
@@ -376,7 +378,7 @@ def run_main(cfg: configger):
         dataset_key_str = "project.paths.datasets"
         cur_cfg = cfg.get_config(dataset_key_str)
         if cur_cfg is None:
-            logger.error(f"'{dataset_base_key_str}' 설정 그룹을 찾을 수 없습니다.")
+            logger.error(f"'{dataset_key_str}' 설정 그룹을 찾을 수 없습니다.")
             sys.exit(1)
 
         input_dir_str = cur_cfg.get('raw_image_dir', None)
@@ -427,6 +429,13 @@ def run_main(cfg: configger):
             logger.error(f"설정 파일에 'json_keys' 정보가 누락되었습니다.") # 오류 메시지도 내용에 맞게 수정하는 것이 좋습니다
             sys.exit(1)
 
+        # JsonConfigHandler 인스턴스 생성
+        try:
+            json_handler = JsonConfigHandler(json_cfg)
+        except Exception as e_json_handler:
+            logger.error(f"JsonConfigHandler 초기화 중 오류 발생: {e_json_handler}", exc_info=True)
+            sys.exit(1)
+
     except Exception as e:
         logger.error(f"설정{dataset_key_str} 값 가져오기 중 오류 발생: {e}")
         sys.exit(1)
@@ -449,7 +458,7 @@ def run_main(cfg: configger):
         supported_extensions = cur_cfg.get("supported_image_extensions", None)
         logger.debug(f"지원되는 이미지 확장자 목록: {supported_extensions}")
     except Exception as e:
-        logger.error(f"설정{pricessing_key_str} 값 가져오기 중 오류 발생: {e}")
+        logger.error(f"설정{processing_key_str} 값 가져오기 중 오류 발생: {e}")
         supported_extensions = ['.jpg', '.jpeg', '.png', '.bmp', '.tiff', '.gif']
 
     # 4. 모든 파일에서 객체 정보 누적 (메모리 효율적인 파일 순회)
@@ -472,7 +481,7 @@ def run_main(cfg: configger):
         digit_width = calc_digit_number(status["total_input_found"]["value"])
     except Exception as e:
         digit_width = 0
-        logger.error(f"설정{pricessing_key_str} 값 가져오기 중 오류 발생: {e}")
+        logger.error(f"설정{processing_key_str} 값 가져오기 중 오류 발생: {e}")
 
     logger.info(f'✅ 검출할 Image 파일 {status["total_input_found"]["value"]}개 발견. 숫자 수(digit_width) : {digit_width}')
 
@@ -510,10 +519,11 @@ def run_main(cfg: configger):
                     model:YOLO
                     )->dict:
                 """
-                ret = detect_object(
+                ret = detect_object( # base_config 인자 제거
                     base_config = json_cfg,
                     input_path = input_path, 
                     output_dir = output_dir, 
+                    json_handler = json_handler, # 생성된 json_handler 인스턴스 전달
                     undetect_objects_dir = undetect_objects_dir, 
                     undetect_list_path = undetect_list_path, 
                     model = model

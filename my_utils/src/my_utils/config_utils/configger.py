@@ -74,21 +74,21 @@ class configger:
             
             # 현재 패스에서 더 이상 변경이 없으면 반복 중단
             if self.cfg == cfg_before_pass:
-                logger.info(f"(init): 패스 {i+1}에서 더 이상 변경 사항 없음. 플레이스홀더 치환 완료.")
+                logger.debug(f"(init): 패스 {i+1}에서 더 이상 변경 사항 없음. 플레이스홀더 치환 완료.")
                 break
             else: # for 루프가 break 없이 정상적으로 완료된 경우 (max_passes 만큼 실행된 경우)
                 if self.cfg != cfg_before_pass: # 마지막 패스에서도 변경이 있었다면 경고
                     logger.warning(f"(init): 최대 플레이스홀더 치환 패스 {max_passes}회 도달. 아직 해결되지 않은 중첩 플레이스홀더가 있을 수 있습니다.")
                 else: # 마지막 패스에서 변경이 없었다면 정상 완료
-                    logger.info(f"(init): 플레이스홀더 치환 최대 패스({max_passes}) 내 완료 또는 변경 없음.")
+                    logger.debug(f"(init): 플레이스홀더 치환 최대 패스({max_passes}) 내 완료 또는 변경 없음.")
 
         # 치환이 완료된 self.cfg가 최종 설정 데이터가 됩니다.
         self.current_cfg = self.cfg
         self.next_cfg = self.current_cfg # 현재는 동일하게 설정
 
-        logger.info(f"++++++++++++++++++++++++++++++++++") # 최종 치환 결과 로깅
-        logger.info(f"Final self.cfg (resolved):{self.cfg}") # 최종 치환 결과 로깅
-        logger.info(f"++++++++++++++++++++++++++++++++++") # 최종 치환 결과 로깅
+        logger.debug(f"++++++++++++++++++++++++++++++++++") # 최종 치환 결과 로깅
+        logger.debug(f"Final self.cfg (resolved):{self.cfg}") # 최종 치환 결과 로깅
+        logger.debug(f"++++++++++++++++++++++++++++++++++") # 최종 치환 결과 로깅
 
         # self.yaml_list 및 관련 변수들은 이 방식에서는 필요 없습니다.
         # self.list_depth = 0 # 이제 필요 없을 가능성이 높습니다.
@@ -106,9 +106,9 @@ class configger:
         """
         # 현재 경로를 점(.)으로 구분된 문자열로 만듭니다 (로깅/디버깅용)
         current_key_path_str = ".".join(map(str, current_key_path_list)) if current_key_path_list else "root"
-        logger.info(f"_traverse_and_resolve start-------------------------------------------------------")
-        logger.info(f"_현재 경로: {current_key_path_str}")
-        logger.info(f"_traverse_and_resolve ------------------------------------------------------------\n")
+        logger.debug(f"_traverse_and_resolve start-------------------------------------------------------")
+        logger.debug(f"_현재 경로: {current_key_path_str}")
+        logger.debug(f"_traverse_and_resolve ------------------------------------------------------------\n")
 
         if isinstance(data, dict):
             # 데이터가 딕셔너리인 경우, 각 항목을 순회하며 재귀 호출
@@ -226,8 +226,8 @@ class configger:
 
         else:
             # 딕셔너리, 리스트, 문자열이 아닌 다른 타입의 데이터는 순회할 필요 없음
-            logger.info(f"_traverse_and_resolve-스칼라 값 (처리 건너뜀) in _traverse_and_resolve 호출 - {data}, 현재 경로: {current_key_path_str}\n")
-            logger.info(f"_traverse_and_resolve-재귀 끝---------------------------------------------------------------------")
+            logger.debug(f"_traverse_and_resolve-스칼라 값 (처리 건너뜀) in _traverse_and_resolve 호출 - {data}, 현재 경로: {current_key_path_str}\n")
+            logger.debug(f"_traverse_and_resolve-재귀 끝---------------------------------------------------------------------")
             pass # 재귀 중단
 
     def _get_value_from_key_path(self, data, key_path):
@@ -634,7 +634,7 @@ class configger:
 
             # 3. 하위 디렉토리 이름 목록 가져오기
             sub_directories = [item.name for item in base_path_obj.iterdir() if item.is_dir()]
-            logger.info(f"get_path_list: 경로 '{base_path_obj}' (키: '{key}')에서 다음 하위 디렉토리들을 찾았습니다: {sub_directories}")
+            logger.debug(f"get_path_list: 경로 '{base_path_obj}' (키: '{key}')에서 다음 하위 디렉토리들을 찾았습니다: {sub_directories}")
             return sub_directories
 
         except Exception as e: # get_path 내부에서 발생한 예외 또는 여기서 발생한 경로 관련 예외 포함
@@ -677,7 +677,7 @@ class configger:
 
             # 3. 하위 키 이름 목록 가져오기
             sub_keys = list(target_value.keys())
-            logger.info(f"get_key_list: 키 '{key}'에서 다음 하위 키들을 찾았습니다: {sub_keys}")
+            logger.debug(f"get_key_list: 키 '{key}'에서 다음 하위 키들을 찾았습니다: {sub_keys}")
             return sub_keys
         except Exception as e: # get_value 내부에서 발생한 예외 또는 여기서 발생한 예외 포함
             logger.error(f"get_key_list: 키 '{key}' 처리 중 오류 발생: {e}", exc_info=True)
@@ -714,7 +714,7 @@ class configger:
                 return default if default is not None else []
 
             # 3. 값이 리스트인 경우 해당 리스트 반환
-            logger.info(f"get_value_list: 키 '{key}'에서 다음 리스트 값을 찾았습니다: {target_value}")
+            logger.debug(f"get_value_list: 키 '{key}'에서 다음 리스트 값을 찾았습니다: {target_value}")
             return target_value # target_value is already a list
         except Exception as e: # get_value 내부에서 발생한 예외 또는 여기서 발생한 예외 포함
             logger.error(f"get_value_list: 키 '{key}' 처리 중 오류 발생: {e}", exc_info=True)
