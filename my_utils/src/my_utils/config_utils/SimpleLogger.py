@@ -610,6 +610,30 @@ def calc_digit_number(in_number: int) -> int:
     # math.floor()는 소수점 이하를 버립니다.
     return math.floor(math.log10(in_number)) + 1
 
+def visual_length(text, space_width=1):
+    """
+    주어진 텍스트의 시각적 길이를 계산합니다.
+    일반 문자는 1, 전각 문자(한글, 한자 등)는 2, 공백은 space_width로 계산합니다.
+
+    Args:
+        text (str): 길이를 계산할 텍스트.
+        space_width (int, optional): 공백 문자의 시각적 너비. 기본값은 1.
+
+    Returns:
+        int: 텍스트의 시각적 길이.
+    """
+    length = 0
+    for ch in text:
+        if ch == ' ':
+            length += space_width # 공백 처리
+        elif unicodedata.east_asian_width(ch) in ('W', 'F'):
+            length += 2 # 전각 문자(Wide, Fullwidth)는 2로 계산
+        else:
+            length += 1 # 그 외 문자(반각 등)는 1로 계산
+    return length
+
+
+
 def get_argument() -> argparse.Namespace:
     """
     명령줄 인자를 파싱하여 스크립트 실행에 필요한 경로들을 설정합니다.
@@ -623,19 +647,19 @@ def get_argument() -> argparse.Namespace:
         argparse.Namespace: 파싱된 명령줄 인자들을 담고 있는 객체.
                             이 객체는 `root_dir`, `log_dir`, `config_path` 속성을 가집니다.
     """
+
     # argparse.ArgumentParser 객체 생성 및 설명 추가
-    parser = argparse.ArgumentParser(
-        help='프로젝트 루트 디렉토리. 다른 경로들의 기준이 됩니다. (기본값: 현재 작업 디렉토리)' # 프로젝트의 최상위 디렉토리
-    )
+    parser = argparse.ArgumentParser(description="스크립트 실행을 위한 경로 및 로깅 레벨 설정")
     parser.add_argument(
         '--root-dir', '-root',
         type=str,
         default=os.getcwd(),
-        help='로그 파일을 저장할 디렉토리. (기본값: <root-dir>/logs)' # 로그 파일이 저장될 디렉토리
+        help='프로젝트의 루트 디렉토리. (기본값: 현재 작업 디렉토리)'
     )
     parser.add_argument(
         '--log-dir', '-log',
         type=str,
+        default=None, # 초기값을 None으로 설정하고 아래에서 동적으로 할당
         help='로그 파일을 저장할 디렉토리. (기본값: <root-dir>/logs)' # 로그 파일이 저장될 디렉토리
     )
     parser.add_argument(
@@ -648,25 +672,25 @@ def get_argument() -> argparse.Namespace:
     parser.add_argument(
         '--config-path', '-cfg',
         type=str,
-        default=f"{os.getcwd()}/../config/photo_album.yaml",
+        default=None, # 초기값을 None으로 설정하고 아래에서 동적으로 할당
         help='설정 파일(YAML)의 경로. (기본값: <root-dir>/config/<프로젝트이름>.yaml)' # YAML 설정 파일 경로
     )
     parser.add_argument(
         '--source-dir', '-src',
         type=str,
-        required=True,
+        required=False,
         help='원천(source) 디렉토리. (기본값: 제공되지 않음)' # 소스 파일들이 있는 디렉토리
     )
     parser.add_argument(
         '--destination-dir', '-dst',
         type=str,
-        required=True,
+        required=False,
         help='결과물(destination) 디렉토리. (기본값: 제공되지 않음)' # 처리 결과가 저장될 디렉토리
     )
     parser.add_argument(
         '--target-dir', '-tgt',
         type=str,
-        required=True,
+        required=False,
         help='작업대상(target) 디렉토리. (기본값: 제공되지 않음)' # 특정 작업의 대상이 되는 디렉토리
     )
 
@@ -692,52 +716,59 @@ def get_argument() -> argparse.Namespace:
     if args.config_path is None:
         project_name = Path(args.root_dir).name
         if not project_name or project_name == '.':
-            project_name = "phto_album"
+            project_name = "photo_album" # 오타 수정: phto_album -> photo_album
 
         config_path_obj = (Path(args.root_dir) / '../config' / f"{project_name}.yaml").expanduser().resolve()
         args.config_path = str(config_path_obj)
 
-        print(f"  설정 파일 경로 (--config-path):   {config_path_obj}")
+        # 정보 메시지 형식 변경
+        print(f"정보: --config-path 인자가 제공되지 않았습니다. 기본 설정 파일 경로 '{args.config_path}'을 사용합니다.")
 
     # 파싱된 인자 정보 출력
-    print(f"\n--- 스크립트 실행 경로 정보 ---")
-    print(f"  루트 디렉토리 (--root-dir) :      {args.root_dir}")
-    print(f"  로그 디렉토리 (--log-dir)  :      {args.log_dir}")
-    print(f"  로그 디렉토리 (--log-level):      {args.log_level}")
-    print(f"  설정 파일 경로 (--config-path):   {args.config_path}")
+    # --- 파싱된 인자 정보 출력 (visual_length 적용) ---
+    arg_print_definitions = [
+        ("루트 디렉토리 (--root-dir)", lambda: args.root_dir, lambda: True),
+        ("로그 디렉토리 (--log-dir)", lambda: args.log_dir, lambda: True),
+        ("로그 레벨 (--log-level)", lambda: args.log_level, lambda: True), # 레이블 수정
+        ("설정 파일 경로 (--config-path)", lambda: args.config_path, lambda: True),
+    ]
     if args.source_dir is not None:
-        print(f"  dlqfur 디렉토리 (--source-dir):    {args.source_dir}")
+        arg_print_definitions.append(("기준 디렉토리 (--source-dir)", lambda: args.source_dir, lambda: True))
     if args.destination_dir is not None:
-        print(f"  결과물 디렉토리 (--destination-dir): {args.destination_dir}")
+        arg_print_definitions.append(("찾은 같은 사진을 모아둘 곳 (--destination-dir)", lambda: args.source_dir, lambda: True))
     if args.target_dir is not None:
-        print(f"  작업대상 디렉토리 (--target-dir): {args.target_dir}")
+        arg_print_definitions.append(("같은 사진이 있는지 찾을곳 (--target-dir)", lambda: args.source_dir, lambda: True))
+
+    # 실제로 출력될 항목들만 필터링
+    items_to_print = []
+    for label, value_func, condition_func in arg_print_definitions:
+        if condition_func():
+            items_to_print.append((label, value_func))
+
+    # 출력될 레이블들의 최대 시각적 길이 계산
+    if not items_to_print:
+        max_label_vl = 0
+    else:
+        max_label_vl = max(visual_length(label) for label, _ in items_to_print)
+
+    # 값이 시작될 목표 시각적 컬럼 위치 설정
+    # (앞공백 "  "의 시각적 길이 + 가장 긴 레이블의 시각적 길이 + 최소 하이픈 3개의 시각적 길이)
+    target_value_start_column_vl = visual_length("  ") + max_label_vl + 3
+
+    for label_text, value_func in items_to_print:
+        value = value_func()
+        prefix_with_spaces = f"  {label_text}"
+        prefix_vl = visual_length(prefix_with_spaces)
+        
+        # 필요한 하이픈 개수 계산 (시각적 길이에 기반)
+        num_hyphens_vl_needed = target_value_start_column_vl - prefix_vl
+        num_hyphens = max(1, int(num_hyphens_vl_needed)) # 최소 1개의 하이픈 보장
+        
+        print(f"{prefix_with_spaces}{'-' * num_hyphens}{value}")
     print(f"--------------------------------------------------\n")
     return args
 
 import unicodedata
-
-def visual_length(text, space_width=1):
-    """
-    주어진 텍스트의 시각적 길이를 계산합니다.
-    일반 문자는 1, 전각 문자(한글, 한자 등)는 2, 공백은 space_width로 계산합니다.
-
-    Args:
-        text (str): 길이를 계산할 텍스트.
-        space_width (int, optional): 공백 문자의 시각적 너비. 기본값은 1.
-
-    Returns:
-        int: 텍스트의 시각적 길이.
-    """
-    length = 0
-    for ch in text:
-        if ch == ' ':
-            length += space_width # 공백 처리
-        elif unicodedata.east_asian_width(ch) in ('W', 'F'):
-            length += 2 # 전각 문자(Wide, Fullwidth)는 2로 계산
-        else:
-            length += 1 # 그 외 문자(반각 등)는 1로 계산
-    return length
-
 
 # === 공유 로거 인스턴스 ===
 # 이 logger 인스턴스를 다른 모듈에서 import하여 사용합니다.

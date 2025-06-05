@@ -1,5 +1,19 @@
 # my_yolo_tiny/config/my_yolo_tiny.yaml
 
+# Myproject/
+# ├── pyproject.toml  # poetry 설정 파일
+# ├── my_utils
+# │   └── src/
+# │      └── my_utils/   # my_utils 패키지
+# │          ├── __init__.py
+# │          └── config_utils/
+# │              ├── __init__.py
+# │              └── SimpleLogger.py
+# └── tools/          # 스크립트 디렉토리
+#     └── MoveSearchedDupPhoto.py
+#     └── move_mismatch_file_ext.py
+#     └── ...
+
 project:
   name: my_album      # 프로젝트 이름
   root_dir: ${PWD}        # 현재 작업 디렉토리를 root_dir로 설정 꼭 문자열 경로여야함.

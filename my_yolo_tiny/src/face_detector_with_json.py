@@ -142,7 +142,7 @@ def model_load(cfg: configger) -> Tuple[YOLO, Dict[str, Any]]:
         selected_device = 'cpu'
         logger.debug("CUDA 미사용, CPU로 대체")
 
-    logger.info(f"YOLO 모델 로딩 시작 - 경로: {model_weights_path}, 장치: {selected_device}")
+    logger.debug(f"YOLO 모델 로딩 시작 - 경로: {model_weights_path}, 장치: {selected_device}")
 
     # 모델 로딩
     try:
@@ -332,7 +332,7 @@ def detect_face(
         # 실제 이미지에서 너비, 높이, 채널 정보 가져오기 (JSON 정보가 없을 경우 대비)
         actual_height, actual_width, actual_channels = actual_image.shape
 
-    logger.info("       actual_height:{actual_height},      actual_width:{actual_width},      actual_channels:{actual_channels}")
+    logger.debug("actual_height:{actual_height}, actual_width:{actual_width}, actual_channels:{actual_channels}")
     # JSON에서 읽은 해상도 정보와 실제 이미지 해상도 중 유효한 값 사용
     # 해상도 검증 (JSON 값과 실제 이미지 값 비교)
     if json_width_val is not None and json_width_val != actual_width:
@@ -342,19 +342,19 @@ def detect_face(
     if json_channels_val is not None and json_channels_val != actual_channels:
         logger.warning(f"JSON 채널({json_channels_val})과 실제 이미지 채널({actual_channels}) 불일치: {json_image_path.name}")
         return status
-    logger.info(f"      json_height_val:{json_height_val},   json_width_val:{json_width_val},  json_channels_val:{json_channels_val}") # 로거 변수명 수정
+    logger.debug(f"json_height_val:{json_height_val}, json_width_val:{json_width_val}, json_channels_val:{json_channels_val}") # 로거 변수명 수정
 
     final_img_width = json_width_val if json_width_val is not None else actual_width
     final_img_height = json_height_val if json_height_val is not None else actual_height # 변수명 오타 수정
     final_img_channels = json_channels_val if json_channels_val is not None else actual_channels
-    logger.info("    final_img_height:{final_img_height},final_img_width:{final_img_width},final_img_channels:{final_img_channels}")
+    logger.debug("final_img_height:{final_img_height},final_img_width:{final_img_width},final_img_channels:{final_img_channels}")
 
     # 5. JSON에서 읽어온 객체 목록 처리
     status["total_object_count"]["value"] = len(detected_objects_list)
     if status["total_object_count"]["value"] > 0 :
         status["get_object_crop"]["value"] += 1 # 객체가 하나라도 있으면 카운트
 
-    logger.info(f"처리 대상 JSON: {input_path.name}, 이미지: {json_image_path.name}")
+    logger.debug(f"처리 대상 JSON: {input_path.name}, 이미지: {json_image_path.name}")
     logger.info(f"검출된 객체 수 (JSON 기반): {status['total_object_count']['value']}")
 
     # 6. 각 객체별 얼굴 탐지
@@ -490,8 +490,8 @@ def run_main(cfg: configger):
 
         input_dir_str = cur_cfg.get("raw_jsons_dir", "raw_jsons_dir")
         input_dir = Path(input_dir_str).expanduser() # 사용자 경로 확장 및 절대 경로로 변환
-        logger.info(f"설정된 입력 JSON 디렉토리      (원시 문자열): '{input_dir_str}'")
-        logger.info(f"확장 및 확인된 입력 JSON 디렉토리 (절대 경로): '{input_dir}'")
+        logger.debug(f"설정된 입력 JSON 디렉토리      (원시 문자열): '{input_dir_str}'")
+        logger.debug(f"확장 및 확인된 입력 JSON 디렉토리 (절대 경로): '{input_dir}'")
         if not input_dir.exists():
             logger.error(f"입력 디렉토리가 존재하지 않습니다: {input_dir}")
             sys.exit(1)
@@ -500,7 +500,7 @@ def run_main(cfg: configger):
         undetect_dir = Path(undetect_dir_str).expanduser()
         # undetect_dir 처리: 존재하면 삭제 후 재생성
         if undetect_dir.exists():
-            logger.info(f"기존 미검출 이미지 저장 디렉토리 '{undetect_dir}'이(가) 존재하여 삭제 후 재생성합니다.")
+            logger.debug(f"기존 미검출 이미지 저장 디렉토리 '{undetect_dir}'이(가) 존재하여 삭제 후 재생성합니다.")
             try:
                 shutil.rmtree(undetect_dir) # 디렉토리와 내용물 모두 삭제
             except OSError as e:
@@ -521,7 +521,7 @@ def run_main(cfg: configger):
         if undetect_list_path.exists():
             try:
                 undetect_list_path.unlink()
-                logger.info(f"기존 미검출 목록 파일 '{undetect_list_path}'을(를) 삭제했습니다.")
+                logger.debug(f"기존 미검출 목록 파일 '{undetect_list_path}'을(를) 삭제했습니다.")
             except OSError as e:
                 logger.error(f"기존 미검출 목록 파일 '{undetect_list_path}' 삭제 중 오류 발생: {e}")
                 # 필요에 따라 여기서 프로그램을 중단할지 결정할 수 있습니다.
@@ -547,13 +547,13 @@ def run_main(cfg: configger):
 
     # 2-2. 확장자 가저오기-
     supported_json_extensions = ['.json'] # 처리할 JSON 파일 확장자
-    logger.info(f"입력 JSON 파일 확장자는: {supported_json_extensions}")
+    logger.debug(f"입력 JSON 파일 확장자는: {supported_json_extensions}")
 
     # 2-5. 처리대상 json파일 갯수 계산하기
     input_file_iterator_for_counting = Path(input_dir).glob("**/*")
     status["total_input_found"]["value"] = sum(1 for p in input_file_iterator_for_counting if p.is_file() and p.suffix.lower() in supported_json_extensions)
     # 로그 메시지 개선: 어떤 디렉토리와 확장자를 검색했는지 명시
-    logger.info(f"'{input_dir}' 디렉토리에서 다음 확장자를 가진 파일 검색: {supported_json_extensions}")
+    logger.debug(f"'{input_dir}' 디렉토리에서 다음 확장자를 가진 파일 검색: {supported_json_extensions}")
     logger.info(f"지원되는 JSON 파일 개수(total_input_found): {status['total_input_found']['value']}")
 
     if status["total_input_found"]["value"] == 0:
@@ -615,7 +615,7 @@ def run_main(cfg: configger):
                         # ret와 main_status 모두 "value" 키를 가지고 숫자 값을 가진다고 가정
                         if "value" in ret[stat_key] and isinstance(ret[stat_key]["value"], (int, float)):
                             status[stat_key]["value"] += ret[stat_key]["value"]
-            logger.info(f"[{(status['req_process_count']['value']):{digit_width}}/{status['total_input_found']['value']}] JSON 파일 처리 완료: {input_path.name}")
+            logger.debug(f"[{(status['req_process_count']['value']):{digit_width}}/{status['total_input_found']['value']}] JSON 파일 처리 완료: {input_path.name}")
 
     # 9. 모든 이미지 처리 완료 또는 중단 후 자원 해제
     # 9-1. 통계 결과 출력 ---
