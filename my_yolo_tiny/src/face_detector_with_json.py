@@ -16,6 +16,7 @@ from datetime import datetime
 from PIL import Image, ExifTags
 import copy # deepcopy 사용을 위해 copy 모듈 임포트
 import shutil # 파일 복사를 위해 shutil 모듈 임포트
+import face_recognition # 얼굴 임베딩 추출을 위해 추가
 
 # shared_utils 패키지에서 configger 클래스 가져오기
 # shared_utils 프로젝트의 src/utility/configger.py에 configger 클래스가 있다고 가정
@@ -187,51 +188,139 @@ def detect_faces_in_crop_yolo_internal(
     image_crop: cv2.Mat,
     obj_bbox_origin_xyxy: List[int],
     yolo_face_model: YOLO,
-    confidence_threshold:  float
+    confidence_threshold:  float,
+    image_identifier: str,  # 이미지 식별자 (예: 파일명)
+    obj_idx: int,           # 현재 처리 중인 객체의 인덱스
+    save_debug_crop_dir: Path # 디버그용 크롭 이미지 저장 경로
 ) -> List[Dict]:
     """
-    YOLO 얼굴 탐지 결과를 반환합니다. JsonConfigHandler를 사용하여 키 이름을 참조합니다.
+    YOLO 얼굴 탐지 결과를 반환합니다. JsonConfigHandler를 사용하여 JSON 키 이름을 참조합니다.
     크롭된 이미지 영역에서 YOLO 모델을 사용하여 얼굴을 탐지합니다.
     탐지된 얼굴의 경계 상자는 원본 이미지 좌표 기준으로 반환됩니다.
     yolo_face_model은 이미 적절한 장치(CPU/GPU)에 로드되어 있어야 합니다.
+    Args:
+        json_handler (JsonConfigHandler): JSON 키 설정을 관리하는 핸들러입니다.
+        image_crop (cv2.Mat): 얼굴 탐지를 수행할 잘라낸 객체 이미지입니다.
+        obj_bbox_origin_xyxy (List[int]): 잘라낸 객체의 원본 이미지 기준 [x1, y1, x2, y2] 좌표입니다.
+        yolo_face_model (YOLO): 미리 로드된 YOLO 얼굴 탐지 모델 객체입니다.
+        confidence_threshold (float): 얼굴 탐지에 사용할 최소 신뢰도 값입니다.
+        image_identifier (str): 현재 처리 중인 이미지의 식별자 (로깅용).
+        obj_idx (int): 현재 객체의 인덱스 (로깅 및 디버그 파일명용).
+        save_debug_crop_dir (Path): 임베딩 추출 실패 시 얼굴 크롭 이미지를 저장할 디렉토리.
+
+    Returns:
+        List[Dict]: 탐지된 얼굴들의 정보를 담은 딕셔너리 리스트입니다. 각 딕셔너리는
+                    JSON 핸들러에 정의된 키를 사용하여 얼굴의 bbox, 신뢰도, 클래스 ID,
+                    클래스 이름, 레이블, 임베딩 정보를 포함합니다.
+                    신뢰도 점수가 높은 순으로 정렬됩니다.
+
     """
+
     if image_crop is None or image_crop.size == 0:
-        logger.warning("얼굴 탐지를 위한 입력 이미지 크롭이 비어있습니다.")
+        logger.warning("얼굴 탐지를 위한 입력 이미지 크롭(image_crop)이 비어있습니다.")
         return []
 
-    # 모델은 이미 올바른 장치에 있다고 가정합니다.
-    # verbose=False로 설정하여 YOLO의 콘솔 출력을 줄입니다.
+    # YOLO 모델을 사용하여 image_crop에서 얼굴을 탐지합니다.
+    # conf는 신뢰도 임계값을, verbose=False는 상세 로그 출력을 억제합니다.
     results = yolo_face_model(image_crop, conf=confidence_threshold, verbose=False)
+    logger.debug(f"[{image_identifier}] YOLO face detection results for obj_idx {obj_idx}: {results}")
 
-    faces_in_original_coords = []
+    faces_in_original_coords = [] # 원본 이미지 좌표 기준으로 변환된 얼굴 정보를 저장할 리스트
     for r in results:
-        for box in r.boxes:
-            score = float(box.conf[0]) # 신뢰도 점수
-            class_id = int(box.cls[0].item()) # 객체 분류 ID
-            class_name = r.names[class_id] # 객체 분류 이름
+        # results는 이미지 배치에 대한 결과 리스트일 수 있으나, 여기서는 단일 크롭 이미지를 처리합니다.
+        # r.boxes는 탐지된 모든 얼굴의 경계 상자, 신뢰도, 클래스 등의 정보를 담고 있습니다.
+        for i, box in enumerate(r.boxes): # 더 자세한 로깅을 위해 enumerate 사용
+            conf_tensor = box.conf
+            cls_tensor = box.cls
 
-            face_crop_bbox_tensor = box.xyxy[0].tolist()
-            face_crop_bbox = [int(coord) for coord in face_crop_bbox_tensor] # 정수형으로 변환
+            # 모든 box에 대해 conf, cls 상태 로깅 (디버깅 강화)
+            logger.debug(f"[{image_identifier}][obj_idx:{obj_idx}] Processing Box {i}: conf_tensor={conf_tensor}, cls_tensor={cls_tensor}, xyxy={box.xyxy}")
 
-            logger.debug(f"face_crop_bbox: {face_crop_bbox}")
+            if conf_tensor is None or cls_tensor is None or len(conf_tensor) == 0 or len(cls_tensor) == 0:
+                logger.warning(
+                    f"[{image_identifier}][obj_idx:{obj_idx}] Box {i} has missing or empty conf/cls. "
+                    f"Skipping this box. conf: {conf_tensor}, cls: {cls_tensor}, xyxy: {box.xyxy}"
+                )
+                continue  # 혹은 warning 로그
+
+            try:
+                score = float(conf_tensor[0])  # 탐지된 얼굴의 신뢰도 점수.
+                class_id = int(cls_tensor[0].item())  # 탐지된 얼굴의 클래스 ID (일반적으로 얼굴 모델은 단일 클래스)
+            except (IndexError, TypeError) as e:
+                logger.error(
+                    f"[{image_identifier}][obj_idx:{obj_idx}] Box {i}: Error accessing conf/cls values. "
+                    f"conf: {conf_tensor}, cls: {cls_tensor}, error: {e}. Skipping this box."
+                )
+                continue
+            class_name = r.names.get(class_id, "unknown") if isinstance(r.names, dict) else str(class_id)
+
+            # 얼굴의 경계 상자 좌표 (image_crop 내에서의 로컬 좌표 [x1, y1, x2, y2])
+            face_crop_bbox_tensor = box.xyxy[0].tolist()  # PyTorch 텐서를 리스트로 변환
+            face_crop_bbox = [int(coord) for coord in face_crop_bbox_tensor]  # 좌표를 정수형으로 변환
+
+            logger.debug(f"[{image_identifier}][obj_idx:{obj_idx}] Detected face local bbox (in crop): {face_crop_bbox}, score: {score}")
+
+            # 얼굴의 로컬 bbox를 원본 이미지 전체에서의 절대 좌표로 변환
 
             obj_x1_orig, obj_y1_orig, _, _ = obj_bbox_origin_xyxy
             face_orig_bbox = [
-                obj_x1_orig + face_crop_bbox[0],
-                obj_y1_orig + face_crop_bbox[1],
-                obj_x1_orig + face_crop_bbox[2],
-                obj_y1_orig + face_crop_bbox[3],
+                obj_x1_orig + face_crop_bbox[0],  # 원본 x1 = 객체 원본 x1 + 얼굴 로컬 x1
+                obj_y1_orig + face_crop_bbox[1],  # 원본 y1 = 객체 원본 y1 + 얼굴 로컬 y1
+                obj_x1_orig + face_crop_bbox[2],  # 원본 x2 = 객체 원본 x1 + 얼굴 로컬 x2
+                obj_y1_orig + face_crop_bbox[3],  # 원본 y2 = 객체 원본 y1 + 얼굴 로컬 y2
             ]
 
             # <<< 얼굴 임베딩 추출 로직 추가 시작 >>>
-            # 실제 임베딩 추출 함수를 호출해야 합니다.
-            # 예시: actual_embedding = extract_face_embedding(image_crop, face_crop_bbox)
-            # 여기서 image_crop은 객체 전체의 크롭이고, face_crop_bbox는 그 안에서의 얼굴 좌표입니다.
-            # 임베딩 모델에 따라 얼굴 부분만 다시 잘라내어 전달해야 할 수 있습니다.
-            # face_image_for_embedding = image_crop[face_crop_bbox[1]:face_crop_bbox[3], face_crop_bbox[0]:face_crop_bbox[2]]
-            # actual_embedding = your_embedding_extraction_function(face_image_for_embedding)
-            actual_embedding = [0.0] * 128 # 임시 플레이스홀더 임베딩입니다. 실제 값으로 교체하세요.
-            # <<< 얼굴 임베딩 추출 로직 추가 끝 >>>
+            # TODO: 실제 얼굴 임베딩 추출 로직으로 교체해야 합니다.
+            # 예: face_image_for_embedding = image_crop[face_crop_bbox[1]:face_crop_bbox[3], face_crop_bbox[0]:face_crop_bbox[2]]
+            #     actual_embedding = embedding_model.extract(face_image_for_embedding)
+            actual_embedding = [0.0] * 128  # 기본 플레이스홀더 (추출 실패 시 사용)
+ 
+             # face_crop_bbox는 [x1, y1, x2, y2] 형식으로 image_crop 내의 얼굴 좌표입니다.
+            face_x1, face_y1, face_x2, face_y2 = face_crop_bbox
+
+            # image_crop 내에서 얼굴 영역을 정확히 잘라냅니다.
+            # 좌표가 image_crop의 경계를 벗어나지 않도록 조정합니다.
+            crop_h, crop_w = image_crop.shape[:2]
+            face_x1_clamped = max(0, face_x1)
+            face_y1_clamped = max(0, face_y1)
+            face_x2_clamped = min(crop_w, face_x2)
+            face_y2_clamped = min(crop_h, face_y2)
+
+            if face_x1_clamped < face_x2_clamped and face_y1_clamped < face_y2_clamped:
+                face_image_for_embedding = image_crop[face_y1_clamped:face_y2_clamped, face_x1_clamped:face_x2_clamped]
+
+                if face_image_for_embedding.size > 0:
+                    # OpenCV BGR 이미지를 face_recognition이 사용하는 RGB로 변환
+                    rgb_face_image_for_embedding = cv2.cvtColor(face_image_for_embedding, cv2.COLOR_BGR2RGB)
+                    
+                    # 얼굴 임베딩 추출
+                    # face_encodings는 이미지에서 발견된 모든 얼굴에 대한 임베딩 리스트를 반환합니다.
+                    # 우리는 이미 잘라낸 얼굴 이미지를 전달하므로, 하나의 임베딩을 기대합니다.
+                    embeddings = face_recognition.face_encodings(rgb_face_image_for_embedding)
+                    
+                    logger.debug(f"[{image_identifier}][obj_idx:{obj_idx}] Face embeddings extracted: {embeddings}")
+                    if embeddings:
+                        actual_embedding = embeddings[0].tolist()  # numpy 배열을 리스트로 변환
+                        logger.info(f"[{image_identifier}][obj_idx:{obj_idx}] Successfully extracted face embedding.")
+                    else:
+                        logger.warning(f"이미지 파일 [{image_identifier}], 객체 ID [{obj_idx}]: 얼굴 임베딩 추출 실패 (얼굴 크롭에서 얼굴을 찾지 못함). 원본 객체 bbox: {obj_bbox_origin_xyxy}, 얼굴 bbox(크롭 내): {face_crop_bbox}")
+                        # 디버그용 이미지 저장
+                        if save_debug_crop_dir and face_image_for_embedding.size > 0:
+                            try:
+                                save_debug_crop_dir.mkdir(parents=True, exist_ok=True)
+                                debug_crop_filename = f"{Path(image_identifier).stem}_obj{obj_idx}_facecrop_{face_crop_bbox[0]}_{face_crop_bbox[1]}_{face_crop_bbox[2]}_{face_crop_bbox[3]}.png"
+                                debug_save_path = save_debug_crop_dir / debug_crop_filename
+                                cv2.imwrite(str(debug_save_path), face_image_for_embedding)
+                                logger.info(f"이미지 파일 [{image_identifier}], 객체 ID [{obj_idx}]: 디버그용 얼굴 크롭 저장: {debug_save_path}")
+                            except Exception as e:
+                                logger.error(f"디버그 이미지 저장 실패: {e}")
+                else:
+                    logger.warning(f"이미지 파일 [{image_identifier}], 객체 ID [{obj_idx}]: 임베딩 추출을 위한 얼굴 크롭 이미지가 비어있습니다. 원본 객체 bbox: {obj_bbox_origin_xyxy}, 얼굴 bbox(크롭 내): {face_crop_bbox}")
+            else:
+                logger.warning(f"이미지 파일 [{image_identifier}], 객체 ID [{obj_idx}]: 임베딩 추출을 위한 얼굴 크롭 좌표가 유효하지 않습니다. 원본 객체 bbox: {obj_bbox_origin_xyxy}, 얼굴 bbox(크롭 내): {face_crop_bbox}")
+
+           # <<< 얼굴 임베딩 추출 로직 추가 끝 >>>
 
             faces_in_original_coords.append({
                 json_handler.face_box_xyxy_key: face_orig_bbox,
@@ -239,15 +328,11 @@ def detect_faces_in_crop_yolo_internal(
                 json_handler.face_class_id_key: class_id,
                 json_handler.face_class_name_key: class_name,
                 json_handler.face_label_key: json_handler.face_label_mask, # 또는 class_name 사용 고려
-                json_handler.face_embedding_key: actual_embedding, # 추출된 임베딩 벡터 할당
-                # 'box' 또는 'score' 키가 필요한 경우 추가
-                # "box": face_orig_bbox, # 예시: 'box' 키가 필요하다면 이렇게
-                # "score": score # 예시: 'score' 키가 신뢰도라면 이렇게
-            })
-            logger.debug(f"face_orig_bbox: {face_orig_bbox}")
-
-    # 신뢰도 순 정렬 (필요하다면)
+                json_handler.face_embedding_key: actual_embedding, # 추출된 임베딩 벡터
+            })            
+            logger.debug(f"[{image_identifier}][obj_idx:{obj_idx}] Appended face info: Original bbox: {face_orig_bbox}, Confidence: {score}, Embedding (first 5): {actual_embedding[:5] if actual_embedding else 'N/A'}")
     faces_in_original_coords.sort(key=lambda x: x[json_handler.face_confidence_key], reverse=True)
+    logger.debug(f"[{image_identifier}][obj_idx:{obj_idx}] Returning {len(faces_in_original_coords)} faces, sorted by confidence.")
     return faces_in_original_coords
 
 def detect_face(
@@ -339,7 +424,7 @@ def detect_face(
         # 실제 이미지에서 너비, 높이, 채널 정보 가져오기 (JSON 정보가 없을 경우 대비)
         actual_height, actual_width, actual_channels = actual_image.shape
 
-    logger.debug("actual_height:{actual_height}, actual_width:{actual_width}, actual_channels:{actual_channels}")
+    logger.debug(f"actual_image에서 읽은 정보: [actual_height:{actual_height}, actual_width:{actual_width}, actual_channels:{actual_channels}]")
     # JSON에서 읽은 해상도 정보와 실제 이미지 해상도 중 유효한 값 사용
     # 해상도 검증 (JSON 값과 실제 이미지 값 비교)
     if json_width_val is not None and json_width_val != actual_width:
@@ -403,17 +488,23 @@ def detect_face(
         faces_in_object = []
         if object_crop_image.size > 0: # 크롭된 이미지가 비어있지 않은 경우에만 탐지 시도
             try:
+                # 디버그용 크롭 이미지 저장 경로 설정
+                debug_crop_save_path = undetect_objects_dir / "failed_face_embedding_crops"
                 faces_in_object = detect_faces_in_crop_yolo_internal(
                     json_handler = json_handler, # JsonConfigHandler 인스턴스 전달
                     image_crop=object_crop_image,
                     obj_bbox_origin_xyxy=[x1_c, y1_c, x2_c, y2_c],
                     yolo_face_model=yolo_face_model,
-                    confidence_threshold=float(model_info["confidence_threshold"])
+                    confidence_threshold=float(model_info["confidence_threshold"]),
+                    image_identifier=json_image_path.name, # 이미지 파일명 전달
+                    obj_idx=obj_idx, # 현재 객체 인덱스 전달
+                    save_debug_crop_dir=debug_crop_save_path # 디버그 크롭 저장 경로 전달
                 )
             except Exception as e_face_detect: # 구체적인 예외 처리
                 logger.error(f"객체 ID: {obj_idx:3}, detect_faces_in_crop_yolo_internal 호출 중 오류: {e_face_detect}", exc_info=True)
                 status["error_object_crop"]["value"] += 1 # 얼굴 검출 내부 오류 카운트
         else:
+            faces_in_object = [] # 명시적으로 빈 리스트 할당
             logger.warning(f"객체 ID: {obj_idx:3}, 크롭된 이미지가 비어있어 얼굴 탐지를 건너<0xEB><0><0x8F><0xBB>니다.")
             status["error_object_crop"]["value"] +=1
 
@@ -425,13 +516,13 @@ def detect_face(
             # JsonConfigHandler의 face_info_key (예: "detected_face")를 사용하여 얼굴 정보 추가
             obj_dict_data[json_handler.face_info_key] = top_face # 또는 faces_in_object 전체를 저장할 수 있음
             status["detect_faces_in_object"]["value"] += 1
-            logger.debug(f"객체 ID: {obj_idx:3}, 얼굴 찾음. 추가된 얼굴 정보 키: {json_handler.face_info_key}, 내용: {top_face}")
+            logger.info(f"파일: {input_path.name}, 객체 ID: {obj_idx:3}, 얼굴 찾음. 추가된 얼굴 정보 키: {json_handler.face_info_key}, 내용 (일부): bbox={top_face.get(json_handler.face_box_xyxy_key)}, embedding(first 5)={top_face.get(json_handler.face_embedding_key, [])[:5]}")
         else:
             # 얼굴이 검출되지 않은 경우, 기존 obj_dict_data에 face_name_key가 없을 수 있음 (또는 빈 리스트/None으로 설정 가능)
-            logger.debug(f"객체 ID: {obj_idx:3}, 얼굴이 검출되지 않았습니다.")
+            logger.info(f"파일: {input_path.name}, 객체 ID: {obj_idx:3}, 얼굴이 검출되지 않았습니다.")
 
         updated_objects_data_list.append(obj_dict_data)
-        logger.debug(f"객체 ID {obj_idx:3} 처리 완료. 현재까지 얼굴 검출 성공 객체 수: {status['detect_faces_in_object']['value']}")
+        logger.debug(f"파일: {input_path.name}, 객체 ID {obj_idx:3} 처리 완료. 현재까지 얼굴 검출 성공 객체 수: {status['detect_faces_in_object']['value']}")
 
     # 7. 최종 JSON 업데이트 및 저장
     # image_hash_value 결정

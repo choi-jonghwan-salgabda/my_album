@@ -666,7 +666,7 @@ def get_argument() -> argparse.Namespace:
         '--log-level', '-lvl',
         type=str,
         default='warning',
-        choices=["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"],
+        choices=["debug", "info", "warning", "error", "critical"],
         help='로그 Level을 지정하는 값. (기본값: warning)' # 기록할 로그의 최소 레벨
     )
     parser.add_argument(
@@ -725,15 +725,15 @@ def get_argument() -> argparse.Namespace:
     arg_print_definitions = [
         ("루트 디렉토리 (--root-dir)", lambda: args.root_dir, lambda: True),
         ("로그 디렉토리 (--log-dir)", lambda: args.log_dir, lambda: True),
-        ("로그 레벨 (--log-level)", lambda: args.log_level, lambda: True), # 레이블 수정
-        ("설정 파일 경로 (--config-path)", lambda: args.config_path, lambda: True),
+        ("로그 레벨설정 (--log-level)", lambda: args.log_level, lambda: True), # 레이블 수정
+        ("설정 파일경로 (--config-path)", lambda: args.config_path, lambda: True),
     ]
     if args.source_dir is not None:
         arg_print_definitions.append(("기준 디렉토리 (--source-dir)", lambda: args.source_dir, lambda: True))
     if args.destination_dir is not None:
-        arg_print_definitions.append(("찾은 같은 사진을 모아둘 곳 (--destination-dir)", lambda: args.source_dir, lambda: True))
+        arg_print_definitions.append(("찾은 같은 사진을 모아둘 곳 (--destination-dir)", lambda: args.destination_dir, lambda: True))
     if args.target_dir is not None:
-        arg_print_definitions.append(("같은 사진이 있는지 찾을곳 (--target-dir)", lambda: args.source_dir, lambda: True))
+        arg_print_definitions.append(("같은 사진이 있는지 찾을곳 (--target-dir)", lambda: args.target_dir, lambda: True))
 
     # 실제로 출력될 항목들만 필터링
     items_to_print = []

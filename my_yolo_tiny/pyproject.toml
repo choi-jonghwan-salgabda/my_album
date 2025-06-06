@@ -13,6 +13,7 @@ ultralytics = "^8.3.128"
 # 로컬 패키지 의존성
 my-utils = { path = "../my_utils", develop = true }
 wcwidth = "^0.2.13" # <-- wcwidth를 이 섹션 안으로 옮겨야 합니다.
+face-recognition = "^1.3.0"
 
 [build-system]
 requires = ["poetry-core"]
