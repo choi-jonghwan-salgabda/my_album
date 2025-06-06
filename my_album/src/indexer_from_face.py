@@ -150,88 +150,11 @@ def load_dlib_models(cfg_obj) -> dict | None:
         return None # 로드 실패 시 None 반환
 from typing import Callable
 
-def get_all_face_data_from_json_batch(
-    cfg: configger,
-    json_file_path: Path,
-    json_key_config: Dict[str, Any],
-    process_func: Callable[[np.ndarray, Dict[str, Any]], None]
-) -> int:
-    """
-    JSON 파일에서 얼굴 임베딩과 메타데이터를 하나씩 추출하며
-    주어진 처리 함수(process_func)를 통해 외부 배치 컨트롤러에 전달합니다.
-
-    Args:
-        cfg: 설정 객체
-        json_file_path: 대상 JSON 파일 경로
-        json_key_config: JSON 구조 키 맵
-        process_func: (임베딩, 메타데이터) → 처리 함수 (예: 배치 누적기)
-
-    Returns:
-        처리된 얼굴 수
-    """
-    logger.info(f"[배치용] JSON 파일 처리 시작: {json_file_path.name}")
-
-    count = 0
-
-    try:
-        with open(json_file_path, 'r', encoding='utf-8') as f:
-            data = json.load(f)
-
-        detected_objects = data.get(
-            json_key_config.get("detected_objects_list_key", "detected_obj")
-        )
-        if not isinstance(detected_objects, list):
-            return 0
-
-        # 키 맵 가져오기
-        image_path = data.get(json_key_config.get("image_info_keys", {}).get("path", "image_path"))
-        image_hash = data.get(json_key_config.get("image_info_keys", {}).get("hash", "image_hash"))
-
-        for obj in detected_objects:
-            faces = obj.get(
-                json_key_config.get("object_keys", {}).get("face_crops_list_key", "detected_face_crop"), []
-            )
-            for face in faces:
-                embedding_data = face.get(
-                    json_key_config.get("face_keys", {}).get("embedding", "embedding")
-                )
-                if not embedding_data:
-                    continue
-
-                try:
-                    embedding_np = np.array(embedding_data, dtype=np.float32)
-                except Exception as e:
-                    logger.warning(f"임베딩 변환 실패: {e}")
-                    continue
-
-                metadata = {
-                    "source_json_path": str(json_file_path),
-                    "original_image_path": image_path,
-                    "original_image_hash": image_hash,
-                    "face_id": face.get("face_id"),
-                    "face_bbox_in_obj": face.get("box"),
-                    "embedding_score": face.get("score"),
-                    "detected_face_bbox_xyxy": face.get("bbox_xyxy"),
-                    "detected_face_confidence": face.get("confidence"),
-                    "detected_face_label": face.get("label"),
-                    "detected_object_class": obj.get("class_name"),
-                    "detected_object_bbox_xyxy": obj.get("box_xyxy")
-                }
-
-                # ▶ 처리 함수에 전달 (ex. 배치 누적기)
-                process_func(embedding_np, metadata)
-                count += 1
-
-        return count
-
-    except Exception as e:
-        logger.error(f"파일 처리 오류: {json_file_path.name} - {e}", exc_info=True)
-        return 0
-
 def get_all_face_data_from_json_alone(
     cfg:configger, 
     json_file_path: Path,
-    json_key_config: Dict[str, Any]
+    json_handler: JsonConfigHandler, # JsonConfigHandler 인스턴스 추가
+    json_key_config: Dict[str, Any] # 기존 json_key_config는 내부 키 접근을 위해 유지
     ) -> Tuple[List[np.ndarray], List[Dict[str, Any]]]:
     """
     주어진 JSON 파일에서 모든 얼굴의 임베딩과 메타데이터를 추출합니다.
@@ -239,6 +162,7 @@ def get_all_face_data_from_json_alone(
     Args:
         json_file_path (Path): 얼굴 정보를 추출할 JSON 파일의 경로.
         json_key_config (Dict[str, Any]): 
+        json_handler (JsonConfigHandler): JSON 파일 읽기를 위한 핸들러.
                 config.yaml의 data_structure_keys 섹션에서 로드한 설정 딕셔너리.
                 YAML 구조에 따라 중첩된 딕셔너리일 수 있습니다.
     Returns:
@@ -250,97 +174,70 @@ def get_all_face_data_from_json_alone(
     embeddings_in_file: List[np.ndarray] = []
     metadatas_in_file: List[Dict[str, Any]] = []
 
-    # --- config에서 JSON 키 이름 가져오기 (json_key_config 사용) ---
-    detected_objects_list_key_name = json_key_config.get('detected_objects_list_key', 'detected_obj')
-
-    image_info_keys_map = json_key_config.get('image_info_keys', {})
-    image_path_key = image_info_keys_map.get('path', 'image_path')
-    image_hash_key = image_info_keys_map.get('hash', 'image_hash')
-    # image_name_key = image_info_keys_map.get('name', 'image_name') # 필요시 추가
-
-    object_keys_map = json_key_config.get('object_keys', {})
-    face_crops_list_key_name = object_keys_map.get('face_crops_list_key', 'detected_face_crop')
-    object_class_name_key = object_keys_map.get('class_name', 'class_name')
-    object_box_xyxy_key = object_keys_map.get('box_xyxy', 'box_xyxy')
-
-    face_keys_map = json_key_config.get('face_keys', {})
-    embedding_key_name = face_keys_map.get('embedding', 'embedding')
-    face_id_key_name = face_keys_map.get('face_id', 'face_id')
-    face_box_key_name = face_keys_map.get('box', 'box')
-    score_key_name = face_keys_map.get('score', 'score')
-    bbox_xyxy_key_name = face_keys_map.get('bbox_xyxy', 'bbox_xyxy')
-    confidence_key_name = face_keys_map.get('confidence', 'confidence')
-    label_key_name = face_keys_map.get('label', 'label')
-
-    if not all([detected_objects_list_key_name, image_path_key, image_hash_key,
-                face_crops_list_key_name, object_class_name_key, object_box_xyxy_key,
-                embedding_key_name, face_id_key_name, face_box_key_name, score_key_name,
-                bbox_xyxy_key_name, confidence_key_name, label_key_name]):
-        logger.error(f"JSON 키 설정 중 일부가 누락되었습니다. config의 'json_keys' 섹션을 확인하세요. (파일: {json_file_path.name})")
+    # JsonConfigHandler를 사용하여 JSON 파일 읽기
+    json_data = json_handler.read_json(json_file_path)
+    if json_data is None:
+        # json_handler.read_json 내부에서 이미 오류 로깅이 수행됨
+        logger.warning(f"'{json_file_path.name}' 파일에서 JSON 데이터를 읽지 못했습니다 (json_handler.read_json 반환값 None).")
         return [], []
-    
+
     try:
-        with open(json_file_path, 'r', encoding='utf-8') as f:
-            json_data = json.load(f)
-
         # JSON 파일에서 최상위 객체 리스트를 가져옵니다.
-        logger.debug(f"Using object_list_key_name: '{detected_objects_list_key_name}'")
-        actual_objects_list = json_data.get(detected_objects_list_key_name)
-
-        if not isinstance(actual_objects_list, list):
-            logger.warning(f"JSON 파일 '{json_file_path.name}'에 '{detected_objects_list_key_name}' 키로 식별되는 리스트가 없거나 형식이 잘못되었습니다.")
+        logger.debug(f"Using object_list_key_name: '{json_handler.object_info_key}'")
+        json_objects_list = json_data.get(json_handler.object_info_key)
+        if not isinstance(json_objects_list, list):
+            logger.warning(f"JSON 파일 '{json_file_path.name}'에 '{json_handler.object_info_key}' 키로 식별되는 리스트가 없거나 형식이 잘못되었습니다.")
             return [], []
 
         # 이미지 레벨 메타데이터 추출
-        original_image_path = json_data.get(image_path_key)
-        original_image_hash = json_data.get(image_hash_key)
-        for obj_entry in actual_objects_list: # 객체 리스트를 순회합니다.
+        json_image_path = json_data.get(json_handler.image_path_key)
+        json_image_hash = json_data.get(json_handler.image_hash_key)
+        for objt_indx, obj_entry in json_objects_list: # 객체 리스트를 순회합니다.
             if not isinstance(obj_entry, dict): continue # 각 객체는 딕셔너리여야 합니다.
 
             # 현재 객체에서 얼굴 리스트를 가져옵니다.
-            faces_in_object_list = obj_entry.get(face_crops_list_key_name)
-            if not isinstance(faces_in_object_list, list):
+            json_face_keys_list = obj_entry.get(json_handler.face_info_key)
+            if not isinstance(json_face_keys_list, list):
+                logger.warning(f"[{json_file_path.name}] - object {objt_indx}의 face {json_handler.face_info_key}에 embedding이 없어 건너뜁니다.")
                 continue
 
-            for face_entry in faces_in_object_list: # 객체 내 얼굴 리스트를 순회합니다.
+            for face_indx, face_entry in json_face_keys_list: # 객체 내 얼굴 리스트를 순회합니다.
                 if not isinstance(face_entry, dict): continue # 각 얼굴 항목은 딕셔너리여야 합니다.
 
-                embedding_data = face_entry.get(embedding_key_name)
+                embedding_data = face_entry.get(json_handler.face_embedding_key)
                 if embedding_data is None:
-                    face_id_info = face_entry.get(face_id_key_name, 'N/A') # face_id_key_name 사용
-                    logger.warning(f"JSON 파일 '{json_file_path.name}'의 face_id '{face_id_info}' 임베딩 변환 중 오류: {e_np}. 건너뜁니다.") # 메시지 수정 및 레벨 변경 고려
+                    face_id_info = face_entry.get(json_handler.face_id_key)
+                    # `e_np`는 이 스코프에 없으므로, 임베딩 키를 찾을 수 없다는 메시지로 변경
+                    logger.warning(f"[{json_file_path.name}] - object {objt_indx}의 face {face_indx}에 embedding이 없어 건너뜁니다.")
                     continue
                 try:
                     embedding_np = np.array(embedding_data, dtype=np.float32)
                 except Exception as e_np:
-                    face_id_info = face_entry.get(face_id_key_name, 'N/A')
-                    logger.warning(f"JSON 파일 '{json_file_path.name}'의 face_id '{face_id_info}' 임베딩 변환 중 오류: {e_np}. 건너뜁니다.") # 메시지 수정 및 레벨 변경 고려
+                    face_id_info = face_entry.get(json_handler.face_id_key)
+                    logger.warning(f"JSON 파일 '{json_file_path.name}'의 face_id '{face_id_info}' 임베딩 NumPy 변환 중 오류: {e_np}. 건너뜁니다.")
                     continue
 
                 metadata = {
                     "source_json_path": str(json_file_path),
-                    "original_image_path": original_image_path,
-                    "original_image_hash": original_image_hash,
-                    "face_id": face_entry.get(face_id_key_name),
-                    "face_bbox_in_obj": face_entry.get(face_box_key_name),
-                    "embedding_score": face_entry.get(score_key_name),
-                    "detected_face_bbox_xyxy": face_entry.get(bbox_xyxy_key_name),
-                    "detected_face_confidence": face_entry.get(confidence_key_name),
-                    "detected_face_label": face_entry.get(label_key_name),
-                    "detected_object_class": obj_entry.get(object_class_name_key),
-                    "detected_object_bbox_xyxy": obj_entry.get(object_box_xyxy_key)
+                    cfg_image_path_key : json_image_path,
+                    cfg_image_hash_key : json_image_hash,
+                    # face_entry.get()의 인자로 json_handler의 속성을 사용합니다.
+                    # metadata의 키는 cfg_... 변수를 그대로 사용하거나 json_handler의 속성명으로 통일할 수 있습니다.
+                    # 여기서는 기존 metadata 키 이름을 유지하고, 값 가져오기만 수정합니다.
+                    cfg_face_bbox_xyxy_key  : face_entry.get(json_handler.face_box_xyxy_key),
+                    cfg_face_confidence_key : face_entry.get(json_handler.face_confidence_key),
+                    cfg_face_class_id_key   : face_entry.get(json_handler.face_class_id_key),
+                    cfg_face_class_name_key : face_entry.get(json_handler.face_class_name_key),
+                    cfg_face_label_key      : face_entry.get(json_handler.face_label_key),
+                    # JsonConfigHandler에 정의된 face_id 및 face_box 관련 키도 메타데이터에 포함
+                    cfg_face_id_key         : face_entry.get(json_handler.face_id_key),
+                    cfg_face_box_key        : face_entry.get(json_handler.face_box_key), # YAML 설정에 따라 'box' 또는 다른 키
                 }
                 embeddings_in_file.append(embedding_np)
                 metadatas_in_file.append(metadata)
 
         return embeddings_in_file, metadatas_in_file
 
-    except FileNotFoundError:
-        logger.error(f"JSON 파일 찾기 오류: {json_file_path}", exc_info=True)
-        return [], []
-    except json.JSONDecodeError:
-        logger.error(f"JSON 파일 파싱 오류: {json_file_path}", exc_info=True)
-        return [], []
     except Exception as e:
         logger.error(f"JSON 파일 '{json_file_path.name}' 처리 중 예상치 못한 오류: {e}", exc_info=True)
         return [], []
@@ -580,6 +477,13 @@ def run_main(cfg: configger):
         logger.critical("YAML 설정 파일에서 'json_keys' 섹션을 찾을 수 없거나 형식이 잘못되었습니다.")
         sys.exit(1)
 
+    # JsonConfigHandler 인스턴스 생성
+    try:
+        json_handler = JsonConfigHandler(json_key_config_data)
+    except Exception as e_json_handler:
+        logger.error(f"JsonConfigHandler 초기화 중 오류 발생: {e_json_handler}", exc_info=True)
+        sys.exit(1)
+
     # 1. JSON 파일 목록 가져오기
     """
     파일 개수가 일반적인 수준을 넘어 매우 많다고 판단되신다면, 메모리 사용량을 최소화하면서 
@@ -642,7 +546,8 @@ def run_main(cfg: configger):
         embeddings_from_file, metadatas_from_file = get_all_face_data_from_json_alone(
             cfg, 
             json_file_path,
-            json_key_config_data # 전달된 json_key_config 사용
+            json_handler,           # JsonConfigHandler 인스턴스 전달
+            json_key_config_data    # 기존 json_key_config 전달
             )
 
         if embeddings_from_file: # 파일에서 유효한 임베딩이 추출된 경우

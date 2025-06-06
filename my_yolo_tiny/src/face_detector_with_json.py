@@ -47,7 +47,7 @@ DEFAULT_STATUS_TEMPLATE  = {
     "error_object_bbox":           {"value": 0,  "msg": "객체 BBOX 형식 오류 수"},
     "error_object_bbox_posit":           {"value": 0,  "msg": "객체 BBOX 위치 오류 수"},
     "detect_faces_in_object":    {"value": 0,  "msg": "객체에서 얼굴검출을 성공한 수"},
-    "error_object_crop":           {"value": 0,  "msg": "객체가 검출된 객체 수"},
+    "error_object_crop":           {"value": 0,  "msg": "객체가 검출되지 않은 객체 수"},
     "error_json_update":         {"value": 0,  "msg": "JSON 파일 덧씌우기 성공 파일 수"},
     "error_input_file_process":        {"value": 0,  "msg": "입렫파일 읽기 오류 수"},
     "files_json_update":         {"value": 0,  "msg": "JSON 파일 덧씌우기 성공 파일 수"}
@@ -223,16 +223,23 @@ def detect_faces_in_crop_yolo_internal(
                 obj_y1_orig + face_crop_bbox[3],
             ]
 
-            # TODO: 이 부분에 얼굴 크롭 이미지에서 임베딩을 추출하는 코드 추가 필요
-            # actual_embedding = extract_embedding(image_crop, face_crop_bbox) # 예시 함수 호출
+            # <<< 얼굴 임베딩 추출 로직 추가 시작 >>>
+            # 실제 임베딩 추출 함수를 호출해야 합니다.
+            # 예시: actual_embedding = extract_face_embedding(image_crop, face_crop_bbox)
+            # 여기서 image_crop은 객체 전체의 크롭이고, face_crop_bbox는 그 안에서의 얼굴 좌표입니다.
+            # 임베딩 모델에 따라 얼굴 부분만 다시 잘라내어 전달해야 할 수 있습니다.
+            # face_image_for_embedding = image_crop[face_crop_bbox[1]:face_crop_bbox[3], face_crop_bbox[0]:face_crop_bbox[2]]
+            # actual_embedding = your_embedding_extraction_function(face_image_for_embedding)
+            actual_embedding = [0.0] * 128 # 임시 플레이스홀더 임베딩입니다. 실제 값으로 교체하세요.
+            # <<< 얼굴 임베딩 추출 로직 추가 끝 >>>
 
             faces_in_original_coords.append({
                 json_handler.face_box_xyxy_key: face_orig_bbox,
                 json_handler.face_confidence_key: score,
                 json_handler.face_class_id_key: class_id,
                 json_handler.face_class_name_key: class_name,
-                json_handler.face_label_key: json_handler.label_mask, # 또는 class_name 사용 고려
-                # json_handler.face_embedding_key: actual_embedding, # 실제 임베딩 벡터 할당
+                json_handler.face_label_key: json_handler.face_label_mask, # 또는 class_name 사용 고려
+                json_handler.face_embedding_key: actual_embedding, # 추출된 임베딩 벡터 할당
                 # 'box' 또는 'score' 키가 필요한 경우 추가
                 # "box": face_orig_bbox, # 예시: 'box' 키가 필요하다면 이렇게
                 # "score": score # 예시: 'score' 키가 신뢰도라면 이렇게
@@ -280,9 +287,9 @@ def detect_face(
     # 2. 읽어온 JSON 데이터에서 필요한 정보 추출
     # JsonConfigHandler의 속성을 사용하여 키 참조
     logger.debug(f"parsed_json_data: {parsed_json_data}")
-    json_user_profile_data = parsed_json_data.get(json_handler.user_profile_group_key, {})
-    json_image_info_data   = parsed_json_data.get(json_handler.image_info_group_key, {})
-    detected_objects_list  = parsed_json_data.get(json_handler.object_info_group_key, [])
+    json_user_profile_data = parsed_json_data.get(json_handler.user_profile_key, {})
+    json_image_info_data   = parsed_json_data.get(json_handler.image_info_key, {})
+    detected_objects_list  = parsed_json_data.get(json_handler.object_info_key, [])
 
     json_image_name_val     = json_image_info_data.get(json_handler.image_name_key)
     json_image_path_val_str = json_image_info_data.get(json_handler.image_path_key)
@@ -301,7 +308,7 @@ def detect_face(
     # detected_objects_list는 read_json_with_config_keys에 의해 "detected_objects" 키로 정규화되어 반환됨
 
     if not json_image_path_val_str:
-        logger.error(f"이미지 파일 경로({json_handler.image_path_key}) 없음 (JSON: {input_path.name} 내 {json_handler.image_info_group_key} 참조). 건너뜁니다.")
+        logger.error(f"이미지 파일 경로({json_handler.image_path_key}) 없음 (JSON: {input_path.name} 내 {json_handler.image_info_key} 참조). 건너뜁니다.")
         status["error_get_target_file"]["value"] += 1
         add_path_to_list_file(input_path, undetect_list_path)
         return status
@@ -405,7 +412,7 @@ def detect_face(
                 )
             except Exception as e_face_detect: # 구체적인 예외 처리
                 logger.error(f"객체 ID: {obj_idx:3}, detect_faces_in_crop_yolo_internal 호출 중 오류: {e_face_detect}", exc_info=True)
-                status["error_faces_in_object"]["value"] += 1 # 얼굴 검출 내부 오류 카운트
+                status["error_object_crop"]["value"] += 1 # 얼굴 검출 내부 오류 카운트
         else:
             logger.warning(f"객체 ID: {obj_idx:3}, 크롭된 이미지가 비어있어 얼굴 탐지를 건너<0xEB><0><0x8F><0xBB>니다.")
             status["error_object_crop"]["value"] +=1
@@ -656,7 +663,7 @@ if __name__ == "__main__":
     # 0. 애플리케이션 아귀먼트 있으면 갖오기
     logger.info("얼굴 탐지기 (JSON 객체 데이터 기반) 애플리케이션 시작.")
     parsed_args = get_argument()
-    logger.info(f"실행시 필요한 파라메터를 받았습니다.{parsed_args}")
+    logger.debug(f"실행시 필요한 파라메터를 받았습니다.{parsed_args}")
 
     script_name = Path(__file__).stem # Define script_name early for logging
     try:
@@ -670,8 +677,8 @@ if __name__ == "__main__":
             include_function_name=True,
             pretty_print=True
         )
-        logger.info(f"로그경로를 결정했습니다.: {vars(parsed_args)}")
-        logger.info(f"애플리케이션({script_name}) 시작")
+        logger.debug(f"로그경로를 결정했습니다.: {vars(parsed_args)}")
+        logger.debug(f"애플리케이션({script_name}) 시작")
     except Exception as e:
         print(f"치명적 오류: 로거 설정 중 오류 발생 - {e}", file=sys.stderr)
         sys.exit(1)
@@ -681,11 +688,11 @@ if __name__ == "__main__":
     # root_dir과 config_path는 실제 프로젝트에 맞게 설정해야 합니다.
     # 설정 파일이 실제로 존재하는지 확인
 
-    logger.info(f"Configger 초기화 시도: root_dir='{parsed_args.root_dir}', config_path='{parsed_args.config_path}'")
+    logger.debug(f"Configger 초기화 시도: root_dir='{parsed_args.root_dir}', config_path='{parsed_args.config_path}'")
 
     try:
         cfg_object = configger(root_dir=parsed_args.root_dir, config_path=parsed_args.config_path)
-        logger.info(f"Configger 초기화 끝")
+        logger.debug(f"Configger 초기화 끝")
     except Exception as e:
         logger.critical(f"치명적 오류: Configger 초기화 중 오류 발생 - {e}")
         sys.exit(1)

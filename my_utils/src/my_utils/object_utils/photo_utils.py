@@ -171,61 +171,65 @@ class JsonConfigHandler:
 
         self.json_keys_config = json_keys_config
 
-        self.user_profile_group = self.json_keys_config.get("user_profile", {})
-        self.user_profile_group_key = self.user_profile_group.get("key", "user_profile")
-        self.username_key           = self.user_profile_group.get("username", {}).get("key", "username")
-        self.username_val           = self.user_profile_group.get("username", {}).get("name", "salgabda")
-        self.email_key              = self.user_profile_group.get("email", {}).get("key", "email")
-        self.email_val              = self.user_profile_group.get("email", {}).get("name", "salgasalgaba@naver.combda")
+        self.user_profile_lst       = self.json_keys_config.get("user_profile", {})
+        self.user_profile_key       = self.user_profile_lst.get("key", "user_profile")
+        self.username_key           = self.user_profile_lst.get("username", {}).get("key", "username")
+        self.username_val           = self.user_profile_lst.get("username", {}).get("name", "salgabda")
+        self.email_key              = self.user_profile_lst.get("email", {}).get("key", "email")
+        self.email_val              = self.user_profile_lst.get("email", {}).get("name", "salgasalgaba@naver.combda")
 
-        logger.debug(f"user_profile_group_key: {self.user_profile_group_key}, "
+        logger.debug(f"user_profile_key: {self.user_profile_key}, "
                      f"username_key: {self.username_key}, username_val: {self.username_val}, "
                      f"email_key: {self.email_key}, email_val: {self.email_val}")
 
-        self.image_info_group       = self.json_keys_config.get("image_info_key", {})
-        self.image_info_group_key   = self.image_info_group.get("key", "image_info")
-        self.image_resolution_key   = self.image_info_group.get("resolution", {}).get("key", "resolution")
-        self.image_width_key        = self.image_info_group.get("resolution", {}).get("width_key", "width")
-        self.image_height_key       = self.image_info_group.get("resolution", {}).get("height_key", "heigth")
-        self.image_channels_key     = self.image_info_group.get("resolution", {}).get("channels_key", "channels")
-        self.image_name_key         = self.image_info_group.get("image_name_key", "image_name")
-        self.image_path_key         = self.image_info_group.get("image_path_key", "image_path")
-        self.image_hash_key         = self.image_info_group.get("image_hash_key", "image_hash")
+        self.image_info_lst         = self.json_keys_config.get("image_info_lst", {})
+        self.image_info_key         = self.image_info_lst.get("key", "image_info")
+        self.image_resolution_key   = self.image_info_lst.get("resolution", {}).get("key", "resolution")
+        self.image_width_key        = self.image_info_lst.get("resolution", {}).get("width_key", "width")
+        self.image_height_key       = self.image_info_lst.get("resolution", {}).get("height_key", "heigth")
+        self.image_channels_key     = self.image_info_lst.get("resolution", {}).get("channels_key", "channels")
+        self.image_name_key         = self.image_info_lst.get("image_name_key", "image_name")
+        self.image_path_key         = self.image_info_lst.get("image_path_key", "image_path")
+        self.image_hash_key         = self.image_info_lst.get("image_hash_key", "image_hash")
 
-        logger.debug(f"image_info_group_key: {self.image_info_group_key}, "
+        logger.debug(f"image_info_key: {self.image_info_lst}, "
                      f"image_resolution_key: {self.image_resolution_key}, "
                      f"image_width_key: {self.image_width_key}, image_height_key: {self.image_height_key}, "
                      f"image_channels_key: {self.image_channels_key}, image_name_key: {self.image_name_key}, "
                      f"image_path_key: {self.image_path_key}, image_hash_key: {self.image_hash_key}")
 
-        self.object_info_group      = self.json_keys_config.get("object_info_key", {})
-        self.object_info_group_key  = self.object_info_group.get("key", "detected_obj")
-        self.label_mask             = self.object_info_group.get("label_mask", "***")
-        self.object_box_xyxy_key    = self.object_info_group.get("object_box_xyxy_key", "box_xyxy")
-        self.object_box_xywh_key    = self.object_info_group.get("object_box_xywh_key", "box_xywh")
-        self.object_confidence_key  = self.object_info_group.get("object_confidence_key", "confidence")
-        self.object_class_id_key    = self.object_info_group.get("object_class_id_key", "class_id")
-        self.object_class_name_key  = self.object_info_group.get("object_class_name_key", "class_name")
-        self.object_label_key       = self.object_info_group.get("object_label_key", "label")
-        self.object_index_key       = self.object_info_group.get("object_index_key", "index")
-        logger.debug(f"object_info_group_key: {self.object_info_group_key}, "
+        self.object_info_lst        = self.json_keys_config.get("object_info_lst", {})
+        self.object_info_key        = self.object_info_lst.get("key", "detected_obj")
+        self.object_label_mask      = self.object_info_lst.get("label_mask", "***")
+        self.object_box_xyxy_key    = self.object_info_lst.get("object_box_xyxy_key", "box_xyxy")
+        self.object_box_xywh_key    = self.object_info_lst.get("object_box_xywh_key", "box_xywh")
+        self.object_confidence_key  = self.object_info_lst.get("object_confidence_key", "confidence")
+        self.object_class_id_key    = self.object_info_lst.get("object_class_id_key", "class_id")
+        self.object_class_name_key  = self.object_info_lst.get("object_class_name_key", "class_name")
+        self.object_label_key       = self.object_info_lst.get("object_label_key", "label")
+        self.object_index_key       = self.object_info_lst.get("object_index_key", "index")
+        logger.debug(f"object_info_key: {self.object_info_key}, object_label_mask: {self.object_label_mask}"
                      f"object_box_xyxy_key: {self.object_box_xyxy_key}, object_box_xywh_key: {self.object_box_xywh_key}, "
                      f"object_confidence_key: {self.object_confidence_key}, object_class_id_key: {self.object_class_id_key}, "
                      f"object_class_name_key: {self.object_class_name_key}, object_label_key: {self.object_label_key}, "
                      f"object_index_key: {self.object_index_key}")
 
-        self.face_info_key          = self.object_info_group.get("face_info_key", {}).get("key", "detected_face")
-        self.face_box_xyxy_key      = self.object_info_group.get("face_info_key", {}).get("face_box_xyxy_key", "box_xyxy")
-        self.face_confidence_key    = self.object_info_group.get("face_info_key", {}).get("face_confidence_key", "confidence")
-        self.face_class_id_key      = self.object_info_group.get("face_info_key", {}).get("face_class_id_key", "class_id")
-        self.face_class_name_key    = self.object_info_group.get("face_info_key", {}).get("face_class_name_key", "class_name")
-        self.face_label_key         = self.object_info_group.get("face_info_key", {}).get("face_label_key", "label")
-        self.face_id_key            = self.object_info_group.get("face_info_key", {}).get("face_id_key", "face_id")
-        self.face_box_key           = self.object_info_group.get("face_info_key", {}).get("face_box_key", "box")
-        logger.debug(f"face_info_key: {self.face_info_key}, "
+        self.face_info_lst                    = self.object_info_lst.get("face_info_lst", {})
+        self.face_info_key          = self.face_info_lst.get("key", "detected_face")
+        self.face_label_mask        = self.face_info_lst.get("label_mask", "***")
+        self.face_box_xyxy_key      = self.face_info_lst.get("face_box_xyxy_key", "box_xyxy")
+        self.face_confidence_key    = self.face_info_lst.get("face_confidence_key", "confidence")
+        self.face_class_id_key      = self.face_info_lst.get("face_class_id_key", "class_id")
+        self.face_class_name_key    = self.face_info_lst.get("face_class_name_key", "class_name")
+        self.face_label_key         = self.face_info_lst.get("face_label_key", "label")
+        self.face_embedding_key     = self.face_info_lst.get("face_embedding_key", "embedding")
+        self.face_id_key            = self.face_info_lst.get("face_id_key", "face_id")
+        self.face_box_key           = self.face_info_lst.get("face_box_key", "box")
+        logger.debug(f"face_info_key: {self.face_info_key}, face_label_mask: {self.face_label_mask}"
                      f"face_box_xyxy_key: {self.face_box_xyxy_key}, face_confidence_key: {self.face_confidence_key}, "
                      f"face_class_id_key: {self.face_class_id_key}, face_class_name_key: {self.face_class_name_key}, "
-                     f"face_label_key: {self.face_label_key}, face_id_key: {self.face_id_key}, "
+                     f"face_label_key: {self.face_label_key}, face_embedding_key: {self.face_embedding_key}, "
+                     f"face_id_key: {self.face_label_key}, face_id_key: {self.face_id_key}, "
                      f"face_box_key: {self.face_box_key}")
         logger.debug(f"JsonConfigHandler가 성공적으로 초기화되었습니다.")
 
@@ -258,9 +262,9 @@ class JsonConfigHandler:
                 self.image_path_key: str(image_path), # Path 객체를 문자열로 변환
                 self.image_hash_key: image_hash
             }
-            output_data[self.user_profile_group_key] = user_profile_information
-            output_data[self.image_info_group_key] = image_information # 리스트 대신 딕셔너리 할당
-            output_data[self.object_info_group_key] = detected_objects
+            output_data[self.user_profile_key] = user_profile_information
+            output_data[self.image_info_key] = image_information # 리스트 대신 딕셔너리 할당
+            output_data[self.object_info_key] = detected_objects
 
             json_path.parent.mkdir(parents=True, exist_ok=True)
             with open(json_path, 'w', encoding='utf-8') as f:
@@ -290,10 +294,10 @@ class JsonConfigHandler:
             return None
 
         missing_keys = []
-        if self.image_info_group_key not in data: # self.img_info_group_key -> self.image_info_group_key
-            missing_keys.append(self.image_info_group_key)
-        if self.object_info_group_key not in data: # self.objs_list_key -> self.object_info_group_key (실제 저장된 키)
-            missing_keys.append(self.object_info_group_key)
+        if self.image_info_key not in data: # self.image_info_key
+            missing_keys.append(self.image_info_key)
+        if self.object_info_key not in data: # self.objs_list_key -> self.objectobject_info_key_info_lst_key (실제 저장된 키)
+            missing_keys.append(self.object_info_key)
         # self.obj_count_key는 write_json에서 저장하지 않으므로 검증에서 제외하거나, 필요시 write_json에서 추가해야 함
 
         if missing_keys:
@@ -302,9 +306,9 @@ class JsonConfigHandler:
 
         # 추가적인 내부 키 검증 (예: image_info 내의 file_name_key 등)은 필요에 따라 여기에 추가할 수 있습니다.
         # 예를 들어, image_info 그룹 내의 키 검증:
-        # image_info_data = data.get(self.img_info_group_key, {})
+        # image_info_data = data.get(self.image_info_key, {})
         # if self.fname_key not in image_info_data:
-        #     logger.warning(f"JSON 파일 '{json_path}'의 '{self.img_info_group_key}'에 '{self.fname_key}' 키가 누락되었습니다.")
+        #     logger.warning(f"JSON 파일 '{json_path}'의 '{self.image_info_key}'에 '{self.fname_key}' 키가 누락되었습니다.")
         #     return None
         # ... (다른 내부 키 검증)
 

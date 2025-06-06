@@ -236,15 +236,15 @@ def detect_object(
     # 4. 검출된 객체 수 확인
     # 4.1 검출된 정보를 확인할 설정값을 각저옴. 
     try:
-        object_name_key       = base_config.get("object_info_key", {}).get("key", "detected_obj") # base_config는 json_keys 전체여야 함
-        object_label_mask     = base_config.get("object_info_key", {}).get("label_mask", "detected_obj") # base_config는 json_keys 전체여야 함
-        object_box_xyxy_key   = base_config.get("object_info_key", {}).get("object_box_xyxy_key", "box_xyxy")
-        object_box_xywh_key   = base_config.get("object_info_key", {}).get("object_box_xywh_key", "box_xywh")
-        object_confidence_key = base_config.get("object_info_key", {}).get("object_confidence_key", "confidence")
-        object_class_id_key   = base_config.get("object_info_key", {}).get("object_class_id_key", "class_id")
-        object_class_name_key = base_config.get("object_info_key", {}).get("object_class_name_key", "class_name")
-        object_label_key      = base_config.get("object_info_key", {}).get("object_label_key", "label")
-        object_index_key      = base_config.get("object_info_key", {}).get("object_index_key", "index")
+        object_name_key       = json_handler.object_info_key # base_config는 json_keys 전체여야 함
+        object_label_mask     = json_handler.object_label_mask # base_config는 json_keys 전체여야 함
+        object_box_xyxy_key   = json_handler.object_box_xyxy_key
+        object_box_xywh_key   = json_handler.object_box_xywh_key
+        object_confidence_key = json_handler.object_confidence_key
+        object_class_id_key   = json_handler.object_class_id_key
+        object_class_name_key = json_handler.object_class_name_key
+        object_label_key      = json_handler.object_label_key
+        object_index_key      = json_handler.object_index_key
     except Exception as e:
         logger.error(f"detect_object: base_config에서 설정 키 로딩 실패 ('{input_path.name}'): {e}")
         return status
@@ -547,30 +547,25 @@ def run_main(cfg: configger):
     # 9. 모든 이미지 처리 완료 또는 중단 후 자원 해제
     # 9-1. 통계 결과 출력 ---
     # 가장 긴 메시지의 바이트 길이를 저장할 변수 초기화 (UTF-8 기준)
-    max_msg_byte_length = 0 
+    max_msg_byte_length = 0
 
     # DEFAULT_STATUS_TEMPLATE에 있는 메시지들 (status에 해당하는 키만)의 최대 바이트 길이를 계산
     for key in status.keys(): # Iterate over keys present in the status
         if key in DEFAULT_STATUS_TEMPLATE: # Check if the key has a defined message in the template
             msg_string = DEFAULT_STATUS_TEMPLATE[key]["msg"]
-            
-            # 메시지 문자열을 UTF-8로 인코딩한 후 바이트 길이를 계산합니다.
-            current_byte_length = visual_length(msg_string, 2) 
-            
-            # 현재 메시지의 바이트 길이가 최대 바이트 길이보다 크면 업데이트
+            current_byte_length = visual_length(msg_string, 2)
             if current_byte_length > max_msg_byte_length:
                 max_msg_byte_length = current_byte_length
 
-    # max_msg_byte_length 변수에 가장 긴 메시지의 UTF-8 바이트 길이가 저장됩니다.
-    # print(f"가장 긴 메시지의 UTF-8 바이트 길이: {max_msg_byte_length}") # 확인을 위한 예시 출력
-
     fill_char = '.' # 원하는 채움 문자를 여기에 지정합니다. 예를 들어 '.' 또는 '-' 등
-    # --- 통계 결과 출력 ---
     logger.warning("--- 이미지 파일 처리 통계 ---")
     for key, data in status.items():
         # DEFAULT_STATUS_TEMPLATE에 해당 키가 있을 경우에만 메시지를 가져오고, 없으면 키 이름을 사용
         msg = DEFAULT_STATUS_TEMPLATE.get(key, {}).get("msg", key)
         value = data["value"]
+        # digit_width는 run_main 함수 초반에 total_input_found 기준으로 계산되어 있어야 합니다.
+        # 만약 digit_width가 이 스코프에 없다면, 적절히 계산하거나 고정값을 사용해야 합니다.
+        # 여기서는 digit_width가 이미 정의되어 있다고 가정합니다.
         logger.warning(f'{msg:{fill_char}<{max_msg_byte_length}}: {value:{digit_width}}')
     logger.warning("------------------------")
     # --- 통계 결과 출력 끝 ---

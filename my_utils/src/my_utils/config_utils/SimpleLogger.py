@@ -706,7 +706,7 @@ def get_argument() -> argparse.Namespace:
     # --log-dir 인자가 제공되지 않았으면 기본값 설정
     if args.log_dir is None:
         args.log_dir = os.path.join(args.root_dir, 'logs')
-        print(f"정보: --log-dir 인자가 제공되지 않았습니다. 기본 로그 디렉토리 '{args.log_dir}'을 사용합니다.")
+        print(f"정보: --log-dir      인자가 제공되지 않았습니다. 기본 로그 디렉토리 '{args.log_dir}'을 사용합니다.")
     
     # 로그 디렉토리 생성 (존재하지 않으면)
     Path(args.log_dir).mkdir(parents=True, exist_ok=True)
@@ -714,12 +714,8 @@ def get_argument() -> argparse.Namespace:
     # --config-path 인자가 제공되지 않았으면 기본값 설정
     # 프로젝트 이름을 기반으로 설정 파일 경로를 동적으로 생성합니다.
     if args.config_path is None:
-        project_name = Path(args.root_dir).name
-        if not project_name or project_name == '.':
-            project_name = "photo_album" # 오타 수정: phto_album -> photo_album
-
-        config_path_obj = (Path(args.root_dir) / '../config' / f"{project_name}.yaml").expanduser().resolve()
-        args.config_path = str(config_path_obj)
+        config_path = (Path(args.root_dir) / '../config' / f"photo_album.yaml").expanduser().resolve()
+        args.config_path = str(config_path)
 
         # 정보 메시지 형식 변경
         print(f"정보: --config-path 인자가 제공되지 않았습니다. 기본 설정 파일 경로 '{args.config_path}'을 사용합니다.")
