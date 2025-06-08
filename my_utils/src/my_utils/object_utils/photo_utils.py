@@ -229,8 +229,7 @@ class JsonConfigHandler:
                      f"face_box_xyxy_key: {self.face_box_xyxy_key}, face_confidence_key: {self.face_confidence_key}, "
                      f"face_class_id_key: {self.face_class_id_key}, face_class_name_key: {self.face_class_name_key}, "
                      f"face_label_key: {self.face_label_key}, face_embedding_key: {self.face_embedding_key}, "
-                     f"face_id_key: {self.face_label_key}, face_id_key: {self.face_id_key}, "
-                     f"face_box_key: {self.face_box_key}")
+                     f"face_id_key: {self.face_id_key}, face_box_key: {self.face_box_key}")
         logger.debug(f"JsonConfigHandler가 성공적으로 초기화되었습니다.")
 
     def write_json(

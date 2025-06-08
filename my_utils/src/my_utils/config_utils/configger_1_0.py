@@ -13,7 +13,7 @@ from typing import List, Dict, Union, Any, Optional
 #import logging # 로깅을 위해 추가
 # SimpleLogger.py로부터 공유 logger 인스턴스를 가져옵니다.
 try:
-    from my_utils.config_utils.SimpleLogger import logger, get_argument
+    from my_utils.config_utils.SimpleLogger import logger, calc_digit_number, get_argument
 except ImportError as e:
     print(f"치명적 오류: my_utils를 임포트할 수 없습니다. PYTHONPATH 및 의존성을 확인해주세요: {e}")
     sys.exit(1)
@@ -27,18 +27,22 @@ class configger:
     arg2 : config_path -> config를 구성하는 yaml파일.
     """
     def __init__(self, root_dir:str, config_path: str):
-        logger.info(f"Configger 초기화 시작: root_dir='{root_dir}', config_path='{config_path}'")
+        logger.info(f"메서드 시작")
 
         # root_dir 처리: Path 객체로 만들고 사용자 홈 디렉토리 기준 절대 경로로 확장
-        self.root_dir = Path(root_dir).expanduser().resolve()
+        self.root_dir = Path(root_dir).expanduser()
         logger.debug(f"경로 받음 및 확정(root_dir): {self.root_dir} ")
 
         # config_path 처리: 절대 경로이면 그대로, 상대 경로이면 root_dir과 결합하여 절대 경로 Path 객체 생성
         if os.path.isabs(config_path):
-            self.config_path = Path(config_path).resolve()
+            self.config_path = Path(config_path)
             logger.debug(f"config_path는 절대 경로입니다: {self.config_path}")
         else:
-            self.config_path = (self.root_dir / config_path).resolve()
+            # os.path.join으로 문자열 결합 후 Path 객체로 변환
+            self.config_path = Path(os.path.join(self.root_dir, config_path))
+            # pathlib.Path 객체로 변환
+            self.config_path = Path(self.config_path).resolve()
+
             logger.debug(f"config_path는 상대 경로이므로 root_dir과 결합하여 절대 경로를 만듭니다: {self.config_path}")
 
         logger.debug(f"_load_yaml 호출 직전, 경로 확정(config_path):   {self.config_path} ")
@@ -57,183 +61,173 @@ class configger:
         # 치환은 원본 self.cfg 객체를 직접 수정하도록 구현할 수 있습니다.
         # 또는 치환된 새로운 딕셔너리를 만들어서 반환받을 수도 있습니다.
         # 여기서는 원본 self.cfg를 직접 수정하는 방식으로 구현해 보겠습니다.
-        logger.debug(f"플레이스홀더 반복 치환 및 경로 정규화 시작")
+        logger.debug(f"플레이스홀더 반복 치환 시작")
         
-        max_passes = 10 # 최대 반복 횟수 (안전장치)
-        pass_count = 0
-        # 이전 패스에서 변경이 있었는지 추적하기 위한 플래그
-        # 첫 패스는 항상 실행되도록 True로 초기화
-        made_changes_in_previous_pass = True 
-
-        while self._contains_placeholders(self.cfg) and pass_count < max_passes and made_changes_in_previous_pass:
-            pass_count += 1
-            logger.debug(f"플레이스홀더 치환 및 경로 정규화 패스 {pass_count}/{max_passes}")
+        max_passes = 3 # 최대 반복 횟수 (무한 루프 방지)
+        for i in range(max_passes):
+            logger.debug(f"플레이스홀더 치환 패스 {i+1}/{max_passes}")
             # 이전 상태를 복사하여 변경 여부 확인
             cfg_before_pass = copy.deepcopy(self.cfg)
             
-            self._traverse_resolve_and_normalize_paths(self.cfg, []) # 빈 키 경로 리스트로 시작 (최상위)
+            self._traverse_and_resolve(self.cfg, []) # 빈 키 경로 리스트로 시작 (최상위)
             
-            if self.cfg == cfg_before_pass: # Check if changes were made
-                # 이번 패스에서 변경이 없었지만, while 조건에 의해 플레이스홀더는 아직 남아있습니다.
-                # 이는 해결 불가능한 플레이스홀더 또는 순환 참조를 의미할 수 있습니다.
-                logger.warning(
-                    f"패스 {pass_count}에서 더 이상 변경 사항이 없지만, 해결되지 않은 플레이스홀더가 남아있습니다. "
-                    f"치환을 중단합니다. 남은 플레이스홀더 예시: {self._get_first_remaining_placeholder(self.cfg)}"
-                )
-                made_changes_in_previous_pass = False # 다음 반복을 막기 위해 플래그 설정
-        
-        # 루프 종료 후 최종 상태 로깅
-        if not self._contains_placeholders(self.cfg):
-            logger.debug(f"모든 플레이스홀더가 {pass_count} 패스 내에 성공적으로 해결되었습니다.")
-        elif pass_count >= max_passes and self._contains_placeholders(self.cfg):
-            # max_passes에 도달했고 여전히 플레이스홀더가 남아있는 경우
-            logger.warning(
-                f"최대 플레이스홀더 치환/정규화 패스 {max_passes}회 도달 후에도 해결되지 않은 플레이스홀더가 남아있습니다. "
-                f"남은 플레이스홀더 예시: {self._get_first_remaining_placeholder(self.cfg)}"
-            )
-        # made_changes_in_previous_pass가 False가 되어 루프가 종료된 경우는 이미 루프 내에서 경고 로깅됨
+            # 현재 패스에서 더 이상 변경이 없으면 반복 중단
+            if self.cfg == cfg_before_pass:
+                logger.debug(f"패스 {i+1}에서 더 이상 변경 사항 없음. 플레이스홀더 치환 완료.")
+                break
+            else: # for 루프가 break 없이 정상적으로 완료된 경우 (max_passes 만큼 실행된 경우)
+                if self.cfg != cfg_before_pass: # 마지막 패스에서도 변경이 있었다면 경고
+                    logger.warning(f"최대 플레이스홀더 치환 패스 {max_passes}회 도달. 아직 해결되지 않은 중첩 플레이스홀더가 있을 수 있습니다.")
+                else: # 마지막 패스에서 변경이 없었다면 정상 완료
+                    logger.debug(f"플레이스홀더 치환 최대 패스({max_passes}) 내 완료 또는 변경 없음.")
 
         # 치환이 완료된 self.cfg가 최종 설정 데이터가 됩니다.
         self.current_cfg = self.cfg
         self.next_cfg = self.current_cfg # 현재는 동일하게 설정
 
         logger.debug(f"++++++++++++++++++++++++++++++++++") # 최종 치환 결과 로깅
-        logger.info(f"YAML 초기화 완료. self.cfg 내용: {str(self.cfg)}")
+        logger.debug(f"Final self.cfg (resolved):{self.cfg}") # 최종 치환 결과 로깅
         logger.debug(f"++++++++++++++++++++++++++++++++++") # 최종 치환 결과 로깅
 
-    def _contains_placeholders(self, data: Any) -> bool:
-        """
-        주어진 데이터 구조 내에 '${...}' 형태의 플레이스홀더 문자열이 있는지 재귀적으로 확인합니다.
-        """
-        if isinstance(data, dict):
-            for value in data.values():
-                if self._contains_placeholders(value):
-                    return True
-        elif isinstance(data, list):
-            for item in data:
-                if self._contains_placeholders(item):
-                    return True
-        elif isinstance(data, str):
-            if '${' in data: # 간단히 '${' 문자열 포함 여부로 확인
-                return True
-        return False
+        # self.yaml_list 및 관련 변수들은 이 방식에서는 필요 없습니다.
+        # self.list_depth = 0 # 이제 필요 없을 가능성이 높습니다.
 
-    def _get_first_remaining_placeholder(self, data: Any, path_prefix="") -> Optional[str]:
+
+    def _traverse_and_resolve(self, data, current_key_path_list):
         """
-        해결되지 않고 남아있는 첫 번째 플레이스홀더의 예시를 찾아 문자열로 반환합니다. (디버깅용)
-        """
-        if isinstance(data, dict):
-            for key, value in data.items():
-                found = self._get_first_remaining_placeholder(value, path_prefix=f"{path_prefix}{key}.")
-                if found:
-                    return found
-        elif isinstance(data, list):
-            for i, item in enumerate(data):
-                found = self._get_first_remaining_placeholder(item, path_prefix=f"{path_prefix}{i}.")
-                if found:
-                    return found
-        elif isinstance(data, str):
-            match = re.search(r'\$\{[^}]+\}', data) # ${...} 패턴 검색
-            if match:
-                # 경로가 너무 길어지면 잘라낼 수 있도록 path_prefix도 고려
-                return f"'{path_prefix[:-1] if path_prefix else ''}' 위치의 값 '{data[:50]}{'...' if len(data)>50 else ''}' 내 '{match.group(0)}'"
-        return None
- 
-    def _traverse_resolve_and_normalize_paths(self, data: Any, current_key_path_list: List[Union[str, int]]):
-        """
-        데이터 구조를 재귀적으로 순회하며 플레이스홀더를 치환하고,
-        경로 관련 키의 문자열 값을 정규화합니다. (expanduser, normpath 적용)
-        Path 객체로의 변환은 get_path에서 수행합니다.
+        딕셔너리 또는 리스트 내의 문자열에서 플레이스홀더 ${...}를 찾아
+        full_config에서 값을 조회하여 치환합니다.
+        재귀적으로 동작하며, data 객체를 직접 수정합니다.
+
         Args:
             data (dict or list or any): 현재 처리할 데이터 (self.cfg의 일부 또는 전체)
             current_key_path_list (list): 현재 위치까지의 키 경로 세그먼트 리스트 (예: ['project', 'paths', 'dataset'])
         """
         # 현재 경로를 점(.)으로 구분된 문자열로 만듭니다 (로깅/디버깅용)
-        # current_key_path_str = ".".join(map(str, current_key_path_list)) if current_key_path_list else "root" # 디버깅용
-        # logger.debug(f"_traverse_resolve_and_normalize_paths start, 현재 경로: {current_key_path_str}") # 너무 많은 로그를 유발할 수 있음
+        current_key_path_str = ".".join(map(str, current_key_path_list)) if current_key_path_list else "root"
+        logger.debug(f"_traverse_and_resolve start-------------------------------------------------------")
+        logger.debug(f"_현재 경로: {current_key_path_str}")
+        logger.debug(f"_traverse_and_resolve ------------------------------------------------------------\n")
 
         if isinstance(data, dict):
-            for key, value in list(data.items()): # Iterate over a copy of items for safe modification
-                new_value = value # 변경될 수 있는 값을 저장할 변수
+            # 데이터가 딕셔너리인 경우, 각 항목을 순회하며 재귀 호출
+            for key, value in data.items():
+                logger.debug(f"_traverse_and_resolve-isinstance(data, dict), key:{key}, \nvalue:{value}")
+                # 다음 레벨의 키 경로 리스트를 생성
                 next_key_path_list = current_key_path_list + [key]
-                if isinstance(value, str):
-                    # 1. 플레이스홀더 치환
-                    resolved_str = value
-                    placeholders = re.findall(r'\$\{(.*?)\}', value)
-                    if placeholders:
-                        for placeholder_key_path in placeholders:
-                            trimmed_key_path = placeholder_key_path.strip()
-                            lookup_val = None
-                            if trimmed_key_path == "PWD":
-                                lookup_val = str(self.root_dir) # Configger의 root_dir 사용
-                            else:
-                                lookup_val = self._get_value_from_key_path(self.cfg, trimmed_key_path)
-                            
-                            if lookup_val is not None:
-                                placeholder_str_to_replace = f"${{{placeholder_key_path}}}"
-                                resolved_str = resolved_str.replace(placeholder_str_to_replace, str(lookup_val))
-                                # logger.debug(f"플레이스홀더 치환: 키 '{key}'에서 '{placeholder_str_to_replace}' -> '{str(lookup_val)}'")
-                            # else:
-                                # logger.debug(f"플레이스홀더 값 찾기 실패: '{placeholder_key_path}' (키: '{key}')")
-                    
-                    # 2. 경로 문자열 정규화 (키 이름이 경로를 나타내는 경우에만)
-                    if (key.endswith("_dir") or key.endswith("_path")) and resolved_str.strip():
-                        expanded_path = os.path.expanduser(resolved_str)
-                        normalized_path = os.path.normpath(expanded_path)
-                        # if resolved_str != normalized_path:
-                            # logger.debug(f"경로 정규화: 키 '{keyS}' 값 '{resolved_str}' -> '{normalized_path}'")
-                        new_value = normalized_path
-                    else:
-                        new_value = resolved_str
-                    
-                    if new_value != value: # 변경이 있었으면 업데이트
-                        data[key] = new_value
-
-                # 값 자체가 dict나 list인 경우 재귀적으로 처리
-                # new_value를 사용하는 이유는 문자열이었던 value가 플레이스홀더 치환/경로 정규화를 거쳐
-                # new_value로 업데이트되었을 수 있기 때문입니다.
-                # 하지만, new_value가 dict나 list로 변환되는 경우는 없으므로,
-                # 원래 value의 타입에 따라 재귀 호출 여부를 결정해야 합니다.
-                # 따라서, new_value 대신 value의 타입을 확인하거나,
-                # new_value가 dict/list인 경우 (플레이스홀더 치환으로 인해 문자열이 아닌 다른 타입이 될 가능성은 낮음)
-                # 또는 value가 원래 dict/list였던 경우를 고려합니다.
-                # 여기서는 new_value (업데이트된 값)에 대해 재귀 호출을 수행합니다.
-                if isinstance(new_value, (dict, list)):
-                    self._traverse_resolve_and_normalize_paths(new_value, next_key_path_list)
+                logger.debug(f"_traverse_and_resolve-isinstance(data, dict), key:{key}, \nnext_key_path_list:{next_key_path_list} ")
+                # 값(value)에 대해 재귀 호출. 반환 값을 받아서 원래 딕셔너리에 업데이트
+                # 이는 불변성을 유지하는 방식이며, 직접 수정하려면 다른 로직이 필요합니다.
+                # 현재는 재귀 호출 자체에서 하위 딕셔너리를 수정하도록 설계합니다.
+                # 즉, 재귀 호출된 함수 내에서 data[key]의 내용을 직접 변경하는 방식입니다.
+                # 하지만 Python에서는 함수 인자로 딕셔너리를 넘기면 참조가 전달되므로
+                # 함수 내부에서 data[key]의 하위 내용을 수정하면 원본 딕셔너리도 수정됩니다.
+                # 따라서 여기서는 값을 다시 할당하는 대신 그냥 재귀 호출만 합니다.
+                self._traverse_and_resolve(value, next_key_path_list)
 
         elif isinstance(data, list):
+            # 데이터가 리스트인 경우, 각 요소를 순회하며 재귀 호출 (인덱스를 키 경로에 포함)
             for index, item in enumerate(data):
-                new_item = item
-                next_key_path_list = current_key_path_list + [index]
-                if isinstance(item, str):
-                    # 1. 플레이스홀더 치환 (리스트 내 문자열 아이템에 대해)
-                    resolved_str = item
-                    placeholders = re.findall(r'\$\{(.*?)\}', item)
-                    if placeholders:
-                        for placeholder_key_path in placeholders:
-                            trimmed_key_path = placeholder_key_path.strip()
-                            lookup_val = None
-                            if trimmed_key_path == "PWD":
-                                lookup_val = str(self.root_dir) # Configger의 root_dir 사용
-                            else:
-                                lookup_val = self._get_value_from_key_path(self.cfg, trimmed_key_path)
-                            
-                            if lookup_val is not None:
-                                placeholder_str_to_replace = f"${{{placeholder_key_path}}}"
-                                resolved_str = resolved_str.replace(placeholder_str_to_replace, str(lookup_val))
-                                # logger.debug(f"플레이스홀더 치환 (리스트 내): 인덱스 '{index}'에서 '{placeholder_str_to_replace}' -> '{str(lookup_val)}'")
-                    new_item = resolved_str
+                logger.debug(f"_traverse_and_resolve-isinstance(data, list), index:{index}, item:{item}")
+                # 다음 레벨의 키 경로 리스트를 생성 (리스트 인덱스를 키처럼 취급)
+                next_key_path_list = current_key_path_list + [index] # 리스트 인덱스는 숫자로 저장될 수 있습니다. 필요에 따라 str(index)로 변환.
+                # 값(item)에 대해 재귀 호출
+                self._traverse_and_resolve(item, next_key_path_list)
 
-                    # 리스트 내 문자열 아이템에 대해서는 경로 정규화를 기본적으로 적용하지 않음.
-                    # 필요하다면 특정 조건(예: 키 이름 패턴)을 추가할 수 있으나,
-                    # 현재 로직에서는 플레이스홀더 치환만 수행합니다.
+        elif isinstance(data, str):
+            # 데이터가 문자열인 경우, 플레이스홀더를 찾아 치환
+            # 플레이스홀더 패턴: ${...}
+            placeholders = re.findall(r'\$\{(.*?)\}', data)
+            resolved_string = data # 치환 작업을 할 문자열 복사
+            logger.debug(f"_traverse_and_resolve-isinstance(data, str), '{resolved_string}'에서 '{placeholders}'를 찾음")
+            if placeholders: # 플레이스홀더가 하나라도 있는 경우에만 처리
+                for placeholder_key_path in placeholders:
+                    logger.debug(f"_traverse_and_resolve-isinstance(data, str), placeholder_key_path:'{placeholder_key_path}'")
+                    lookup_value = None
+                    trimmed_key_path = placeholder_key_path.strip() # 플레이스홀더 내용의 앞뒤 공백 제거
+                    logger.debug(f"_traverse_and_resolve-trimmed_key_path:'{trimmed_key_path}' <- placeholder_key_path:'{placeholder_key_path}'")
 
-                    if new_item != item: # 변경이 있었으면 업데이트
-                        data[index] = new_item
+                    # 플레이스홀더 내용이 'PWD'인지 확인
+                    if trimmed_key_path == "PWD":
+                        try:
+                            lookup_value = os.getcwd() # 시스템의 현재 작업 디렉토리 경로 가져오기
+                        except Exception as e:
+                            logger.error(f"_traverse_and_resolve- PWD 값 조회 오류: {e}")
+                            lookup_value = None
+                    # PWD가 아닌 경우, 기존처럼 self.cfg에서 키 경로로 값 조회
+                    else:
+                        # 플레이스홀더 내의 키 경로를 사용하여 전체 설정 데이터(self.cfg)에서 실제 값을 찾습니다.
+                        lookup_value = self._get_value_from_key_path(self.cfg, trimmed_key_path)
 
-                # 아이템 자체가 dict나 list인 경우 재귀적으로 처리
-                elif isinstance(new_item, (dict, list)): # new_item을 사용 (item이 dict/list인 경우 new_item은 item과 동일)
-                    self._traverse_resolve_and_normalize_paths(new_item, next_key_path_list)
+                    if lookup_value is not None:
+                        # 찾은 값이 None이 아니면 문자열에서 플레이스홀더를 실제 값으로 치환
+                        # 값의 타입에 따라 문자열로 변환하여 치환해야 합니다.
+                        # 주의: replace()는 모든 일치 항목을 치환합니다.
+                        # f-string을 사용하는 방식은 한 번에 하나의 플레이스홀더만 치환하므로 부적합합니다.
+                        # replace()가 이 경우 더 적합합니다.
+                        try:
+                            # 치환될 값을 문자열로 변환
+                            value_to_replace_with = str(lookup_value)
+                            # 플레이스홀더 문자열 (예: "${project.root_dir}")
+                            placeholder_str = f"${{{placeholder_key_path}}}"
+                            # 문자열 치환 수행
+                            resolved_string = resolved_string.replace(placeholder_str, value_to_replace_with)
+                            logger.debug(f"_traverse_and_resolve- 치환 성공: '{placeholder_key_path}' -> '{lookup_value}' (in '{data}')")
+
+                        except Exception as e:
+                            logger.debug(f"_traverse_and_resolve- 치환 중 오류 발생 (값 변환 또는 치환): '{placeholder_key_path}' with '{lookup_value}' in '{data}' - {e}")
+                            # 오류 발생 시 해당 플레이스홀더는 치환되지 않은 채로 남을 수 있습니다.
+
+                    else:
+                        logger.debug(f"_traverse_and_resolve-  플레이스홀더 값 찾기 실패: '{placeholder_key_path}' (in '{data}') at path '{current_key_path_str}'")
+                        # 값을 찾지 못한 경우 어떻게 처리할지 결정해야 합니다.
+                        # (예: 플레이스홀더를 그대로 남겨두거나, 오류 발생, 기본값 설정 등)
+                        # 현재는 그대로 남겨둡니다.
+
+                # 문자열 값을 담고 있는 부모 객체 (딕셔너리 또는 리스트)를 찾아서
+                # 이 resolved_string으로 해당 값을 업데이트해야 합니다.
+                # 재귀 호출 방식에서는 부모 객체의 키/인덱스를 알아야 합니다.
+                # 이를 위해 재귀 호출 시 부모 객체와 자신의 키/인덱스를 함께 넘겨주는 방식도 가능합니다.
+                # 또는 값을 반환하는 방식으로 구현할 수도 있습니다.
+                # 현재 코드는 값을 반환하지 않고 재귀 호출만 하므로, 문자열 치환 결과를
+                # 부모 객체에 반영하려면 data 객체를 직접 수정해야 합니다.
+
+                # 문자열이 딕셔너리의 값인 경우
+                if current_key_path_list and isinstance(self._get_parent_from_key_path(self.cfg, current_key_path_list[:-1]), dict):
+                     parent_obj = self._get_parent_from_key_path(self.cfg, current_key_path_list[:-1])
+                     last_key = current_key_path_list[-1]
+                     parent_obj[last_key] = resolved_string # 부모 딕셔너리의 값 업데이트
+                     logger.debug(f"_traverse_and_resolve- 딕셔너리 값 업데이트 at '{current_key_path_str}'\n")
+
+                # 문자열이 리스트의 요소인 경우
+                elif current_key_path_list and isinstance(self._get_parent_from_key_path(self.cfg, current_key_path_list[:-1]), list):
+                     parent_obj = self._get_parent_from_key_path(self.cfg, current_key_path_list[:-1])
+                     last_index = current_key_path_list[-1] # 리스트 인덱스
+                     # 인덱스가 유효한지 확인
+                     if isinstance(last_index, int) and 0 <= last_index < len(parent_obj):
+                          parent_obj[last_index] = resolved_string # 부모 리스트의 요소 업데이트
+                          logger.debug(f"_traverse_and_resolve- 리스트 요소 업데이트 at '{current_key_path_str}'\n")
+                     else:
+                          logger.debug(f"_traverse_and_resolve- 리스트 인덱스 오류: '{last_index}' at path '{current_key_path_str}'\n")
+
+                # 최상위 문자열인 경우는 거의 없겠지만, 필요하다면 처리
+                elif not current_key_path_list and isinstance(self.cfg, str):
+                     self.cfg = resolved_string
+                     logger.debug(f"_traverse_and_resolve-최상위 문자열 업데이트\n")
+
+            else:
+                logger.debug(f"_traverse_and_resolve: 문자열 '{data}'에서 플레이스홀더(${'{...}'})를 찾지 못했습니다.") # 로그 레벨 변경 및 메시지 명확화
+
+            # 문자열인 경우 치환 여부와 관계없이 여기서 처리가 끝납니다.
+            # 값을 반환하는 방식이라면 여기서 resolved_string을 반환해야 합니다.
+            # 하지만 여기서는 data 객체를 직접 수정하므로 별도 반환이 없습니다.
+            pass # 문자열 처리가 완료되었으므로 재귀 중단
+
+        else:
+            # 딕셔너리, 리스트, 문자열이 아닌 다른 타입의 데이터는 순회할 필요 없음
+            logger.debug(f"_traverse_and_resolve-스칼라 값 (처리 건너뜀) in _traverse_and_resolve 호출 - {data}, 현재 경로: {current_key_path_str}\n")
+            logger.debug(f"_traverse_and_resolve-재귀 끝---------------------------------------------------------------------")
+            pass # 재귀 중단
 
     def _get_value_from_key_path(self, data, key_path):
         """
@@ -466,7 +460,7 @@ class configger:
 
         # logger.error(f"values:{self.cfg}, keys:{keys}") # 이 로그는 except 블록 안에서 찍혔으므로 제거 또는 이동
 
-        logger.info(f"get_value called for key: '{key}', split keys: {keys}")
+        logger.debug(f"get_value called for key: '{key}', split keys: {keys}")
 
         try:
             # 마지막 딕셔너리를 찾는다.
@@ -533,7 +527,6 @@ class configger:
         # last_cfg = self.cfg.get_config(key_base)
         # return last_cfg.get(last_key, None)
 
-        logger.info(f"get_path called for key: '{key}'")
 
         raw_value = None
         try:
@@ -547,17 +540,15 @@ class configger:
             logger.error(f"키 '{key}'를 가져오는 중 오류 발생 (get_path): {e}. 기본값이 제공되지 않았습니다.")
             raise
 
-        if raw_value is None:
-            if default is not None:
+        if raw_value is None: # get_value가 None을 반환 (키를 찾지 못했거나 값이 None)
+            if default is not None: # get_path에 제공된 기본값 사용
                 logger.debug(f"get_path: 키 '{key}'를 찾을 수 없거나 값이 None입니다. get_path의 기본값 '{default}' 반환.")
                 return default
-            else: # 기본값이 없으면 오류를 발생시키거나 None을 반환할 수 있습니다.
-                  # 여기서는 None을 반환하고, ensure_exists가 True면 아래에서 오류 발생 가능.
-                if ensure_exists: # 키 자체가 없는데 경로 생성을 시도하면 안됨
-                    raise KeyError(f"경로 키 '{key}'를 찾을 수 없으며 ensure_exists=True입니다.")
+            else: # get_path에 제공된 기본값이 없으면 None 반환 (호출자가 처리)
+                logger.warning(f"get_path: 키 '{key}'를 찾을 수 없거나 값이 None입니다. 기본값이 제공되지 않았으므로 None을 반환합니다.")
                 return None
 
-        path_obj: Optional[Path] = None # 타입 힌트 명시
+        path_obj = None
         if isinstance(raw_value, Path):
             path_obj = raw_value
         elif isinstance(raw_value, str):
@@ -565,14 +556,9 @@ class configger:
                 logger.warning(f"경로 키 '{key}'의 값이 빈 문자열입니다.")
                 if default is not None: return default
                 if ensure_exists: raise ValueError(f"경로 키 '{key}'의 값이 빈 문자열이고 ensure_exists=True입니다.")
-                return Path() # 빈 Path 객체 반환 또는 None
+                return None # 또는 빈 Path 객체 Path('')를 반환할 수도 있습니다.
             try:
-                # _traverse_resolve_and_normalize_paths 에서 이미 expanduser, normpath 처리됨
-                path_obj = Path(raw_value) 
-                # 만약 _traverse_resolve_and_normalize_paths에서 경로 정규화를 안했다면 여기서 수행
-                # expanded_path_str = os.path.expanduser(raw_value)
-                # normalized_path_str = os.path.normpath(expanded_path_str)
-                # path_obj = Path(normalized_path_str)
+                path_obj = Path(raw_value).expanduser()
             except Exception as e:
                 logger.error(f"문자열 '{raw_value}'을 Path 객체로 변환 중 오류 (키: '{key}'): {e}")
                 if default is not None: return default
@@ -583,26 +569,24 @@ class configger:
 
         if path_obj is not None and ensure_exists:
             try:
-                # 경로의 존재 여부 및 타입(디렉토리/파일)에 따른 생성 로직
-                # 키 이름으로 디렉토리/파일 여부를 "추론"하여 생성 시도
+                target_dir_to_create = None
                 if key.endswith("_dir"):
                     target_dir_to_create = path_obj
-                elif key.endswith("_path"): # 파일 경로로 간주되면 부모 디렉토리 생성
-                    # path_obj가 실제 파일인지 디렉토리인지 알 수 없으므로,
-                    # 부모 디렉토리가 존재하도록 하는 것이 합리적.
-                    target_dir_to_create = path_obj.parent
-                # else: 키가 _dir이나 _path로 끝나지 않으면 자동 생성 안 함.
+                elif key.endswith("_path"):
+                    target_dir_to_create = path_obj.parent # 파일 경로의 경우 부모 디렉토리
+                else:
+                    logger.debug(f"키 '{key}'는 '_dir' 또는 '_path'로 끝나지 않습니다. '{path_obj}'에 대한 자동 디렉토리 생성은 적용되지 않을 수 있습니다.")
 
                 if target_dir_to_create:
                     if not target_dir_to_create.exists():
-                        logger.debug(f"디렉토리 '{target_dir_to_create}' (키: '{key}')가 존재하지 않아 생성합니다.")
+                        logger.debug(f"디렉토리 '{target_dir_to_create}' (키: '{key}')가 존재하지 않습니다. 생성합니다...")
                         target_dir_to_create.mkdir(parents=True, exist_ok=True)
                         logger.debug(f"디렉토리 '{target_dir_to_create}' 생성 완료.")
                     elif not target_dir_to_create.is_dir():
-                        # 이미 존재하는데 디렉토리가 아닌 경우 오류
                         logger.error(f"경로 '{target_dir_to_create}' (키: '{key}')는 존재하지만 디렉토리가 아닙니다.")
                         raise NotADirectoryError(f"경로 '{target_dir_to_create}' (키: '{key}')는 존재하지만 디렉토리가 아닙니다.")
-                    # else: 이미 디렉토리로 존재하면 아무것도 안 함.
+                    else:
+                        logger.debug(f"디렉토리 '{target_dir_to_create}' (키: '{key}')가 이미 존재합니다.")
             
             except OSError as e:
                 logger.warning(f"디렉토리 '{target_dir_to_create}' (키: '{key}') 생성 실패 (OSError): {e}. 권한을 확인하세요.")
@@ -626,7 +610,7 @@ class configger:
             List[str]: 하위 디렉토리 이름의 리스트. 경로를 찾지 못하거나, 경로가 디렉토리가 아니거나,
                        오류 발생 시 'default'가 None이면 빈 리스트를 반환하고, 아니면 'default' 값을 반환합니다.
         """
-        logger.info(f"get_path_list 호출됨: key='{key}', default={default}, ensure_exists={ensure_exists}")
+        logger.debug(f"get_path_list 호출됨: key='{key}', default={default}, ensure_exists={ensure_exists}")
         try:
             # 1. get_path를 사용하여 기본 경로 객체를 가져옵니다.
             #    get_path_list의 ensure_exists를 get_path에 전달합니다.
@@ -676,7 +660,7 @@ class configger:
             List[str]: 하위 키 이름의 리스트. 조건을 만족하지 못하면 'default'가 None일 경우
                        빈 리스트를, 아니면 'default' 값을 반환합니다.
         """
-        logger.info(f"get_key_list 호출됨: key='{key}', default={default}")
+        logger.debug(f"get_key_list 호출됨: key='{key}', default={default}")
         try:
             # 1. get_value를 사용하여 해당 키의 값을 가져옵니다.
             target_value = self.get_value(key, default=None) # ensure_exists는 get_value에서 처리
@@ -713,7 +697,7 @@ class configger:
             List[Any]: 설정에서 가져온 리스트. 조건을 만족하지 못하면 'default'가 None일 경우
                        빈 리스트를, 아니면 'default' 값을 반환합니다.
         """
-        logger.info(f"get_value_list 호출됨: key='{key}', default={default}")
+        logger.debug(f"get_value_list 호출됨: key='{key}', default={default}")
         try:
             # 1. get_value를 사용하여 해당 키의 값을 가져옵니다.
             # get_value는 키가 없거나 값이 null이면 None을 반환할 수 있습니다 (자신의 default가 None일 때).
@@ -742,7 +726,6 @@ class configger:
         """
         keys = key.split(".")
         cur_cfg = self.cfg
-        logger.info(f"get_config 호출됨: key='{key}', split keys: {keys}")
 
         try:
             for i, key_name in enumerate(keys):

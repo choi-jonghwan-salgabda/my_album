@@ -31,8 +31,21 @@ project:
       undetect_list_path:       ${project.paths.datasets.undetect_dir}/undetect_jsons.lst
 
     outputs: # 결과 폴더
-      outputs_dir: ${project.root_dir}/outputs/
+      outputs_dir:              ${project.root_dir}/outputs/
       results_dir:              ${project.paths.outputs.outputs_dir}/results/
+      album_index_path:          ${project.paths.outputs.results_dir}/album_index
+
+    web_server:
+      web_server_dir: ${project.root_dir}/web_server/
+      host: "0.0.0.0"
+      port: 5000
+      # 템플릿 폴더 경로 (웹 앱 루트 디렉토리 기준, 예: my_album_webapp/)
+      template_dir: ${project.root_dir.web_server_dir}/templates
+      # 정적 파일 폴더 경로 (웹 앱 루트 디렉토리 기준, 예: my_album_webapp/)
+      static_dir: ${project.root_dir.web_server_dir}/static
+      # 이미지를 제공할 URL 접두사
+      # 예: /images_data/image1.jpg 와 같이 접근
+      image_serve_prefix: "/salgabda_images_data"
 
   source: # 소스 코드 폴더
     src_dir: ${project.root_dir}/src/

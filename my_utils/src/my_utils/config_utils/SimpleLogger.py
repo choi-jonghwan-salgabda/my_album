@@ -39,6 +39,19 @@ LOG_LEVELS = {
 # 비동기 파일 쓰기 스레드를 안전하게 종료시키기 위한 특별한 객체(Sentinel)입니다.
 _SENTINEL = object()
 
+def make_normaized_path(arg_path:Path)->Path:
+    # Configger 클래스 또는 경로 처리 함수 내에서
+    # resolved_path = resolve_placeholders(raw_path_from_yaml) # 기존 로직
+
+    # 1. 사용자 홈 디렉토리 확장
+    expanded_path = os.path.expanduser(arg_path)
+
+    # 2. 경로 정규화 (중복 슬래시 제거 등)
+    normalized_path = os.path.normpath(expanded_path)
+
+    # 최종적으로 normalized_path 사용
+    return normalized_path
+
 class SimpleLogger:
     """
     콘솔 출력 및 파일 기록(동기/비동기)을 지원하는 간단한 로깅 클래스입니다.
@@ -154,7 +167,6 @@ class SimpleLogger:
         desired_async_state = async_file_writing if async_file_writing is not None else self._async_file_writing_enabled
 
         # --- 비동기 쓰기 스레드 상태 변화 감지 및 처리 로직 ---
-
         # Case 1: 비동기 쓰기 비활성화 요청 또는 경로가 None이 됨 (async 중지)
         # 또는 비동기 활성화 상태에서 경로가 변경됨 (async 중지 후 재시작)
         is_path_changing = (logger_path is not None and logger_path != self._logger_path)
@@ -186,7 +198,6 @@ class SimpleLogger:
              # 새 경로로 비동기 쓰기 스레드 시작
              self._start_async_writer(self._logger_path)
 
-
         # --- 나머지 설정 업데이트 ---
         if min_level is not None:
             # 최소 로그 레벨 업데이트
@@ -203,7 +214,6 @@ class SimpleLogger:
         # 비동기 쓰기가 요청되었으나 경로가 없을 경우 경고
         if async_file_writing is True and self._logger_path is None:
             print("경고: 비동기 파일 기록을 요청했지만 로그 파일 경로가 지정되지 않았습니다. 비동기 기록을 활성화할 수 없습니다.")
-
 
     def _async_writer_task(self, log_file_path):
         """
@@ -251,7 +261,6 @@ class SimpleLogger:
                         if self._log_queue.qsize() > 0: # 오류 발생했더라도 메시지는 큐에서 제거
                              self._log_queue.task_done()
 
-
         except Exception as e:
             print(f"오류: 비동기 로깅 스레드 초기화 또는 파일 열기 실패: {e}")
 
@@ -262,7 +271,6 @@ class SimpleLogger:
                  print(f"비동기 로깅 스레드: 파일 '{log_file_path}' 닫힘.")
             self._file_handle = None # 핸들 해제
             print("비동기 로깅 스레드 종료.")
-
 
     def _start_async_writer(self, path):
         """
@@ -293,7 +301,6 @@ class SimpleLogger:
         self._async_file_writing_enabled = True
         print("비동기 쓰기 스레드 시작 완료.")
 
-
     def _stop_async_writer(self):
         """
         실행 중인 비동기 파일 쓰기 스레드를 안전하게 종료합니다.
@@ -320,7 +327,6 @@ class SimpleLogger:
         else:
              print("경고: 종료할 비동기 쓰기 스레드가 없거나 이미 종료되었습니다.")
 
-
         # 사용된 리소스 정리
         self._log_queue = None # 큐 객체 해제
         self._stop_event = None
@@ -328,7 +334,6 @@ class SimpleLogger:
         # self._file_handle은 쓰레드 내부에서 닫힙니다.
         self._async_file_writing_enabled = False
         print("비동기 쓰기 스레드 종료 처리 완료.")
-
 
     def shutdown(self):
         """
@@ -346,7 +351,6 @@ class SimpleLogger:
         """
         # print("정보: SimpleLogger 객체 소멸자 호출됨.")
         self.shutdown()
-
 
     def get_config(self):
         """
@@ -429,7 +433,6 @@ class SimpleLogger:
             del frame
             # caller_frame도 필요 이상 유지하지 않도록 처리 (여기서는 반환 후 GC 대상)
 
-
     def _format_message(self, message, level):
         """
         주어진 메시지와 로그 레벨을 사용하여 최종 로그 메시지 문자열을 생성합니다.
@@ -445,14 +448,14 @@ class SimpleLogger:
         """
         timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
 
-        header_parts = [f"[{timestamp}]", f"[{level.upper()}]"]
+        header_parts = [f"[{timestamp}]",f"[{(level.upper()):8s}]"]
 
         # 함수 이름 포함 설정이 켜져있으면 함수 이름을 가져와 헤더에 추가
         if self._include_function_name:
             # 함수 이름 포함 설정이 켜져있으면, 호출 함수 이름을 가져와 헤더에 추가
-             function_name = self._get_caller_function_name()
-             if function_name and function_name != '<module>': # 함수 이름을 성공적으로 가져왔고 메인 모듈이 아니면 추가
-                 header_parts.append(f"[{function_name}]")
+            function_name = self._get_caller_function_name()
+            if function_name and function_name != '<module>': # 함수 이름을 성공적으로 가져왔고 메인 모듈이 아니면 추가
+                header_parts.append(f"[{function_name}]")
 
         header = " ".join(header_parts)
 
@@ -502,7 +505,6 @@ class SimpleLogger:
             except Exception as e:
                 # 파일 쓰기 실패 시 에러 메시지 출력 (기본 print 사용)
                 print(f"오류: 동기 모드에서 로그 파일 '{self._logger_path}'에 쓰기 실패: {e}")
-
 
     def log(self, message, level="INFO"):
         """
@@ -564,7 +566,6 @@ class SimpleLogger:
     def critical(self, message):
         """CRITICAL 레벨의 로그를 기록합니다."""
         self.log(message, level="CRITICAL")
-
 
 def reset_logger(min_level = 'INFO'):
     """

@@ -7,6 +7,7 @@ import json
 from pathlib import Path
 from datetime import datetime
 from typing import Dict, Any, List, Tuple, Set
+import traceback
 
 # 사용자 정의 유틸리티 모듈 임포트
 try:
@@ -168,41 +169,43 @@ def get_all_face_data_from_json_alone(
     embeddings_in_file: List[np.ndarray] = []
     metadatas_in_file: List[Dict[str, Any]] = []
 
-    # JsonConfigHandler의 read_json 메소드를 사용하여 JSON 데이터 로드
+    # 0. JsonConfigHandler의 read_json 메소드를 사용하여 JSON 데이터 로드
     json_data = json_handler.read_json(json_file_path)
     if json_data is None:
         # json_handler.read_json 내부에서 이미 오류 로깅이 수행됨
-        # logger.warning(f"'{json_file_path.name}' 파일에서 JSON 데이터를 읽지 못했습니다 (json_handler.read_json 반환값 None).") # read_json에서 로깅하므로 중복 로깅 방지
+        logger.critical(f"0. '{json_file_path.name}' 파일에서 JSON 데이터를 읽지 못했습니다 (json_handler.read_json 반환값 None).") # read_json에서 로깅하므로 중복 로깅 방지
         return [], []
 
     try:
-        # JSON 파일에서 최상위 객체 리스트를 가져옵니다.
+        # 1. JSON 파일에서 최상위 객체 리스트를 가져옵니다.
         logger.debug(f"객체 리스트 키 이름 사용: '{json_handler.object_info_key}' (파일: {json_file_path.name})")
         json_objects_list = json_data.get(json_handler.object_info_key)
         logger.debug(f"[{json_file_path.name}] Found object list for key '{json_handler.object_info_key}': {type(json_objects_list)} with length {len(json_objects_list) if isinstance(json_objects_list, list) else 'N/A'}")
         if not isinstance(json_objects_list, list):
-            logger.warning(f"JSON 파일 '{json_file_path.name}'에 '{json_handler.object_info_key}' 키로 식별되는 리스트가 없거나 형식이 잘못되었습니다.")
+            logger.error(f"1. JSON 파일 '{json_file_path.name}'에 '{json_handler.object_info_key}' 키로 식별되는 리스트가 없거나 형식이 잘못되었습니다.")
             return [], []
 
         if not json_objects_list:
-            logger.debug(f"[{json_file_path.name}] Object list for key '{json_handler.object_info_key}' is empty.")
-        # 이미지 레벨 메타데이터 추출
-        # image_info_key로 이미지 정보 딕셔너리를 먼저 가져옵니다.
+            logger.error(f"1. [{json_file_path.name}] Object list for key '{json_handler.object_info_key}' is empty.")
+        
+        # 2. 이미지 레벨 메타데이터 추출
+        # 2.1. image_info_key로 이미지 정보 딕셔너리를 먼저 가져옵니다.
         image_info_data = json_data.get(json_handler.image_info_key, {})
         json_image_path = image_info_data.get(json_handler.image_path_key)
         json_image_hash = image_info_data.get(json_handler.image_hash_key)
 
         for objt_indx, obj_entry in enumerate(json_objects_list): # 객체 리스트를 순회합니다.
             if not isinstance(obj_entry, dict):
-                logger.warning(f"[{json_file_path.name}] - 인덱스 {objt_indx}의 객체가 딕셔너리가 아닙니다. 건너뜁니다.")
+                logger.error(f"2.1. [{json_file_path.name}] - 인덱스 {objt_indx}의 객체가 딕셔너리가 아닙니다. 건너뜁니다.")
                 continue # 각 객체는 딕셔너리여야 합니다.
 
-            # 현재 객체에서 얼굴 리스트를 가져옵니다.
+            # 2.2. 현재 객체에서 얼굴 리스트를 가져옵니다.
             json_face_list = obj_entry.get(json_handler.face_info_key)
             # 이 데이터는 단일 얼굴의 dict이거나, 여러 얼굴의 dict 리스트일 수 있습니다.
             json_face_list = obj_entry.get(json_handler.face_info_key)
-            logger.debug(f"[{json_file_path.name}] Object {objt_indx}: Raw face data for key '{json_handler.face_info_key}': type={type(json_face_list)}, length={len(json_face_list) if isinstance(json_face_list, list) else ('1' if isinstance(json_face_list, dict) else 'N/A')}")
+            logger.debug(f"2.2. [{json_file_path.name}] Object {objt_indx}: Raw face data for key '{json_handler.face_info_key}': type={type(json_face_list)}, length={len(json_face_list) if isinstance(json_face_list, list) else ('1' if isinstance(json_face_list, dict) else 'N/A')}")
 
+            # 2.3. 얼굴 리스트의 Type를 확인합니다.
             faces_to_iterate = []
             if isinstance(json_face_list, dict):
                 # 단일 얼굴 dict인 경우, 리스트에 추가하여 일관되게 처리
@@ -212,32 +215,33 @@ def get_all_face_data_from_json_alone(
                 faces_to_iterate = json_face_list
             else:
                 if json_face_list is None:
-                    logger.debug(f"[{json_file_path.name}] - 객체 {objt_indx}: 키 '{json_handler.face_info_key}'에 얼굴 데이터가 없습니다. 이 객체의 얼굴 정보를 건너뜁니다.")
+                    logger.warning(f"2.3. [{json_file_path.name}] - 객체 {objt_indx}: 키 '{json_handler.face_info_key}'에 얼굴 데이터가 없습니다. 이 객체의 얼굴 정보를 건너뜁니다.")
                 else:
-                    logger.warning(f"[{json_file_path.name}] - 객체 {objt_indx}: 키 '{json_handler.face_info_key}'의 얼굴 데이터 타입이 예상과 다릅니다 (타입: {type(json_face_list)}). 건너뜁니다.")
+                    logger.error(f"2.3. [{json_file_path.name}] - 객체 {objt_indx}: 키 '{json_handler.face_info_key}'의 얼굴 데이터 타입이 예상과 다릅니다 (타입: {type(json_face_list)}). 건너뜁니다.")
                 continue
 
             if not faces_to_iterate:
-                logger.debug(f"[{json_file_path.name}] Object {objt_indx}: No faces to iterate for key '{json_handler.face_info_key}'.")
-                # continue # 이미 위에서 처리되었거나, 아래 루프가 빈 리스트를 처리함
+                logger.warning(f"2.3. [{json_file_path.name}] Object {objt_indx}: No faces to iterate for key '{json_handler.face_info_key}'.")
+                continue # 이미 위에서 처리되었거나, 아래 루프가 빈 리스트를 처리함
 
+            # 3. 얼굴 리스트의 각 정보를 처리합니다.
             logger.debug(f"[{json_file_path.name}] Object {objt_indx}: Normalized {len(faces_to_iterate)} face(s) to process.")
             for face_indx, face_entry in enumerate(faces_to_iterate): # 객체 내 얼굴 리스트를 순회합니다.
                 if not isinstance(face_entry, dict):
-                    logger.warning(f"[{json_file_path.name}] - 객체 {objt_indx}, 얼굴 인덱스 {face_indx}의 항목이 딕셔너리가 아닙니다 (타입: {type(face_entry)}). 건너뜁니다.")
+                    logger.warning(f"3. [{json_file_path.name}] - 객체 {objt_indx}, 얼굴 인덱스 {face_indx}의 항목이 딕셔너리가 아닙니다 (타입: {type(face_entry)}). 건너뜁니다.")
                     continue # 각 얼굴 항목은 딕셔너리여야 합니다.
 
                 logger.debug(f"[{json_file_path.name}] Object {objt_indx}, Face {face_indx}: Processing face entry. Looking for embedding key '{json_handler.face_embedding_key}'.")
                 embedding_data = face_entry.get(json_handler.face_embedding_key)
                 if embedding_data is None:
                     face_id_val = face_entry.get(json_handler.face_id_key, "N/A") # 얼굴 ID가 없을 경우 "N/A"
-                    logger.debug(f"[{json_file_path.name}] - 객체 {objt_indx}, 얼굴 {face_indx} (ID: {face_id_val}): 키 '{json_handler.face_embedding_key}'의 임베딩 데이터가 없습니다. 건너뜁니다.")
+                    logger.warning(f"3. [{json_file_path.name}] - 객체 {objt_indx}, 얼굴 {face_indx} (ID: {face_id_val}): 키 '{json_handler.face_embedding_key}'의 임베딩 데이터가 없습니다. 건너뜁니다.")
                     continue
                 try:
                     embedding_np = np.array(embedding_data, dtype=np.float32)
                 except Exception as e_np:
                     face_id_val = face_entry.get(json_handler.face_id_key, "N/A")
-                    logger.warning(f"JSON 파일 '{json_file_path.name}'의 face_id '{face_id_val}' (객체 {objt_indx}, 얼굴 {face_indx}) 임베딩 NumPy 변환 중 오류: {e_np}. 건너뜁니다.")
+                    logger.warning(f"3. JSON 파일 '{json_file_path.name}'의 face_id '{face_id_val}' (객체 {objt_indx}, 얼굴 {face_indx}) 임베딩 NumPy 변환 중 오류: {e_np}. 건너뜁니다.")
                     continue
 
                 metadata = {
@@ -263,7 +267,7 @@ def get_all_face_data_from_json_alone(
         return embeddings_in_file, metadatas_in_file
 
     except Exception as e:
-        logger.error(f"JSON 파일 '{json_file_path.name}' 처리 중 예상치 못한 오류: {e}", exc_info=True)
+        logger.critical(f"인덱스 추가 중 오류 발생: {e}")
         return [], []
 
 #def add_embeddings_batch(embeddings: List[np.ndarray], metadatas: List[Dict[str, Any]], cfg_obj):
@@ -352,20 +356,33 @@ def build_and_save_index_alone(
         embedding_dim = embeddings_array.shape[1]  # 특징 벡터의 차원 (예: dlib은 128차원)
 
         logger.info(f"총 {len(embeddings_array)}개의 얼굴 특징 벡터({embedding_dim} 차원) 수집 완료. FAISS 인덱스 구축 시작.")
+        
+        datasets_dir_cfg = cfg_obj.get_config('project.paths.datasets', {})
+        undetect_objects_dir_str = datasets_dir_cfg.get("undetect_objects_dir",  None) # 파일이므로 ensure_exists=False 또는 부모 디렉토리만 생성
+        undetect_objects_dir = Path(undetect_objects_dir_str)# 파일이므로 ensure_exists=False 또는 부모 디렉토리만 생성
+        undetect_objects_dir.mkdir(parents=True, exist_ok=True)
+
+        undetect_list_file_path_str = datasets_dir_cfg.get("undetect_list_path",  None) # 파일이므로 ensure_exists=False 또는 부모 디렉토리만 생성
+        undetect_list_file_path = Path(undetect_list_file_path_str)
 
         # --- FAISS 인덱스 구축 설정 (YAML 파일의 'indexing' 섹션에서 로드) ---
-        index_file_path_str = cfg_obj.get_value('indexing.index_file_path')
-        metadata_file_path_str = cfg_obj.get_value('indexing.metadata_path')
-        faiss_index_type = cfg_obj.get_value('indexing.faiss_index_type', 'IndexFlatL2') # 기본값: IndexFlatL2
-        
+        indexing_cfg = cfg_obj.config('indexing', {})
+        index_file_path_str = indexing_cfg.get('index_file_path',None) # YAML 설정에서_file_path')
+        index_file_path = Path(index_file_path_str)
+
+        metadata_file_path_str = indexing_cfg.get('metadata_path', None)
+        metadata_file_path = Path(metadata_file_path_str)
+
+        faiss_index_type = indexing_cfg.get('faiss_index_type', 'IndexFlatL2') # 기본값: IndexFlatL2
+
+        cfg_embedding_dim = indexing_cfg.get('embedding_dim',  None)
         # YAML 설정의 embedding_dim과 실제 데이터의 차원을 비교합니다.
         # JSON에서 직접 읽어온 임베딩의 차원을 사용하므로, YAML 설정은 검증용으로 사용됩니다.
-        configured_embedding_dim_yaml = cfg_obj.get_value('indexing.embedding_dim')
-        if configured_embedding_dim_yaml is not None:
-            configured_embedding_dim_yaml = int(configured_embedding_dim_yaml)
-            if configured_embedding_dim_yaml != embedding_dim:
+        if cfg_embedding_dim is not None:
+            cfg_embedding_dim = int(cfg_embedding_dim)
+            if cfg_embedding_dim != embedding_dim:
                 logger.warning(
-                    f"YAML에 설정된 embedding_dim ({configured_embedding_dim_yaml})과 "
+                    f"YAML에 설정된 embedding_dim ({cfg_embedding_dim})과 "
                     f"실제 데이터의 특징 벡터 차원 ({embedding_dim})이 일치하지 않습니다. "
                     f"실제 데이터 차원인 {embedding_dim}을 사용합니다."
                 )
@@ -453,7 +470,7 @@ def build_and_save_index_alone(
         logger.critical(f"FAISS 인덱스 구축 설정 중 필수 키가 누락되었습니다: {e}")
         logger.critical("YAML 설정 파일의 'indexing' 섹션을 확인해주세요 (예: index_file_path, metadata_path, faiss_index_type 등).")
     except Exception as e:
-        logger.critical(f"FAISS 인덱스 구축 및 저장 중 예상치 못한 오류 발생: {e}", exc_info=True)
+        logger.critical(f"FAISS 인덱스 구축 및 저장 중 예상치 못한 오류 발생: {e}")
 
 def run_main(cfg: configger):
     # 0. 초기 설정 및 준비 단계
@@ -501,7 +518,7 @@ def run_main(cfg: configger):
     try:
         json_handler = JsonConfigHandler(json_key_config_data)
     except Exception as e_json_handler:
-        logger.error(f"JsonConfigHandler 초기화 중 오류 발생: {e_json_handler}", exc_info=True)
+        logger.error(f"JsonConfigHandler 초기화 중 오류 발생: {e_json_handler}")
         sys.exit(1)
 
     # 1. 입력 JSON 파일 목록 가져오기 및 처리
@@ -513,13 +530,13 @@ def run_main(cfg: configger):
     # 이 이터레이터는 아래 sum() 함수에 의해 소모됩니다.
     json_file_iterator_for_counting = input_dir.glob("**/*.json")
 
-    # is_file() 필터링을 적용하면서 개수를 셉니다.
+    # 1.2. is_file() 필터링을 적용하면서 개수를 셉니다.
     # sum(1 for ...) 구문은 이터레이터를 순회하며 각 요소에 대해 1을 더하여 총 개수를 계산합니다.
     # 이 과정에서 전체 경로를 메모리에 리스트로 저장하지 않습니다.
     total_input_found = sum(1 for p in json_file_iterator_for_counting if p.is_file())
 
     if total_input_found == 0:
-        logger.warning(f"'{input_dir}' 디렉토리에서 인덱싱할 JSON 파일을 찾을 수 없습니다.")
+        logger.warning(f"1.2. '{input_dir}' 디렉토리에서 인덱싱할 JSON 파일을 찾을 수 없습니다.")
         logger.info("✅ 최종 통계:")
         logger.info(f"   - 탐색된 JSON 파일 총 개수: {total_input_found}")
         logger.info(f"   - 인덱싱된 총 얼굴 개수: 0")
@@ -540,6 +557,7 @@ def run_main(cfg: configger):
     # batch_index = 0  # 배치 처리 시 사용 (현재는 모든 데이터 수집 후 일괄 처리)
     # total_faces_failed 변수는 필요에 따라 추가
 
+     # 1.3. JSON 파일 내 얼굴 정보 수집 시작...
     logger.info("JSON 파일 내 얼굴 정보 수집 시작...")
     for json_file_path in json_file_iterator_for_processing: # 이터레이터를 순회
         if not json_file_path.is_file():
@@ -547,7 +565,7 @@ def run_main(cfg: configger):
             continue
 
         status["req_process_count"]["value"] += 1
-        logger.debug(f"[{status['req_process_count']['value']:>{digit_width}}/{status['total_input_found']['value']}] JSON 파일 처리 중: {json_file_path.name}")
+        logger.debug(f"1.3. [{status['req_process_count']['value']:>{digit_width}}/{status['total_input_found']['value']}] JSON 파일 처리 중: {json_file_path.name}")
 
         # 2. 현재 파일(json_file_path)에서 얼굴의 임베딩과 메타데이터 가져와서 indexing
         # json_key_config_data를 전달하도록 수정
@@ -574,7 +592,7 @@ def run_main(cfg: configger):
 
     # 3. 모든 파일 처리 후, 수집된 전체 임베딩으로 FAISS 인덱스 구축
     if not all_embeddings:
-        logger.warning("수집된 얼굴 임베딩이 없어 FAISS 인덱스를 생성하지 않습니다.")
+        logger.warning("3. 수집된 얼굴 임베딩이 없어 FAISS 인덱스를 생성하지 않습니다.")
         status["error_embedding_empty_target"]["value"] +=1
     else:
         logger.info(f"총 {len(all_embeddings)}개의 얼굴 임베딩을 사용하여 FAISS 인덱스 구축 및 저장 시작...")
@@ -582,7 +600,7 @@ def run_main(cfg: configger):
 
     # 9. 모든 이미지 처리 완료 또는 중단 후 자원 해제
     # 9-1. 통계 결과 출력 ---
-    logger.warning("--- JSON 파일 처리 및 인덱싱 통계 ---") # 헤더 메시지 변경
+    logger.info("--- JSON 파일 처리 및 인덱싱 통계 ---") # 헤더 메시지 변경
     # 통계 메시지 중 가장 긴 것을 기준으로 출력 너비 조절 (visual_length 사용)
     max_visual_msg_len = 0
     if DEFAULT_STATUS_TEMPLATE: # DEFAULT_STATUS_TEMPLATE이 비어있지 않은 경우에만 실행
@@ -604,15 +622,15 @@ def run_main(cfg: configger):
     # 여기서는 run_main 초반에 계산된 digit_width를 그대로 사용합니다.
 
     fill_char = '-' # 채움 문자 변경
-    logger.warning("--- 이미지 파일 처리 통계 ---")
+    logger.info("--- 이미지 파일 처리 통계 ---")
     for key, data in status.items():
         # DEFAULT_STATUS_TEMPLATE에 해당 키가 있을 경우에만 메시지를 가져오고, 없으면 키 이름을 사용
         msg = DEFAULT_STATUS_TEMPLATE.get(key, {}).get("msg", key)
         value = data["value"]
         # f-string의 기본 정렬은 문자 개수 기준이므로, visual_length에 맞춰 수동으로 패딩 추가
         padding_spaces = max(0, max_visual_msg_len - visual_length(msg))
-        logger.warning(f"{msg}{fill_char * padding_spaces} : {value:>{digit_width}}") # 기존 digit_width 사용
-    logger.warning("------------------------------------") # 구분선 길이 조정
+        logger.info(f"{msg}{fill_char * padding_spaces} : {value:>{digit_width}}") # 기존 digit_width 사용
+    logger.info("------------------------------------") # 구분선 길이 조정
     # --- 통계 결과 출력 끝 ---
 
 if __name__ == "__main__":
