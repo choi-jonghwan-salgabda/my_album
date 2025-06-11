@@ -472,6 +472,70 @@ def build_and_save_index_alone(
     except Exception as e:
         logger.critical(f"FAISS 인덱스 구축 및 저장 중 예상치 못한 오류 발생: {e}")
 
+def _reconstruct_data_for_app(
+    all_face_metadatas: List[Dict[str, Any]],
+    all_face_embeddings: List[np.ndarray],
+    json_handler: JsonConfigHandler,
+    cfg_obj: configger
+) -> List[Dict[str, Any]]:
+    """
+    수집된 얼굴 메타데이터와 임베딩을 기반으로 Flask 앱에서 사용할 사진 데이터 목록을 재구성합니다.
+    결과는 image_path를 기준으로 그룹화되며, 각 사진은 얼굴 정보 리스트를 포함합니다.
+    """
+    logger.info("Flask 앱용 대표 JSON 데이터 재구성 시작...")
+    photos_data_for_app_dict: Dict[str, Dict[str, Any]] = {}
+
+    if len(all_face_metadatas) != len(all_face_embeddings):
+        logger.error(f"메타데이터 개수({len(all_face_metadatas)})와 임베딩 개수({len(all_face_embeddings)})가 일치하지 않아 앱용 데이터 재구성을 중단합니다.")
+        return []
+
+    for idx, face_meta in enumerate(all_face_metadatas):
+        image_path = face_meta.get(json_handler.image_path_key)
+        image_hash = face_meta.get(json_handler.image_hash_key)
+
+        if not image_path:
+            logger.warning(f"얼굴 메타데이터(인덱스 {idx})에 '{json_handler.image_path_key}'가 없어 건너<0xEB><0><0x8E>니다.")
+            continue
+
+        if image_path not in photos_data_for_app_dict:
+            photos_data_for_app_dict[image_path] = {
+                "image_path": image_path,
+                "image_hash": image_hash,
+                "faces": [],
+                "description": "",  # 앱에서 수정 가능하도록 초기값 설정
+                # 필요시 추가적인 이미지 레벨 정보 (예: 촬영일시 등)
+            }
+
+        face_embedding_list = all_face_embeddings[idx].tolist() # JSON 직렬화를 위해 list로 변환
+
+        face_info_for_app = {
+            "name": face_meta.get(json_handler.face_label_key, ""), # 초기 이름 (앱에서 수정 가능)
+            "box_xyxy": face_meta.get(json_handler.face_box_xyxy_key),
+            "confidence": face_meta.get(json_handler.face_confidence_key),
+            "face_id_in_source": face_meta.get(json_handler.face_id_key), # 원본 JSON에서의 얼굴 ID
+            "object_class": face_meta.get(json_handler.object_class_name_key), # 얼굴을 포함하는 객체의 클래스
+            "object_index": face_meta.get(json_handler.object_index_key), # 객체의 인덱스
+            "face_index_in_object": face_meta.get("face_index_in_object"), # 객체 내 얼굴의 인덱스
+            "features": face_embedding_list # 얼굴 특징 벡터
+        }
+        photos_data_for_app_dict[image_path]["faces"].append(face_info_for_app)
+
+    reconstructed_list = list(photos_data_for_app_dict.values())
+    logger.info(f"Flask 앱용 대표 JSON 데이터 재구성 완료. 총 {len(reconstructed_list)}개의 사진 항목 생성.")
+    return reconstructed_list
+
+def _save_representative_json_file(photo_data_for_app: List[Dict[str, Any]], save_path: Path, status: Dict[str, Any]):
+    """Flask 앱용으로 재구성된 사진 데이터를 JSON 파일로 저장합니다."""
+    try:
+        save_path.parent.mkdir(parents=True, exist_ok=True)
+        with open(save_path, 'w', encoding='utf-8') as f:
+            json.dump(photo_data_for_app, f, indent=2, ensure_ascii=False)
+        logger.info(f"Flask 앱용 대표 JSON 파일 저장 완료: {save_path}")
+        status["total_output_files"]["value"] += 1 # 대표 파일도 출력 파일로 간주
+    except Exception as e:
+        logger.error(f"Flask 앱용 대표 JSON 파일 저장 중 오류 발생 ({save_path}): {e}", exc_info=True)
+
+
 def run_main(cfg: configger):
     # 0. 초기 설정 및 준비 단계
     # 0.1. 통계 정보를 담을 딕셔너리 초기화
@@ -597,6 +661,24 @@ def run_main(cfg: configger):
     else:
         logger.info(f"총 {len(all_embeddings)}개의 얼굴 임베딩을 사용하여 FAISS 인덱스 구축 및 저장 시작...")
         build_and_save_index_alone(all_embeddings, all_metadatas, cfg)
+
+    # 4. Flask 앱용 대표 JSON 파일 생성 및 저장
+    if all_metadatas and all_embeddings: # 유효한 메타데이터와 임베딩이 있을 경우에만 진행
+        logger.info("Flask 앱용 대표 JSON 파일 생성 시작...")
+        try:
+            # 대표 파일 저장 경로 설정 (app.py의 JSON_SAVE_FILE_PATH 설정 방식 참고)
+            raw_jsons_dir_str = cfg.get_value(f"{dataset_base_key_str}.raw_jsons_dir")
+            app_specific_config = cfg.get_config('project.source.web_server.flask_labeling_app', {})
+            representative_filename = app_specific_config.get('json_filename_in_raw_dir', "photo_labels_index.json") # app.py와 일치하는 파일명
+            
+            if raw_jsons_dir_str and representative_filename:
+                representative_file_path = Path(raw_jsons_dir_str) / representative_filename
+                reconstructed_app_data = _reconstruct_data_for_app(all_metadatas, all_embeddings, json_handler, cfg)
+                _save_representative_json_file(reconstructed_app_data, representative_file_path, status)
+            else:
+                logger.warning("대표 JSON 파일 저장 경로 설정을 찾을 수 없어 생성을 건너<0xEB><0><0x8E>니다. (raw_jsons_dir 또는 json_filename_in_raw_dir 누락)")
+        except Exception as e_rep_json:
+            logger.error(f"Flask 앱용 대표 JSON 파일 생성 중 오류 발생: {e_rep_json}", exc_info=True)
 
     # 9. 모든 이미지 처리 완료 또는 중단 후 자원 해제
     # 9-1. 통계 결과 출력 ---

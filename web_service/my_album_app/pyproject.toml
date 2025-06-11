@@ -1,0 +1,36 @@
+[tool.poetry]
+name = "my-album-labeling-app"
+version = "0.1.0"
+description = "Flask web application for viewing and labeling photo album images."
+authors = ["salgabda <salgabda@naver.com>"] # 실제 정보로 수정해주세요.
+packages = [{include = "my_album_labeling_app", from = "src"}] # Points to the new package directory
+readme = "README.md" # 필요시 README.md 파일을 해당 디렉토리에 생성하세요.
+
+[tool.poetry.dependencies]
+python = ">=3.10"
+flask = "^3.0"
+PyYAML = ">=6.0"
+
+ultralytics = "^8.3.128"
+opencv-python = "^4.8.0" # OpenCV 추가
+dlib = "^19.24"           # dlib 추가
+faiss-cpu = "^1.7.4"      # FAISS (CPU 버전) 추가. GPU 사용 시 faiss-gpu로 변경
+# numpy는 위의 라이브러리들의 의존성으로 설치될 가능성이 높지만, 명시적으로 추가할 수도 있습니다.
+# numpy = "^1.23"
+
+# 로컬 패키지 의존성
+# my_utils 로컬 경로 의존성 수정 (pyproject.toml 위치에서 my_utils/src 까지의 상대 경로)
+my-utils = { path = "../../my_utils", develop = true } 
+# # <-- 아래 줄은 주석이었습니다. 실제 설명은 #으로 시작해야 합니다.
+# #     *   `my_utils`: 임포트할 때 사용하는 패키지 이름입니다.
+# #     *   `develop = true`: `my_utils` 코드를 수정하면 즉시 애플리케이션에 반영되도록 합니다 (editable 모드와 유사).
+
+wcwidth = "^0.2.13" # 이 주석은 삭제하거나 필요하다면 유지하세요. 현재 위치는 적절합니다.
+gunicorn = "^23.0.0"
+
+[tool.poetry.group.dev.dependencies]
+# pytest = "^7.0" # 필요한 경우 개발용 의존성 추가
+
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"

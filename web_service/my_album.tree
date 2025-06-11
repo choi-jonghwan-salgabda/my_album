@@ -1,0 +1,149 @@
+#### Data ####
+~/SambaData/OwnerData/train
+├── images
+├── jsons
+└── undetect
+    └── objects
+        └── failed_face_embedding_crops
+
+#### Source ####
+~/SambaData/Backup/FastCamp/Myproject
+├── config
+│   └── photo_album.yaml
+├── my_yolo_tiny
+│   ├── logs
+│   │   ├── face_detector_with_json_250606.log
+│   │   ├── face_detector_with_json_250607.log
+│   │   └── object_detector_250607.log
+│   ├── models
+│   │   └── yolov8n-face.pt
+│   ├── src
+│   │   ├── face_detector_with_json.py
+│   │   └── object_detector.py
+│   ├── poetry_init.sh
+│   ├── poetry.lock
+│   ├── pyproject.toml
+│   ├── pyproject.toml_v10
+│   └── README.md
+├── my_album
+│   ├── logs
+│   │   └── indexer_from_face_250607.log
+│   ├── models
+│   │   ├── dlib
+│   │   │   ├── dlib_face_recognition_resnet_model_v1.dat
+│   │   │   ├── shape_predictor_68_face_landmarks.dat
+│   │   │   └── shape_predictor_68_face_landmarks.dat.bz2
+│   │   └── dlib_models
+│   ├── src
+│   │   ├── face_dectection_main.py
+│   │   ├── face_detecter_opencv_dnn.py
+│   │   ├── face_detection.py
+│   │   ├── face_indexer_from_face.py
+│   │   ├── indexer_from_face.py
+│   │   └── indexer_from_face_with_embedding.py
+│   ├── poetry_init.sh
+│   ├── poetry.lock
+│   ├── poetry_setup_python310.sh
+│   ├── pyproject.toml
+│   └── README.md
+├── web_service
+│   └── my_album_app
+│       ├── src
+│       │   ├── my_album_labeling_app
+│       │   │   └── app.py
+│       │   ├── static
+│       │   │   └── css
+│       │   │       └── style.css
+│       │   └── templates
+│       │       ├── index.html
+│       │       └── label_image.html
+│       ├── poetry.lock
+│       ├── pyproject.toml
+│       └── README.md
+├── my_utils
+│   ├── logs
+│   ├── logs_async
+│   │   └── my_application_async.log
+│   ├── logs_sync
+│   │   └── my_application_sync.log
+│   ├── some_file.txt
+│   └── src
+│       └── my_utils
+│           ├── config_utils
+│           │   ├── configger_1_0.py
+│           │   ├── configger.py
+│           │   ├── __pycache__
+│           │   │   ├── configger.cpython-310.pyc
+│           │   │   └── SimpleLogger.cpython-310.pyc
+│           │   └── SimpleLogger.py
+│           ├── object_utils
+│           │   ├── photo_utils.py
+│           │   └── __pycache__
+│           │       └── photo_utils.cpython-310.pyc
+│           └── tools
+│               ├── MoveSearchedDupPhoto.py
+│               └── remove_empty_directories.py
+├── poetry.lock
+├── pyproject.toml
+├── README.md
+├── setup_tools
+│   ├── poetry_project_init.sh
+│   ├── poetry.sh
+│   ├── setup_full_my_photo_album_3.py
+│   ├── setup_full_my_photo_album.py
+│   └── setup_my_photo_album_2.py
+├── tomls
+│   └── my_photo_album.toml
+└── tools
+    ├── ConvertFIleNameAndPath.py
+    ├── dataloadbalance.py
+    ├── fdisk.sh
+    ├── font_test.py
+    ├── gen_auto_login.sh
+    ├── Git_init.sh
+    ├── __init__.py
+    ├── json_merge_bbox.py
+    ├── json_merge_bbox_text.py
+    ├── LoginToRremoteHhostSsh.sh
+    ├── MakeAbsPath.sh
+    ├── MkAbsPath.sh
+    ├── MkWildCard.sh
+    ├── MoveFile.sh
+    ├── move_mismatch_file_ext.py
+    ├── MvDupFile.sh
+    ├── MvFileForExist.sh
+    ├── organize_photos_editting.py
+    ├── organize_photos_map.json
+    ├── organize_photos_v1.0.py
+    ├── overap_image_annotation.py
+    ├── poetry.sh
+    ├── PutAwayAllFile.sh
+    ├── PutAwayDupFile20231222.sh
+    ├── PutAwayDupFileByLs.sh
+    ├── ReadDupFile.sh
+    ├── read_file_list.py
+    ├── remextention.py
+    ├── restore_filenames_report.py
+    ├── review_photos.py
+    ├── rSyncBackupToHome.sh
+    ├── set_data_use_jsons_file.py
+    ├── SetKorean.sh
+    ├── set_openvon_vars.sh
+    ├── setup_easyra.sh
+    ├── setup-openvpn-client.sh
+    ├── setup-openvpn-server.sh
+    ├── sftp_get_by_file_list.py
+    ├── sftp_get_file.py
+    ├── ShellTemplte.sh
+    ├── ShowDir.sh
+    ├── split_data.py
+    ├── sync_backup.sh
+    ├── sync_copy.sh
+    ├── sync_get_file_use_file_list.sh
+    ├── template.py
+    ├── template._v10py
+    ├── tree_directorys.txt
+    ├── update_json_keys_with_actual_filenames
+    ├── vpn_remove.sh
+    ├── vpn_set.sh
+    └── WhileTail.sh

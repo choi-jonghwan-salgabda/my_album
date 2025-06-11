@@ -26,6 +26,7 @@ import argparse
 from pathlib import Path
 from datetime import datetime
 import traceback
+import unicodedata # visual_length 함수에서 사용
 
 # 로그 레벨 이름과 해당 정수 값을 정의합니다. 숫자가 낮을수록 더 상세한 로그 레벨입니다.
 LOG_LEVELS = {
@@ -448,7 +449,8 @@ class SimpleLogger:
         """
         timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
 
-        header_parts = [f"[{timestamp}]",f"[{(level.upper()):8s}]"]
+        pid = os.getpid() # 현재 프로세스 ID 가져오기
+        header_parts = [f"[{pid:>5}]", f"[{timestamp}]", f"[{(level.upper()):8s}]"] # PID 추가 (5자리로 오른쪽 정렬)
 
         # 함수 이름 포함 설정이 켜져있으면 함수 이름을 가져와 헤더에 추가
         if self._include_function_name:
@@ -603,7 +605,7 @@ def calc_digit_number(in_number: int) -> int:
     if in_number == 0:
         return 1
     # 음수의 경우 절댓값을 사용합니다.
-    elif in_number < 0:
+    # elif in_number < 0: # abs()를 사용하므로 이 조건은 불필요합니다.
         in_number = abs(in_number)
 
     # 양의 정수 N의 자릿수는 floor(log10(N)) + 1 공식을 사용합니다.
@@ -660,8 +662,8 @@ def get_argument() -> argparse.Namespace:
     parser.add_argument(
         '--log-dir', '-log',
         type=str,
-        default=None, # 초기값을 None으로 설정하고 아래에서 동적으로 할당
-        help='로그 파일을 저장할 디렉토리. (기본값: <root-dir>/logs)' # 로그 파일이 저장될 디렉토리
+        default=True, # 초기값을 None으로 설정하고 아래에서 동적으로 할당
+        help='로그 파일을 저장할 디렉토리. (꼭 입력해야함)' # 로그 파일이 저장될 디렉토리
     )
     parser.add_argument(
         '--log-level', '-lvl',
@@ -673,8 +675,8 @@ def get_argument() -> argparse.Namespace:
     parser.add_argument(
         '--config-path', '-cfg',
         type=str,
-        default=None, # 초기값을 None으로 설정하고 아래에서 동적으로 할당
-        help='설정 파일(YAML)의 경로. (기본값: <root-dir>/config/<프로젝트이름>.yaml)' # YAML 설정 파일 경로
+        default=True, # 초기값을 None으로 설정하고 아래에서 동적으로 할당
+        help='설정 파일(YAML)의 경로. (꼭 입력해야함)' # YAML 설정 파일 경로
     )
     parser.add_argument(
         '--source-dir', '-src',
@@ -704,22 +706,22 @@ def get_argument() -> argparse.Namespace:
     # 명령줄 인자 파싱
     args = parser.parse_args()
 
-    # --log-dir 인자가 제공되지 않았으면 기본값 설정
-    if args.log_dir is None:
-        args.log_dir = os.path.join(args.root_dir, 'logs')
-        print(f"정보: --log-dir      인자가 제공되지 않았습니다. 기본 로그 디렉토리 '{args.log_dir}'을 사용합니다.")
+    # # --log-dir 인자가 제공되지 않았으면 기본값 설정
+    # if args.log_dir is None:
+    #     args.log_dir = os.path.join(args.root_dir, 'logs')
+    #     print(f"정보: --log-dir      인자가 제공되지 않았습니다. 기본 로그 디렉토리 '{args.log_dir}'을 사용합니다.")
     
     # 로그 디렉토리 생성 (존재하지 않으면)
     Path(args.log_dir).mkdir(parents=True, exist_ok=True)
 
-    # --config-path 인자가 제공되지 않았으면 기본값 설정
-    # 프로젝트 이름을 기반으로 설정 파일 경로를 동적으로 생성합니다.
-    if args.config_path is None:
-        config_path = (Path(args.root_dir) / '../config' / f"photo_album.yaml").expanduser().resolve()
-        args.config_path = str(config_path)
+    # # --config-path 인자가 제공되지 않았으면 기본값 설정
+    # # 프로젝트 이름을 기반으로 설정 파일 경로를 동적으로 생성합니다.
+    # if args.config_path is None:
+    #     config_path = (Path(args.root_dir) / '../config' / f"photo_album.yaml").expanduser().resolve()
+    #     args.config_path = str(config_path)
 
-        # 정보 메시지 형식 변경
-        print(f"정보: --config-path 인자가 제공되지 않았습니다. 기본 설정 파일 경로 '{args.config_path}'을 사용합니다.")
+    #     # 정보 메시지 형식 변경
+    #     print(f"정보: --config-path 인자가 제공되지 않았습니다. 기본 설정 파일 경로 '{args.config_path}'을 사용합니다.")
 
     # 파싱된 인자 정보 출력
     # --- 파싱된 인자 정보 출력 (visual_length 적용) ---
@@ -788,7 +790,7 @@ if __name__ == "__main__":
     # 2. 로거 설정
     # 로그 파일 이름에 타임스탬프를 추가하여 실행 시마다 고유한 로그 파일을 생성합니다.
     # 이 부분은 SimpleLogger 클래스 내부의 _apply_standalone_config 또는 외부 setup 호출로 대체될 수 있습니다.
-    log_file_name = f"configger_standalone_test_{datetime.now().strftime('%y%m%d_%H%M%S')}.log"
+    log_file_name = f"SimpleLogger_standalone_test_{datetime.now().strftime('%y%m%d_%H%M%S')}.log" # 모듈 이름 포함
     # args.log_dir은 get_argument에 의해 기본값(<root_dir>/logs) 또는 명령줄 값으로 설정됩니다.
     log_file_path = os.path.join(args.log_dir, log_file_name)
 

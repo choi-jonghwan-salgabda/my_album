@@ -1,0 +1,163 @@
+/* /path/to/project_root/my_album_webapp/static/css/style.css */
+html {
+    box-sizing: border-box;
+    font-size: 16px; /* 기본 폰트 크기 설정 for rem units */
+}
+*, *:before, *:after {
+    box-sizing: inherit;
+}
+
+body {
+    font-family: sans-serif;
+    margin: 0;
+    padding: 0;
+    background-color: #f4f4f4;
+    color: #333;
+}
+
+.container {
+    width: 95%;
+    margin: auto;
+    overflow: hidden;
+    padding: 20px;
+    background-color: #fff;
+    box-shadow: 0 0 10px rgba(0,0,0,0.1);
+    max-width: 1200px; /* 데스크탑 최대 너비 */
+}
+
+h1 {
+    color: #333;
+    text-align: center;
+    margin-top: 1em;
+    margin-bottom: 1em;
+}
+
+.search-by-face-section {
+    text-align: center;
+    margin-bottom: 30px;
+    padding: 20px;
+    background-color: #f0f0f0;
+    border-radius: 8px;
+}
+
+.camera-controls video {
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    margin-bottom: 10px;
+}
+.camera-controls button {
+    display: block;
+    margin: 10px auto;
+    padding: 10px 20px;
+    font-size: 1rem;
+    cursor: pointer;
+}
+
+.photo-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 15px;
+    justify-content: center;
+}
+.photo-item {
+    border: 1px solid #ddd;
+    padding: 10px;
+    text-align: center;
+    background-color: #f9f9f9;
+    border-radius: 4px;
+    flex: 1 1 200px; /* 최소 200px, 공간이 되면 늘어남 */
+    max-width: 250px; /* 최대 너비 제한 */
+    display: flex;
+    flex-direction: column;
+}
+
+.photo-item img {
+    width: 100%;
+    height: auto;
+    aspect-ratio: 1 / 1; /* 정사각형 비율 유지 */
+    object-fit: cover;   /* 이미지가 비율에 맞게 잘리거나 채워짐 */
+    border-radius: 4px;
+    margin-bottom: 10px;
+}
+
+.photo-item p {
+    margin: 0;
+    font-size: 0.9rem;
+}
+
+/* label_image.html specific styles */
+.image-container {
+    position: relative;
+    display: inline-block; /* 이미지 크기에 맞게 컨테이너 크기 조정 */
+    margin-bottom: 20px;
+    width: 100%; /* 모바일에서 전체 너비 사용 */
+    max-width: 800px; /* 데스크탑에서 최대 너비 */
+    margin-left: auto;
+    margin-right: auto;
+}
+
+.image-container img {
+    display: block;
+    max-width: 100%;
+    height: auto;
+    border: 1px solid #ccc;
+}
+
+.bounding-box {
+    position: absolute;
+    border: 2px solid red;
+    /* box-sizing: border-box; 이미 html 태그에 설정됨 */
+}
+
+.face-label-input {
+    position: absolute;
+    background-color: rgba(255, 255, 255, 0.9);
+    border: 1px solid #ccc;
+    padding: 4px;
+    font-size: 0.8rem;
+    width: 100%; /* 부모(bounding-box) 너비에 맞춤 */
+    box-sizing: border-box;
+    /* 위치는 label_image.html에서 인라인 스타일로 조정 */
+}
+
+button[type="submit"] {
+    display: block;
+    width: 100%;
+    padding: 10px;
+    background-color: #007bff;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    font-size: 1rem;
+    cursor: pointer;
+    margin-top: 20px;
+    max-width: 300px; /* 버튼 최대 너비 */
+    margin-left: auto;
+    margin-right: auto;
+}
+
+button[type="submit"]:hover {
+    background-color: #0056b3;
+}
+
+/* 작은 화면 (모바일) 대응 */
+@media (max-width: 600px) {
+    .container {
+        width: 100%;
+        padding: 10px;
+    }
+    .photo-item {
+        flex-basis: calc(50% - 10px); /* 한 줄에 2개씩 */
+        max-width: calc(50% - 10px);
+    }
+    h1 {
+        font-size: 1.5rem;
+    }
+}
+
+hr {
+    border: 0;
+    height: 1px;
+    background-image: linear-gradient(to right, rgba(0, 0,0, 0), rgba(0, 0, 0, 0.75), rgba(0, 0, 0, 0));
+    margin: 30px 0;
+}

@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>얼굴 레이블링 - 사진 {{ image_id + 1 }}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    {# 인라인 스타일은 style.css로 이전되었거나 아래에서 동적으로 생성됩니다. #}
+</head>
+<body>
+    <div class="container">
+        <h1>사진 {{ image_id + 1 }} 얼굴 레이블링</h1>
+        <p><a href="{{ url_for('index') }}">목록으로 돌아가기</a></p>
+
+        <form method="POST" action="{{ url_for('save_labels', image_id=image_id) }}">
+            <div class="image-container">
+                <img src="{{ image_url }}" alt="사진 {{ image_id + 1 }}">
+                {% for face in image_data.faces %}
+                {% set bbox = face.bbox %} <!-- bbox: [x1, y1, x2, y2] -->
+                {% set x1, y1, x2, y2 = bbox[0] | float, bbox[1] | float, bbox[2] | float, bbox[3] | float %}
+                {% set box_width = x2 - x1 %}
+                {% set box_height = y2 - y1 %}
+
+                {% if image_data.resolution and image_data.resolution.width and image_data.resolution.height %}
+                    {% set original_width = image_data.resolution.width | float %}
+                    {% set original_height = image_data.resolution.height | float %}
+                    <div class="bounding-box" style="
+                        left: {{ (x1 / original_width) * 100 }}%;
+                        top: {{ (y1 / original_height) * 100 }}%;
+                        width: {{ (box_width / original_width) * 100 }}%;
+                        height: {{ (box_height / original_height) * 100 }}%;">
+                {% else %}
+                    <!-- 해상도 정보 없을 시 fallback (덜 반응적일 수 있음) -->
+                    <div class="bounding-box" style="left: {{ x1 }}px; top: {{ y1 }}px; width: {{ box_width }}px; height: {{ box_height }}px;">
+                {% endif %}
+                        <input type="text" name="face_{{ loop.index0 }}_name" value="{{ face.name }}" placeholder="이름 입력" class="face-label-input" style="top: 100%; margin-top: 2px; left: 0;">
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+            <br>
+            <button type="submit">레이블 저장</button>
+        </form>
+    </div>
+</body>
+</html>

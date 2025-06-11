@@ -249,7 +249,7 @@ class configger:
         """
         keys = key_path.split('.')
         current_data = data
-        logger.debug(f">>> DEBUG: 값 조회 시작 for path: {key_path}")
+        logger.debug(f"값 조회 시작 for path: {key_path}")
         try:
             for i, key in enumerate(keys):
                 logger.debug(f">>> DEBUG: 현재 데이터 타입: {type(current_data)}, 찾을 키: {key}")
@@ -735,7 +735,7 @@ class configger:
             logger.error(f"get_value_list: 키 '{key}' 처리 중 오류 발생: {e}", exc_info=True)
             return default if default is not None else []
 
-    def get_config(self, key: str) -> dict | None: # None을 반환할 수도 있음을 명시
+    def get_config(self, key: str) -> Any | None: # 반환 타입을 Any | None으로 변경
         """
         주어진 점(.)으로 구분된 키 문자열에 해당하는 중첩된 설정 딕셔너리 또는 값을 가져옵니다.
         키가 존재하지 않으면 None을 반환합니다.

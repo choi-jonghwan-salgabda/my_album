@@ -313,3 +313,69 @@ class JsonConfigHandler:
 
         logger.debug(f"JSON 데이터 '{json_path}' 로드 및 검증 완료.")
         return data
+
+def load_photo_data_from_sources(
+    logger_instance, # 로거 인스턴스
+    raw_jsons_dir_path: Optional[str] = None,
+    json_save_file_path: Optional[str] = None
+) -> List[Dict[str, Any]]:
+    """
+    지정된 소스에서 사진 메타데이터를 로드합니다.
+    1. raw_jsons_dir_path 디렉토리 내의 모든 JSON 파일을 로드 시도.
+    2. 1번에서 데이터가 없거나 경로가 없으면 json_save_file_path (대표 파일) 로드 시도.
+    JSON 파일의 내용은 리스트 또는 단일 딕셔너리일 수 있습니다.
+
+    Args:
+        logger_instance: 로깅을 위한 로거 객체.
+        raw_jsons_dir_path (Optional[str]): 여러 JSON 파일이 있는 디렉토리 경로.
+        json_save_file_path (Optional[str]): 단일 대표 JSON 파일 경로.
+
+    Returns:
+        List[Dict[str, Any]]: 로드된 사진 메타데이터의 리스트.
+    """
+    all_photo_data: List[Dict[str, Any]] = []
+
+    # 1. raw_jsons_dir_path가 설정되어 있고 디렉토리가 존재하면 모든 JSON 파일 로드
+    if raw_jsons_dir_path and os.path.isdir(raw_jsons_dir_path):
+        logger_instance.info(f"{raw_jsons_dir_path} 디렉토리에서 모든 JSON 파일을 로드합니다.")
+        for filename in os.listdir(raw_jsons_dir_path):
+            if filename.endswith(".json"):
+                file_path = os.path.join(raw_jsons_dir_path, filename)
+                try:
+                    with open(file_path, 'r', encoding='utf-8') as f:
+                        data = json.load(f)
+                        if isinstance(data, list):
+                            all_photo_data.extend(data)
+                        elif isinstance(data, dict): # JSON 파일 내용이 단일 객체(딕셔너리)인 경우
+                            all_photo_data.append(data)
+                        else:
+                            logger_instance.warning(f"파일 {file_path}의 내용이 리스트 또는 딕셔너리 형식이 아닙니다. 건너<0xEB><0><0x8E>니다.")
+                except json.JSONDecodeError:
+                    logger_instance.warning(f"파일 {file_path}의 형식이 잘못되었습니다. 건너<0xEB><0><0x8E>니다.")
+                except Exception as e:
+                    logger_instance.error(f"파일 {file_path} 로드 중 오류 발생: {e}")
+        if not all_photo_data and os.path.exists(raw_jsons_dir_path): # 디렉토리는 있지만 유효한 데이터가 없는 경우
+            logger_instance.warning(f"{raw_jsons_dir_path} 디렉토리에서 유효한 JSON 데이터를 찾지 못했습니다.")
+
+    # 2. 만약 raw_jsons_dir_path에서 데이터를 로드하지 못했거나, 해당 경로가 없다면
+    #    json_save_file_path (대표 파일) 로드를 시도합니다.
+    if not all_photo_data and json_save_file_path and os.path.exists(json_save_file_path):
+        logger_instance.info(f"대표 JSON 파일({json_save_file_path}) 로드를 시도합니다.")
+        try:
+            with open(json_save_file_path, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+                if isinstance(data, list):
+                    all_photo_data = data
+                elif isinstance(data, dict): # 대표 파일도 단일 객체일 수 있음
+                    all_photo_data = [data]
+        except json.JSONDecodeError:
+            logger_instance.warning(f"대표 JSON 파일({json_save_file_path})의 형식이 잘못되었습니다.")
+        except Exception as e:
+            logger_instance.error(f"대표 JSON 파일({json_save_file_path}) 로드 중 오류 발생: {e}")
+    elif not all_photo_data and json_save_file_path and not os.path.exists(json_save_file_path):
+        logger_instance.warning(f"대표 JSON 파일({json_save_file_path})을 찾을 수 없습니다.")
+
+    if not all_photo_data:
+        logger_instance.warning("로드할 수 있는 사진 데이터가 없습니다. 빈 리스트를 반환합니다.")
+    return all_photo_data
+

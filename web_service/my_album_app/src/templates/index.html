@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>사진 앨범</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <div class="container">
+        <h1>얼굴로 사진 검색</h1>
+        <div class="search-by-face-section">
+            <div class="camera-controls">
+                <video id="videoElement" width="320" height="240" autoplay playsinline></video>
+                <button id="captureBtn">얼굴 촬영 및 검색</button>
+                <canvas id="canvasElement" style="display:none;"></canvas>
+            </div>
+            <div id="searchResults" class="photo-grid">
+                <!-- 검색 결과가 여기에 표시됩니다. -->
+            </div>
+        </div>
+        <hr>
+        <h1>사진 목록</h1>
+        <div class="photo-grid">
+            {% if photos %}
+                {% for photo in photos %}
+                <div class="photo-item">
+                    <a href="{{ url_for('label_image', image_id=photo.id) }}">
+                        <img src="{{ photo.image_url }}" alt="사진 {{ photo.id + 1 }}" style="max-width: 200px; max-height: 200px; object-fit: cover;">
+                        <p>사진 {{ photo.id + 1 }} 레이블링하기</p>
+                    </a>
+                </div>
+                {% endfor %}
+            {% else %}
+                <p>표시할 사진이 없습니다. '{{ config.data.json_file }}' 파일과 이미지들이 올바르게 설정되었는지 확인해주세요.</p>
+            {% endif %}
+        </div>
+    </div>
+    <script>
+        const video = document.getElementById('videoElement');
+        const canvas = document.getElementById('canvasElement');
+        const captureBtn = document.getElementById('captureBtn');
+        const searchResultsDiv = document.getElementById('searchResults');
+
+        async function setupCamera() {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+                video.srcObject = stream;
+            } catch (err) {
+                console.error("카메라 접근 오류:", err);
+                alert("카메라에 접근할 수 없습니다. 권한을 확인해주세요.");
+            }
+        }
+
+        captureBtn.addEventListener('click', async () => {
+            if (!video.srcObject) {
+                alert("카메라가 준비되지 않았습니다.");
+                return;
+            }
+            searchResultsDiv.innerHTML = '<p>검색 중...</p>'; // 검색 중 메시지
+            const context = canvas.getContext('2d');
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            context.drawImage(video, 0, 0, canvas.width, canvas.height);
+            const imageDataUrl = canvas.toDataURL('image/jpeg'); // 또는 image/png
+
+            try {
+                const response = await fetch("{{ url_for('search_by_face_capture') }}", {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ image_data: imageDataUrl }),
+                });
+                if (!response.ok) {
+                    throw new Error(`HTTP 오류! 상태: ${response.status}`);
+                }
+                const results = await response.json();
+                displaySearchResults(results);
+            } catch (error) {
+                console.error('얼굴 검색 오류:', error);
+                searchResultsDiv.innerHTML = '<p>얼굴 검색 중 오류가 발생했습니다.</p>';
+            }
+        });
+
+        function displaySearchResults(results) {
+            searchResultsDiv.innerHTML = ''; // 이전 결과 지우기
+            if (results && results.length > 0) {
+                results.forEach(result => {
+                    const itemDiv = `<div class="photo-item"><a href="${result.label_url}"><img src="${result.image_url}" alt="검색된 사진"><p>유사도: ${result.similarity.toFixed(2)}</p></a></div>`;
+                    searchResultsDiv.innerHTML += itemDiv;
+                });
+            } else {
+                searchResultsDiv.innerHTML = '<p>유사한 얼굴을 찾지 못했습니다.</p>';
+            }
+        }
+
+        setupCamera(); // 페이지 로드 시 카메라 설정
+    </script>
+</body>
+</html>
