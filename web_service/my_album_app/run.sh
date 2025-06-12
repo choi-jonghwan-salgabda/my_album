@@ -3,10 +3,10 @@
 # 스크립트 실행 중 오류 발생 시 즉시 종료
 set -e
 
-# 스크립트 파일의 실제 경로를 기준으로 프로젝트 루트 디렉토리 설정
-# 이 스크립트가 /home/owner/SambaData/Backup/FastCamp/Myproject/web_service/my_album_app/ 에 위치한다고 가정
-SCRIPT_DIR_RUN_SH="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
-PROJECT_ROOT_DEFAULT="$(cd "${SCRIPT_DIR_RUN_SH}/../../" && pwd)" # Myproject 디렉토리
+# 스크립트 파일의 실제 경로 가져오기
+SCRIPT_DIR_RUN_SH="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+# 현재 스크립트 위치(web_service/my_album_app)를 프로젝트 루트의 기본값으로 설정
+PROJECT_ROOT_DEFAULT="$SCRIPT_DIR_RUN_SH"
 
 # --- 명령줄 인자 파싱을 위한 기본값 설정 ---
 ARG_ROOT_DIR=""
@@ -48,7 +48,7 @@ done
 # 명령줄 인자가 있으면 사용하고, 없으면 기본값 사용
 # realpath를 사용하여 상대 경로를 절대 경로로 변환
 export MY_ALBUM_ROOT_DIR=$( [ -n "$ARG_ROOT_DIR" ] && realpath -m "$ARG_ROOT_DIR" || echo "$PROJECT_ROOT_DEFAULT" )
-export MY_ALBUM_CONFIG_PATH=$( [ -n "$ARG_CONFIG_PATH" ] && realpath -m "$ARG_CONFIG_PATH" || echo "${MY_ALBUM_ROOT_DIR}/config/photo_album.yaml" )
+export MY_ALBUM_CONFIG_PATH=$( [ -n "$ARG_CONFIG_PATH" ] && realpath -m "$ARG_CONFIG_PATH" || echo "${MY_ALBUM_ROOT_DIR}../../config/photo_album.yaml" )
 export MY_ALBUM_LOG_DIR=$( [ -n "$ARG_LOG_DIR" ] && realpath -m "$ARG_LOG_DIR" || echo "${MY_ALBUM_ROOT_DIR}/logs/my_album_app_gunicorn" )
 export MY_ALBUM_LOG_LEVEL=${ARG_LOG_LEVEL:-INFO} # 인자가 없으면 INFO 사용
 
@@ -60,13 +60,13 @@ echo "MY_ALBUM_ROOT_DIR=${MY_ALBUM_ROOT_DIR}"
 echo "MY_ALBUM_CONFIG_PATH=${MY_ALBUM_CONFIG_PATH}"
 echo "MY_ALBUM_LOG_DIR=${MY_ALBUM_LOG_DIR}"
 echo "MY_ALBUM_LOG_LEVEL=${MY_ALBUM_LOG_LEVEL}"
-echo "Gunicorn 실행 디렉토리: ${SCRIPT_DIR_RUN_SH}"
+echo "Gunicorn 실행 디렉토리 (run.sh 위치): ${SCRIPT_DIR_RUN_SH}"
+echo "Gunicorn --chdir 대상 디렉토리 (app.py 위치): ${SCRIPT_DIR_RUN_SH}/src/my_album_labeling_app" # MY_ALBUM_ROOT_DIR 대신 SCRIPT_DIR_RUN_SH 기준
 
 # Gunicorn 실행
 # --chdir 옵션은 poetry run gunicorn 명령어의 일부로 poetry가 실행되는 현재 디렉토리 기준입니다.
-# SSL 인증서 경로는 이 스크립트 파일 위치 기준입니다.
+# SSL 인증서 경로는 이 스크립트 파일 위치(web_service/my_album_app)를 기준으로 프로젝트 루트(../../)에 있는 파일을 가리킵니다.
 poetry run gunicorn --workers 4 --bind 192.168.219.10:5001 \
 --certfile ../../192.168.219.10.pem \
 --keyfile ../../192.168.219.10-key.pem \
---chdir src/my_album_labeling_app app:app
-
+--chdir ./src/my_album_labeling_app app:app

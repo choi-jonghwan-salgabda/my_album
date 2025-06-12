@@ -2,100 +2,234 @@
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>사진 앨범</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <title>내 사진 앨범</title>
+    <style>
+        /* 모달 기본 스타일 */
+        .modal {
+            display: none; /* 초기에는 숨김 */
+            position: fixed;
+            z-index: 1000; /* 다른 요소들 위에 표시되도록 z-index 설정 */
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            overflow: auto;
+            background-color: rgba(0,0,0,0.6); /* 반투명 배경 */
+            padding-top: 100px; /* 모달 내용이 화면 상단에서 약간 떨어지도록 */
+        }
+        .modal-content {
+            background-color: #fefefe;
+            margin: auto; /* 수평 중앙 정렬 */
+            padding: 25px;
+            border: 1px solid #888;
+            width: 80%;
+            max-width: 450px; /* 모달 최대 너비 */
+            box-shadow: 0 4px 8px 0 rgba(0,0,0,0.2),0 6px 20px 0 rgba(0,0,0,0.19);
+            text-align: center;
+            border-radius: 8px;
+        }
+        .modal-buttons button {
+            background-color: #4CAF50; /* 녹색 계열 */
+            color: white;
+            padding: 12px 24px;
+            margin: 10px 8px;
+            border: none;
+            cursor: pointer;
+            border-radius: 5px;
+            font-size: 16px;
+        }
+        .modal-buttons button.deny {
+            background-color: #f44336; /* 빨간색 계열 */
+        }
+        .modal-buttons button:hover {
+            opacity: 0.9;
+        }
+        /* 카메라 피드 및 버튼 스타일 (기존 스타일과 통합 필요) */
+        #cameraFeed {
+            width: 100%;
+            max-width: 320px; /* 카메라 피드 크기 조정 */
+            height: auto;
+            border: 1px solid #ccc;
+            background-color: #f0f0f0;
+            margin-top: 15px;
+            border-radius: 4px;
+        }
+        #captureButton {
+            display: block; /* 버튼을 블록 요소로 만들어 너비 100% 차지 */
+            width: calc(100% - 40px); /* 좌우 패딩 고려 */
+            max-width: 280px;
+            margin: 15px auto; /* 상하 마진 및 수평 중앙 정렬 */
+            padding: 12px 20px;
+            background-color: #007bff; /* 파란색 계열 */
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        #captureButton:disabled {
+            background-color: #ccc;
+            cursor: not-allowed;
+        }
+        .hidden {
+            display: none !important; /* 확실하게 숨기기 위해 !important 사용 (필요시) */
+        }
+        #cameraMessage {
+            margin-top: 10px;
+            color: #777;
+        }
+    </style>
 </head>
 <body>
-    <div class="container">
-        <h1>얼굴로 사진 검색</h1>
-        <div class="search-by-face-section">
-            <div class="camera-controls">
-                <video id="videoElement" width="320" height="240" autoplay playsinline></video>
-                <button id="captureBtn">얼굴 촬영 및 검색</button>
-                <canvas id="canvasElement" style="display:none;"></canvas>
+    <h1>내 사진 앨범</h1>
+    <p>데이터 소스 (.lst 파일): {{ json_list_file_path if json_list_file_path else "설정되지 않음" }}</p>
+
+    <!-- 카메라 사용 동의 모달 -->
+    <div id="cameraConsentModal" class="modal">
+        <div class="modal-content">
+            <h2>카메라 사용 안내</h2>
+            <p>얼굴 검색 기능을 사용하시려면 카메라 접근 권한이 필요합니다. 카메라 사용을 허용하시겠습니까?</p>
+            <div class="modal-buttons">
+                <button id="allowCameraButton">예, 허용합니다</button>
+                <button id="denyCameraButton" class="deny">아니요, 사용 안 함</button>
             </div>
-            <div id="searchResults" class="photo-grid">
-                <!-- 검색 결과가 여기에 표시됩니다. -->
-            </div>
-        </div>
-        <hr>
-        <h1>사진 목록</h1>
-        <div class="photo-grid">
-            {% if photos %}
-                {% for photo in photos %}
-                <div class="photo-item">
-                    <a href="{{ url_for('label_image', image_id=photo.id) }}">
-                        <img src="{{ photo.image_url }}" alt="사진 {{ photo.id + 1 }}" style="max-width: 200px; max-height: 200px; object-fit: cover;">
-                        <p>사진 {{ photo.id + 1 }} 레이블링하기</p>
-                    </a>
-                </div>
-                {% endfor %}
-            {% else %}
-                <p>표시할 사진이 없습니다. '{{ config.data.json_file }}' 파일과 이미지들이 올바르게 설정되었는지 확인해주세요.</p>
-            {% endif %}
         </div>
     </div>
+
+    <!-- 얼굴 검색 (웹캠 사용) 섹션 -->
+    <div id="faceSearchSection">
+        <h2>얼굴 검색 (웹캠)</h2>
+        <div id="cameraArea" class="hidden"> <!-- 초기에는 숨김 -->
+            <video id="cameraFeed" autoplay playsinline muted></video><br> <!-- muted 추가로 자동 재생 문제 방지 -->
+            <button id="captureButton" disabled>사진 촬영 및 검색</button> <!-- 초기에는 비활성화 -->
+            <canvas id="captureCanvas" style="display:none;"></canvas>
+        </div>
+        <p id="cameraMessage">카메라 사용 여부를 선택해주세요.</p>
+    </div>
+    <hr>
+
+    <!-- 기존 사진 목록 표시 부분 (이하 동일) -->
+    <h2>사진 목록 (페이지 {{ current_page }} / {{ total_pages }})</h2>
+    <div class="photo-grid">
+        {% for photo in photos %}
+        <div class="photo-item">
+            <a href="{{ url_for('label_image', image_id=photo.id) }}">
+                <img src="{{ photo.image_url }}" alt="사진 {{ photo.id }}" width="150" style="border-radius:4px;">
+            </a>
+            <p>ID: {{ photo.id }}</p>
+            {# <p>이름: {{ photo.get(global_json_handler.image_name_key, '이름 없음') }}</p> #}
+        </div>
+        {% else %}
+        <p>표시할 사진이 없습니다.</p>
+        {% endfor %}
+    </div>
+
+    <!-- 페이지네이션 (이하 동일) -->
+    <div class="pagination">
+        {% if total_pages > 1 %}
+            {% if current_page > 1 %}
+                <a href="{{ url_for('index', page=current_page-1, per_page=per_page) }}">이전</a>
+            {% endif %}
+            <span>페이지 {{ current_page }} / {{ total_pages }}</span>
+            {% if current_page < total_pages %}
+                <a href="{{ url_for('index', page=current_page+1, per_page=per_page) }}">다음</a>
+            {% endif %}
+        {% endif %}
+    </div>
+
     <script>
-        const video = document.getElementById('videoElement');
-        const canvas = document.getElementById('canvasElement');
-        const captureBtn = document.getElementById('captureBtn');
-        const searchResultsDiv = document.getElementById('searchResults');
+        document.addEventListener('DOMContentLoaded', function() {
+            const modal = document.getElementById('cameraConsentModal');
+            const allowButton = document.getElementById('allowCameraButton');
+            const denyButton = document.getElementById('denyCameraButton');
+            const cameraArea = document.getElementById('cameraArea');
+            const cameraMessage = document.getElementById('cameraMessage');
+            const videoElement = document.getElementById('cameraFeed');
+            const captureButton = document.getElementById('captureButton');
+            const canvasElement = document.getElementById('captureCanvas');
 
-        async function setupCamera() {
-            try {
-                const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
-                video.srcObject = stream;
-            } catch (err) {
-                console.error("카메라 접근 오류:", err);
-                alert("카메라에 접근할 수 없습니다. 권한을 확인해주세요.");
-            }
-        }
+            // 페이지 로드 시 모달 표시
+            modal.style.display = 'block';
 
-        captureBtn.addEventListener('click', async () => {
-            if (!video.srcObject) {
-                alert("카메라가 준비되지 않았습니다.");
-                return;
-            }
-            searchResultsDiv.innerHTML = '<p>검색 중...</p>'; // 검색 중 메시지
-            const context = canvas.getContext('2d');
-            canvas.width = video.videoWidth;
-            canvas.height = video.videoHeight;
-            context.drawImage(video, 0, 0, canvas.width, canvas.height);
-            const imageDataUrl = canvas.toDataURL('image/jpeg'); // 또는 image/png
+            allowButton.addEventListener('click', async function() {
+                modal.style.display = 'none';
+                try {
+                    const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+                    videoElement.srcObject = stream;
+                    cameraArea.classList.remove('hidden');
+                    cameraMessage.textContent = '카메라가 준비되었습니다. 촬영 버튼을 눌러 검색하세요.';
+                    captureButton.disabled = false; // 촬영 버튼 활성화
+                    console.log("카메라 접근 허용됨");
+                } catch (err) {
+                    console.error("카메라 접근 오류:", err);
+                    cameraArea.classList.add('hidden');
+                    cameraMessage.textContent = "카메라를 시작할 수 없습니다. 브라우저의 사이트 설정에서 카메라 권한을 확인해주세요. 오류: " + err.name + " - " + err.message;
+                    captureButton.disabled = true;
+                }
+            });
 
-            try {
-                const response = await fetch("{{ url_for('search_by_face_capture') }}", {
+            denyButton.addEventListener('click', function() {
+                modal.style.display = 'none';
+                cameraArea.classList.add('hidden');
+                cameraMessage.textContent = "카메라 사용이 거부되었습니다. 이미지를 직접 업로드하여 검색할 수 있습니다 (업로드 기능은 현재 이 예제에 포함되지 않음).";
+                captureButton.disabled = true;
+                console.log("카메라 접근 거부됨");
+            });
+
+            captureButton.addEventListener('click', function() {
+                if (!videoElement.srcObject || !videoElement.srcObject.active) {
+                    alert("카메라가 활성화되지 않았습니다. 먼저 카메라 사용을 허용해주세요.");
+                    // 다시 모달을 띄우거나 안내 메시지 강화
+                    modal.style.display = 'block';
+                    cameraMessage.textContent = "얼굴 검색을 위해 카메라 사용을 허용해주세요.";
+                    return;
+                }
+                const context = canvasElement.getContext('2d');
+                canvasElement.width = videoElement.videoWidth;
+                canvasElement.height = videoElement.videoHeight;
+                context.drawImage(videoElement, 0, 0, canvasElement.width, canvasElement.height);
+                const imageDataUrl = canvasElement.toDataURL('image/jpeg');
+
+                // imageDataUrl을 서버로 전송하여 얼굴 검색 (/search_face_capture 엔드포인트)
+                fetch("{{ url_for('search_by_face_capture') }}", {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
                     },
                     body: JSON.stringify({ image_data: imageDataUrl }),
+                })
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error('서버 응답 오류: ' + response.status);
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    console.log("검색 결과:", data);
+                    // TODO: 여기에 검색 결과를 화면에 예쁘게 표시하는 로직 추가
+                    // 예시: 검색 결과를 담을 div를 만들고, 각 결과 항목을 동적으로 추가
+                    alert("검색된 얼굴 수: " + (data.length || 0) + "\n자세한 내용은 콘솔을 확인하세요.");
+                })
+                .catch((error) => {
+                    console.error('검색 요청 오류:', error);
+                    alert("얼굴 검색 중 오류가 발생했습니다: " + error.message);
                 });
-                if (!response.ok) {
-                    throw new Error(`HTTP 오류! 상태: ${response.status}`);
+            });
+
+            // 페이지를 떠날 때 또는 모달이 닫힐 때 스트림 정리 (선택 사항)
+            function stopCameraStream() {
+                if (videoElement.srcObject) {
+                    videoElement.srcObject.getTracks().forEach(track => track.stop());
+                    videoElement.srcObject = null;
+                    console.log("카메라 스트림 중지됨");
                 }
-                const results = await response.json();
-                displaySearchResults(results);
-            } catch (error) {
-                console.error('얼굴 검색 오류:', error);
-                searchResultsDiv.innerHTML = '<p>얼굴 검색 중 오류가 발생했습니다.</p>';
             }
+            // deny 버튼 클릭 시 스트림 중지 (이미 허용된 후 거부하는 시나리오 방지)
+            denyButton.addEventListener('click', stopCameraStream);
+            // 페이지를 떠날 때
+            window.addEventListener('beforeunload', stopCameraStream);
+
         });
-
-        function displaySearchResults(results) {
-            searchResultsDiv.innerHTML = ''; // 이전 결과 지우기
-            if (results && results.length > 0) {
-                results.forEach(result => {
-                    const itemDiv = `<div class="photo-item"><a href="${result.label_url}"><img src="${result.image_url}" alt="검색된 사진"><p>유사도: ${result.similarity.toFixed(2)}</p></a></div>`;
-                    searchResultsDiv.innerHTML += itemDiv;
-                });
-            } else {
-                searchResultsDiv.innerHTML = '<p>유사한 얼굴을 찾지 못했습니다.</p>';
-            }
-        }
-
-        setupCamera(); // 페이지 로드 시 카메라 설정
     </script>
 </body>
 </html>

@@ -527,7 +527,7 @@ class SimpleLogger:
         formatted_message = self._format_message(message, level_str)
 
         # 콘솔에 출력
-        print(formatted_message)
+        print(f"{formatted_message}")
 
         # 파일 경로가 지정된 경우 파일에 기록 (동기/비동기는 내부에서 결정)
         self._write_to_file(formatted_message)

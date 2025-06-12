@@ -27,7 +27,8 @@ class configger:
     arg2 : config_path -> config를 구성하는 yaml파일.
     """
     def __init__(self, root_dir:str, config_path: str):
-        logger.info(f"Configger 초기화 시작: root_dir='{root_dir}', config_path='{config_path}'")
+        logger.info(f"Configger 초기화 시작: root_dir='{root_dir}'")
+        logger.info(f"Configger의          config_path='{config_path}'")
 
         # root_dir 처리: Path 객체로 만들고 사용자 홈 디렉토리 기준 절대 경로로 확장
         self.root_dir = Path(root_dir).expanduser().resolve()

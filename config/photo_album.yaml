@@ -9,6 +9,7 @@ project:
       datasets_dir: ~/SambaData/OwnerData/train/
       raw_image_dir:            ${project.paths.datasets.datasets_dir}/images # config_loader가 ${변수} 치환을 지원해야 합니다.
       raw_jsons_dir:            ${project.paths.datasets.datasets_dir}/jsons
+      json_list_file_path:      ${project.paths.datasets.datasets_dir}/json_files.lst # 대표 JSON 파일 경로
       detected_dir:             ${project.paths.datasets.datasets_dir}/detected/
       undetect_dir:             ${project.paths.datasets.datasets_dir}/undetect/
       detected_objects_dir:     ${project.paths.datasets.detected_dir}/objects/     # 검출된 객체 저장 (얼굴/기타)
@@ -32,28 +33,26 @@ project:
     # face_reviewer: ${project.source.src_dir}/face_reviewer.py # 필요시 유지
 
     web_service:
-      web_service_dir: ${project.source.src_dir}/my_album_app/
-      web_service_src_dir: ${project.source.web_service.web_service_dir}/src/
+      web_service_dir: ${project.source.src_dir}
       host: "0.0.0.0"
       port: 5001
       flask_labeling_app:
-        labeling_app_dir: ${project.source.web_service.web_service_src_dir}/my_album_labeling_app/
-        labeling_app_path: ${project.source.web_service.flask_labeling_app.labeling_app_dir}/app.py
+        labeling_app_dir:     ${project.source.web_service.web_service_dir}/my_album_labeling_app/
+        labeling_app_path:    ${project.source.web_service.flask_labeling_app.labeling_app_dir}/app.py
         # Flask 라벨링 앱 관련 설정
         # 대표 JSON 저장/로드 파일 경로 (indexer_from_face.py에서 생성하고 app.py에서 사용)
         # 이 경로는 project.outputs 섹션으로 옮기는 것이 더 적합할 수 있습니다.
         # 여기서는 일단 flask_labeling_app 섹션에 유지하되, 이름을 명확히 합니다.
-      json_save_path: ${project.paths.datasets.datasets_dir}/processed_photos.json # 대표 JSON 파일 경로
 
-      static_dir: ${project.source.web_service.web_service_src_dir}/static    # SRC_DIR 기준 상대 경로 (my_album_labeling_app/src/static)
-      css_dir:    ${project.source.web_service.static_dir}/css
-      css_path:   ${project.source.web_service.css_dir}/style.css
+      static_dir:             ${project.source.web_service.web_service_dir}/static    # SRC_DIR 기준 상대 경로 (my_album_labeling_app/src/static)
+      css_dir:                ${project.source.web_service.static_dir}/css
+      css_path:               ${project.source.web_service.css_dir}/style.css
 
       # templates_dir: ${project.source.src_dir}/templates/ # ${project.source.src_dir} 참조 (loader 지원 필요)
-      templates_dir:          ${project.source.web_service.web_service_src_dir}/templates/ # 또는 root_dir 기준으로 명시
+      templates_dir:          ${project.source.web_service.web_service_dir}/templates/ # 또는 root_dir 기준으로 명시
       index_html_path:        ${project.source.web_service.templates_dir}/index.html
       label_image_html_path:  ${project.source.web_service.templates_dir}/label_image.html
-      search_html:            ${project.source.web_service.templates_dir}/search.html
+      search_html_path:            ${project.source.web_service.templates_dir}/search.html
       # 만약 project.paths.datasets.raw_image_dir를 성공적으로 사용한다면,
       # 아래 image_source_directory 키는 사용되지 않지만, 폴백을 위해 남겨둘 수 있습니다.
       image_source_directory: ${project.source.web_service.static_dir}/images # PROJECT_ROOT 기준 상대 경로, static_dir 참조 및 따옴표 제거

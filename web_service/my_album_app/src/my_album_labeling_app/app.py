@@ -18,6 +18,7 @@ try:
     from datetime import datetime
     from my_utils.config_utils.SimpleLogger import logger, get_argument
     from my_utils.config_utils.configger import configger
+    from my_utils.object_utils.data_loading_helpers import load_all_json_from_list_file, load_json_batch_from_list_file # data_loading_helpers에서 필요한 함수 임포트
     from my_utils.object_utils.photo_utils import JsonConfigHandler # JsonConfigHandler 임포트
     # 얼굴 검출 및 특징 추출, 검색 관련 모듈 임포트 (가상)
     # from my_album.src.face_utils import detect_and_extract_features  # 예시: 얼굴 검출 및 특징 추출 함수
@@ -89,6 +90,11 @@ else:
         print(f"Gunicorn 로거 설정 중 오류: {e_log_setup}", file=sys.stderr)
         # Gunicorn 환경에서는 sys.exit(1)이 워커를 종료시킬 수 있으므로 주의
 
+logger.info(f"ROOT_DIR_FOR_CONFIG:      {ROOT_DIR_FOR_CONFIG}")
+logger.info(f"CONFIG_PATH_FOR_CONFIG:   {CONFIG_PATH_FOR_CONFIG}")
+logger.info(f"LOG_DIR_FOR_LOGGER:       {LOG_DIR_FOR_LOGGER}")
+logger.info(f"LOG_LEVEL_FOR_LOGGER:     {LOG_LEVEL_FOR_LOGGER}")
+
 # --- 2. Configger 초기화 ---
 try:
     global_cfg_object = configger(root_dir=ROOT_DIR_FOR_CONFIG, config_path=CONFIG_PATH_FOR_CONFIG)
@@ -118,43 +124,40 @@ try:
         sys.exit(1)
 
     # 여러 JSON 파일 로드용 디렉토리 경로. YAML 키: project.paths.datasets.raw_jsons_dir
-    global_raw_jsons_dir_str = datasets_cfg.get('raw_jsons_dir')
-    if not global_raw_jsons_dir_str:
-        logger.warning("'project.paths.datasets.raw_jsons_dir'이 설정 파일에 없거나 비어있습니다. 관련 기능이 제한될 수 있습니다.")
-        # global_raw_jsons_dir_str = "some/default/path" # 필요시 기본값 설정
-    
     # 이미지 소스 디렉토리.  # YAML 키: project.paths.datasets.raw_image_dir
     global_raw_image_dir_str = datasets_cfg.get('raw_image_dir')
     if not global_raw_image_dir_str:
         logger.critical("필수 설정 누락: 'project.paths.datasets.raw_image_dir'이 설정 파일에 없거나 비어있습니다.")
         sys.exit(1)
 
-    # Web Server관련 경로 설정
+    global_raw_jsons_dir_str = datasets_cfg.get('raw_jsons_dir')
+    if not global_raw_jsons_dir_str:
+        logger.warning("'project.paths.datasets.raw_jsons_dir'이 설정 파일에 없거나 비어있습니다. 관련 기능이 제한될 수 있습니다.")
+        sys.exit(1)
+    
+    # JSON 파일 목록을 담은 .lst 파일 경로
+    global_json_list_file_path_str = datasets_cfg.get('json_list_file_path') # YAML 키: project.paths.datasets.json_file_list_path
+    if not global_json_list_file_path_str:
+        logger.warning("'project.paths.datasets.json_file_list_path'가 설정 파일에 없거나 비어있습니다. 데이터 로딩 방식에 영향을 줄 수 있습니다.")
+
+    # 인덱싱 및 배치 로딩을 위한 배치 크기
+    indexing_cfg = global_cfg_object.get_config('indexing')
+    global_batch_size_for_indexing = indexing_cfg.get('batch_sizeL', 10) # 기본값 10으로 설정
+    if not isinstance(global_batch_size_for_indexing, int) or global_batch_size_for_indexing <= 0:
+        logger.warning(f"'indexing.batch_sizeL' 설정이 유효하지 않거나 없습니다. 기본값 10을 사용합니다. 현재 값: {global_batch_size_for_indexing}")
+        global_batch_size_for_indexing = 10
+
+    # Web Server관련 경로 설정 (json_save_path 관련 부분 제거)
     web_service_cfg = global_cfg_object.get_config('project.source.web_service')
     if not isinstance(web_service_cfg, dict):
         logger.error("web_service 설정을 불러오지 못했습니다.")
         sys.exit(1)
 
-    flask_labeling_app_cfg = web_service_cfg.get('flask_labeling_app')
-    if not isinstance(flask_labeling_app_cfg, dict):
-        logger.error("flask_labeling_app_cfg 설정을 불러오지 못했습니다.")
-        sys.exit(1)
-
-    # 대표 저장/로드 파일 경로 (indexer_from_face.py에서 생성하고 app.py에서 사용).
-    # YAML 키: project.outputs.json_save_path 또는 project.source.web_service.json_save_path
-    global_json_save_path_str = web_service_cfg.get('json_save_path')
-    if not global_json_save_path_str:
-        logger.critical("필수 설정 누락: 'project.source.web_service.json_save_path'가 설정 파일에 없거나 비어있습니다.")
-        sys.exit(1)
-
-    try:
-        # 대표 JSON 파일의 부모 디렉토리 생성
-        Path(global_json_save_path_str).parent.mkdir(parents=True, exist_ok=True)
-    except OSError as e_mkdir:
-        # global_json_save_path_str이 None일 경우를 대비하여, Path() 호출 전에 None 체크가 선행되어야 합니다. (위에서 이미 처리됨)
-        logger.critical(f"대표 JSON 저장 경로의 부모 디렉토리 ('{Path(global_json_save_path_str).parent}') 생성 실패: {e_mkdir}. Traceback: {traceback.format_exc()}")
-        sys.exit(1)
-    # TypeError는 json_save_path_str이 None일 때 발생할 수 있으나, 위에서 if not json_save_path_str: 로 이미 확인됨.
+    # flask_labeling_app_cfg는 현재 직접 사용되지 않으므로, 필요시 로드합니다.
+    # flask_labeling_app_cfg = web_service_cfg.get('flask_labeling_app')
+    # if not isinstance(flask_labeling_app_cfg, dict):
+    #     logger.error("flask_labeling_app_cfg 설정을 불러오지 못했습니다.")
+    #     sys.exit(1)
 
     # 템플릿 및 정적 파일 폴더
     # YAML 키: project.source.web_service.flask_labeling_app.template_folder 등
@@ -177,9 +180,17 @@ try:
         logger.debug(f"image_serve_prefix에 슬래시를 추가했습니다: {global_image_serve_prefix_str}")
 
     # 로깅: 설정 값들을 명확히 보여줌
+    root_dir = global_cfg_object.get_value('project.root_dir')
+    logger.info(f"project.root:{root_dir}")
+    source_dir = global_cfg_object.get_value('project.source.src_dir')
+    logger.info(f"project.source_dir:{source_dir}")
+    web_service_dir = global_cfg_object.get_value('project.source.web_service.web_service_dir')
+    logger.info(f"project.source.web_service_dir:{web_service_dir}")
     logger.info(f"  다중 JSON 로드 디렉토리: {global_raw_jsons_dir_str if global_raw_jsons_dir_str else '설정되지 않음'}")
+    logger.info(f"  JSON 목록 파일 경로: {global_json_list_file_path_str if global_json_list_file_path_str else '설정되지 않음'}")
+    logger.info(f"  인덱싱/배치 로드 크기 (batch_sizeL): {global_batch_size_for_indexing}")
     logger.info(f"  이미지 소스 디렉토리: {global_raw_image_dir_str}")
-    logger.info(f"  대표 JSON 저장 경로: {global_json_save_path_str}")
+    logger.info(f"  템플릿(templates_dir) 경로: {global_templates_dir_str}")
     logger.info(f"  정적 폴더: {global_static_folder_str}")
     logger.info(f"  이미지 제공 접두사: {global_image_serve_prefix_str if global_image_serve_prefix_str else '설정되지 않음'}")
 
@@ -198,9 +209,10 @@ except Exception as e_global_setup:
     sys.exit(1)
 
 app = Flask(__name__, template_folder=global_templates_dir_str, static_folder=global_static_folder_str) # 변수명 오타 수정
-app.config['global_json_save_path_str'] = global_json_save_path_str # 대표 JSON 파일 경로 저장
 app.config['global_raw_jsons_dir_str'] = global_raw_jsons_dir_str
+app.config['global_json_list_file_path_str'] = global_json_list_file_path_str # JSON 목록 파일 경로 저장
 app.config['global_raw_image_dir_str'] = global_raw_image_dir_str
+app.config['global_batch_size_for_indexing'] = global_batch_size_for_indexing # 배치 크기 저장
 
 # --- 사진 경로와 ID 매핑 생성 (Gunicorn 환경에서도 실행되도록 모듈 레벨에서) ---
 # 이 맵은 load_photo_data_from_sources 호출 시마다 새로 생성되는 photos_data에 대한 인덱스 매핑입니다.
@@ -390,55 +402,109 @@ def search_similar_faces_faiss(query_features: np.ndarray,
 
     return results
 
-# 데이터 로드 및 저장 함수
-def save_photo_data(data):
-    """대표 JSON 파일에 데이터를 저장합니다."""
+# --- 개별 JSON 파일 저장 함수 ---
+def save_individual_photo_data(single_photo_data: Dict[str, Any], target_json_path_str: str):
+    """단일 사진 데이터를 지정된 개별 JSON 파일에 저장합니다."""
     try:
-        save_path_str = app.config.get('global_json_save_path_str')
-        if not save_path_str:
-            logger.error("대표 JSON 저장 경로가 app.config에 설정되지 않았습니다.")
+        if not target_json_path_str:
+            logger.error("개별 JSON 저장 경로가 제공되지 않았습니다. 저장을 건너뜁니다.")
             return
 
-        # 디렉토리가 없으면 생성
-        Path(save_path_str).parent.mkdir(parents=True, exist_ok=True)
-        logger.info(f"데이터를 '{save_path_str}' 파일에 저장합니다.")
-        with open(save_path_str, 'w', encoding='utf-8') as f:
-            json.dump(data, f, indent=2, ensure_ascii=False)
+        target_path_obj = Path(target_json_path_str)
+        target_path_obj.parent.mkdir(parents=True, exist_ok=True) # 필요한 경우 부모 디렉토리 생성
+        
+        # '_source_json_path' 키는 저장할 필요 없으므로, 저장 전에 제거하거나 복사본을 만듭니다.
+        data_to_save = {k: v for k, v in single_photo_data.items() if k != '_source_json_path'}
+
+        logger.info(f"개별 사진 데이터를 파일 '{target_path_obj}'에 저장합니다.")
+        with open(target_path_obj, 'w', encoding='utf-8') as f:
+            json.dump(data_to_save, f, indent=2, ensure_ascii=False)
     except Exception as e:
         logger.error(f"데이터 저장 중 오류 발생: {e}", exc_info=True)
 
+# --- 사진 데이터 로딩 헬퍼 함수 ---
+def load_current_photos_data(page: Optional[int] = None, per_page: Optional[int] = None) -> Tuple[List[Dict[str, Any]], int]:
+    """
+    사진 데이터를 로드합니다.
+    - page와 per_page가 제공되면: .lst 파일에서 해당 배치(batch)를 로드합니다.
+    - page와 per_page가 없으면: .lst 파일에서 모든 데이터를 로드하려고 시도합니다.
+    반환값: (사진 데이터 리스트, 전체 항목 수)
+    """
+    photos_data: List[Dict[str, Any]] = []
+    total_items: int = 0
+    
+    list_file_path_from_config = app.config.get('global_json_list_file_path_str')
+    raw_jsons_base_dir = app.config.get('global_raw_jsons_dir_str') # .lst 파일 내 상대경로의 기준
+    base_dir_for_loader = Path(raw_jsons_base_dir) if raw_jsons_base_dir else None
+    
+    # per_page가 None이면 설정된 기본 배치 크기를 사용
+    effective_per_page = per_page if per_page is not None else app.config.get('global_batch_size_for_indexing', 10)
+
+    if list_file_path_from_config and page is not None: # page 정보가 있으면 배치 로드 시도
+        logger.info(f".lst 파일에서 사진 데이터 배치 로드 시도: {list_file_path_from_config}, 페이지: {page}, 페이지당 항목 수: {effective_per_page}")
+        photos_data, total_items = load_json_batch_from_list_file(
+            list_file_path_from_config,
+            global_json_handler.read_json,
+            page,
+            effective_per_page,
+            base_dir_for_loader
+        )
+    elif list_file_path_from_config: # 페이지 정보 없이 .lst 파일 경로만 있는 경우 -> 전체 로드
+        logger.info(f".lst 파일에서 모든 사진 데이터 로드 시도: {list_file_path_from_config}")
+        photos_data = load_all_json_from_list_file(
+            list_file_path_from_config,
+            global_json_handler.read_json,
+            base_dir_for_loader
+        )
+        total_items = len(photos_data)
+    
+    # .lst 파일 로드에 실패했거나, .lst 파일이 지정되지 않은 경우 (대체 로딩 로직 제거)
+    if not list_file_path_from_config:
+        logger.error(".lst 파일 경로(global_json_list_file_path_str)가 설정되지 않았습니다. 데이터를 로드할 수 없습니다.")
+        # photos_data와 total_items는 이미 빈 리스트와 0으로 초기화되어 있음
+            
+    if not photos_data and total_items > 0 and page is not None:
+        # 배치 로드를 시도했고, 전체 아이템은 있으나 현재 페이지에 데이터가 없는 경우 (예: 마지막 페이지를 넘어선 요청)
+        logger.info(f"요청된 페이지({page})에 대한 데이터가 없습니다. 전체 항목 수: {total_items}.")
+    elif not photos_data and total_items == 0 :
+        logger.warning("로드된 사진 데이터가 없습니다.")
+        
+    return photos_data, total_items
+
 @app.route('/')
 def index():
-    # 요청 시마다 데이터를 로드하여 최신 상태를 반영합니다.
-    # 대표 JSON 파일에서 직접 데이터를 로드합니다.
-    photos_data = []
-    representative_json_path = app.config.get('global_json_save_path_str')
-    if representative_json_path and Path(representative_json_path).exists():
-        photos_data = global_json_handler.read_json(Path(representative_json_path)) or []
-    else:
-        logger.warning(f"대표 JSON 파일 '{representative_json_path}'을(를) 찾을 수 없거나 경로가 설정되지 않았습니다.")
-
-    # 이미지 경로 -> ID 매핑은 여기서 생성하여 템플릿에 전달하거나,
-    # search_by_face_capture 함수 내에서 필요할 때 데이터를 로드하고 생성할 수 있습니다.
-    # 여기서는 템플릿에 직접 필요하지 않으므로, search_by_face_capture에서 처리합니다.
-    # 각 사진에 ID (인덱스) 추가하여 템플릿에서 사용
-    # 이미지 경로도 함께 전달하여 썸네일 등에 활용 가능
+    page = request.args.get('page', 1, type=int)
+    # 페이지당 항목 수: URL 파라미터 > 설정(indexing.batch_sizeL)
+    default_per_page = app.config.get('global_batch_size_for_indexing', 10)
+    per_page = request.args.get('per_page', default_per_page, type=int)
+    
+    photos_data_batch, total_photos = load_current_photos_data(page=page, per_page=per_page)
+    
+    # 'id'는 전체 데이터셋에서의 인덱스를 의미하도록 계산 (페이지네이션 시 일관성 유지)
     photos_with_ids = [
-        {**photo, 'id': i, 'image_url': url_for('serve_image', filename=photo['image_path'])}
-        for i, photo in enumerate(photos_data)
+        {**photo, 
+         'id': (page - 1) * per_page + i, 
+         'image_url': url_for('serve_image', filename=photo.get(global_json_handler.image_path_key if global_json_handler else "image_path", 'unknown.jpg'))}
+        for i, photo in enumerate(photos_data_batch)
     ]
-    return render_template('index.html', photos=photos_with_ids, json_file_path=app.config.get('global_json_save_path_str'))
+    total_pages = (total_photos + per_page - 1) // per_page if per_page > 0 else 0
+    
+    list_file_path_for_template = app.config.get('global_json_list_file_path_str')
+
+    return render_template('index.html', 
+                           photos=photos_with_ids, 
+                           json_list_file_path=list_file_path_for_template, # 현재 사용 중인 .lst 파일 경로
+                           current_page=page,
+                           total_pages=total_pages,
+                           per_page=per_page)
 
 @app.route('/image/<int:image_id>')
 def label_image(image_id):
-    # 요청 시마다 데이터를 로드하여 최신 상태를 반영합니다.
-    # 대표 JSON 파일에서 직접 데이터를 로드합니다.
-    photos_data = []
-    representative_json_path = app.config.get('global_json_save_path_str')
-    if representative_json_path and Path(representative_json_path).exists():
-        photos_data = global_json_handler.read_json(Path(representative_json_path)) or []
-    else:
-        logger.warning(f"대표 JSON 파일 '{representative_json_path}'을(를) 찾을 수 없거나 경로가 설정되지 않았습니다. 이미지 라벨링 페이지를 표시할 수 없습니다.")
+    # 이 라우트는 특정 ID의 이미지를 로드해야 하므로, 전체 데이터를 로드하거나
+    # ID 기반으로 단일 항목을 로드하는 로직이 필요합니다.
+    # 여기서는 일단 전체 데이터를 로드하는 방식을 유지합니다 (load_current_photos_data에 page 정보 없이 호출).
+    # TODO: image_id에 해당하는 파일만 직접 로드하도록 최적화 (json_files.lst와 image_id를 사용)
+    photos_data, total_photos = load_current_photos_data() # 페이지 정보 없이 호출 -> 전체 로드 시도
 
     if 0 <= image_id < len(photos_data):
         image_data = photos_data[image_id]
@@ -449,26 +515,43 @@ def label_image(image_id):
 
 @app.route('/save_labels/<int:image_id>', methods=['POST'])
 def save_labels(image_id):
-    # 요청 시마다 데이터를 로드하여 최신 상태를 반영합니다.
-
-    # 대표 JSON 파일에서 직접 데이터를 로드합니다.
-    photos_data = []
-    representative_json_path = app.config.get('global_json_save_path_str')
-    if representative_json_path and Path(representative_json_path).exists():
-        photos_data = global_json_handler.read_json(Path(representative_json_path)) or []
-    else:
-        logger.error(f"대표 JSON 파일 '{representative_json_path}'을(를) 찾을 수 없어 라벨을 저장할 수 없습니다.")
+    # 1. 현재 페이지의 사진 데이터 로드 (또는 image_id에 해당하는 단일 데이터 로드 최적화)
+    #    load_current_photos_data는 _source_json_path를 포함한 데이터를 반환해야 합니다.
+    photos_data, total_photos = load_current_photos_data() # 페이지 정보 없이 호출 -> 전체 로드 시도
+    
+    if not (0 <= image_id < len(photos_data)):
+        logger.error(f"잘못된 image_id({image_id}) 또는 로드된 데이터가 없습니다. 라벨을 저장할 수 없습니다.")
         return "데이터 파일을 찾을 수 없어 라벨을 저장할 수 없습니다.", 500
 
-    if 0 <= image_id < len(photos_data):
-        image_to_update = photos_data[image_id]
-        for i, face in enumerate(image_to_update['faces']):
+    image_data_to_update = photos_data[image_id] # 메모리 상의 데이터 복사본
+    original_json_path_str = image_data_to_update.get('_source_json_path')
+
+    if not original_json_path_str:
+        logger.error(f"image_id {image_id}에 대한 원본 JSON 파일 경로(_source_json_path)를 찾을 수 없습니다. 저장을 건너뜁니다.")
+        # 이 경우, 저장을 수행할 수 없으므로 오류를 반환합니다.
+        return "원본 파일 정보를 찾을 수 없어 저장할 수 없습니다.", 500
+
+    # 2. 원본 개별 JSON 파일 읽기 (안전하게 작업하기 위해)
+    #    또는 image_data_to_update (메모리 복사본)를 직접 수정하고 저장할 수도 있습니다.
+    #    여기서는 메모리 복사본을 수정하고, 그 전체를 원본 파일에 덮어쓰는 방식을 사용합니다.
+    #    더 안전한 방법은 원본 파일을 읽고, 그 내용을 수정한 뒤 저장하는 것입니다.
+    #    현재는 load_current_photos_data가 이미 파일 내용을 로드했으므로 image_data_to_update를 사용합니다.
+
+    # 3. 폼 데이터로 얼굴 이름 업데이트 (메모리 상의 데이터에)
+    #    global_json_handler.face_info_key는 'detected_face' 또는 설정된 키여야 합니다.
+    faces_key = global_json_handler.face_info_key if global_json_handler else 'faces' # 'faces'는 템플릿과 일치해야 함
+    if faces_key in image_data_to_update and isinstance(image_data_to_update[faces_key], list):
+        for i, face_entry in enumerate(image_data_to_update[faces_key]):
             face_name = request.form.get(f'face_{i}_name')
             if face_name is not None:
-                face['name'] = face_name.strip()
-        save_photo_data(photos_data) # save_photo_data는 전역 json_save_dir_str 사용
-        return redirect(url_for('label_image', image_id=image_id))
-    return "이미지를 찾을 수 없습니다.", 404
+                # global_json_handler.face_label_key는 'label' 또는 설정된 키여야 합니다.
+                label_key_for_face = global_json_handler.face_label_key if global_json_handler else 'name' # 'name'은 템플릿과 일치해야 함
+                face_entry[label_key_for_face] = face_name.strip()
+    
+    # 4. 수정된 단일 사진 데이터를 원본 개별 JSON 파일에 저장
+    save_individual_photo_data(image_data_to_update, original_json_path_str)
+
+    return redirect(url_for('label_image', image_id=image_id))
 
 # 설정된 경로에서 이미지 파일 제공
 @app.route(f'{global_image_serve_prefix_str}/<path:filename>')
@@ -521,13 +604,8 @@ def search_by_face_capture():
         # 3. 검색 결과를 프론트엔드 형식에 맞게 가공
         processed_results = []
         
-        # 검색 결과를 photo_data의 ID에 매핑하기 위해 대표 JSON 데이터를 로드하고 맵을 생성합니다.
-        photos_data_for_map = []
-        representative_json_path = app.config.get('global_json_save_path_str')
-        if representative_json_path and Path(representative_json_path).exists():
-            photos_data_for_map = global_json_handler.read_json(Path(representative_json_path)) or []
-        else:
-            logger.warning(f"대표 JSON 파일 '{representative_json_path}'을(를) 찾을 수 없어 검색 결과 매핑이 제한될 수 있습니다.")
+        # 얼굴 검색은 전체 데이터에 대한 검색이므로, 모든 사진 데이터를 로드합니다.
+        photos_data_for_map, _ = load_current_photos_data() # 전체 데이터 로드
 
         global_photo_path_to_id_map = {photo['image_path']: idx for idx, photo in enumerate(photos_data_for_map)}
 
