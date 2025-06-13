@@ -66,7 +66,8 @@ echo "Gunicorn --chdir 대상 디렉토리 (app.py 위치): ${SCRIPT_DIR_RUN_SH}
 # Gunicorn 실행
 # --chdir 옵션은 poetry run gunicorn 명령어의 일부로 poetry가 실행되는 현재 디렉토리 기준입니다.
 # SSL 인증서 경로는 이 스크립트 파일 위치(web_service/my_album_app)를 기준으로 프로젝트 루트(../../)에 있는 파일을 가리킵니다.
-poetry run gunicorn --workers 4 --bind 192.168.219.10:5001 \
+# poetry run gunicorn --workers 4 --bind 192.168.219.10:5001 \
+poetry run gunicorn --workers 1 --bind 192.168.219.10:5001 \
 --certfile ../../192.168.219.10.pem \
 --keyfile ../../192.168.219.10-key.pem \
 --chdir ./src/my_album_labeling_app app:app

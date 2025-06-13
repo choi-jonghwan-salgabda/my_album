@@ -5,10 +5,12 @@ import hashlib
 import json
 from pathlib import Path
 from typing import List, Dict, Any, Union, Optional # Optional 추가
-
+import dlib
 import cv2
 import numpy as np
 from PIL import Image, ExifTags
+
+
 
 # shared_utils 패키지에서 configger 클래스 가져오기
 # shared_utils 프로젝트의 src/utility/configger.py에 configger 클래스가 있다고 가정
@@ -163,6 +165,8 @@ class JsonConfigHandler:
         Args:
             json_keys_config (Dict[str, Any]): YAML 설정의 'json_keys' 섹션에 해당하는 딕셔너리.
         """
+        logger.info(f"JsonConfigHandler 초기화 시작: root_dir='{json_keys_config}'")
+
         if not isinstance(json_keys_config, dict):
             logger.error(f"JsonConfigHandler 초기화 오류: json_keys_config가 딕셔너리가 아닙니다 (타입: {type(json_keys_config)}).")
             # 또는 기본 설정을 사용하거나 예외를 발생시킬 수 있습니다.
@@ -190,6 +194,7 @@ class JsonConfigHandler:
         self.image_channels_key     = self.image_info_lst.get("resolution", {}).get("channels_key", "channels")
         self.image_name_key         = self.image_info_lst.get("image_name_key", "image_name")
         self.image_path_key         = self.image_info_lst.get("image_path_key", "image_path")
+        self.image_path_val         = self.image_info_lst.get(self.image_path_key, "")
         self.image_hash_key         = self.image_info_lst.get("image_hash_key", "image_hash")
 
         logger.debug(f"image_info_key: {self.image_info_lst}, "
@@ -379,3 +384,47 @@ def load_photo_data_from_sources(
         logger_instance.warning("로드할 수 있는 사진 데이터가 없습니다. 빈 리스트를 반환합니다.")
     return all_photo_data
 
+def extract_face_features_from_face_crop(
+    face_img: np.ndarray,
+    shape_predictor_path: str,
+    face_rec_model_path: str
+) -> Optional[np.ndarray]:
+    """
+    잘린 얼굴 이미지에서 dlib을 사용해 얼굴 특징 벡터(128차원)를 추출합니다.
+    
+    Args:
+        face_img (np.ndarray): 얼굴 영역만 포함된 이미지 (BGR 또는 RGB 가능)
+        shape_predictor_path (str): 랜드마크 모델 경로 (.dat)
+        face_rec_model_path (str): 얼굴 인식 모델 경로 (.dat)
+    
+    Returns:
+        Optional[np.ndarray]: 128차원 얼굴 벡터. 실패 시 None 반환.
+    """
+
+    if face_img is None or not isinstance(face_img, np.ndarray):
+        print("[오류] face_img가 유효하지 않습니다.")
+        return None
+
+    try:
+        # 모델 로딩
+        shape_predictor = dlib.shape_predictor(shape_predictor_path)
+        face_recognizer = dlib.face_recognition_model_v1(face_rec_model_path)
+
+        # dlib은 RGB 이미지 사용
+        if face_img.shape[2] == 3:
+            rgb_img = cv2.cvtColor(face_img, cv2.COLOR_BGR2RGB)
+        else:
+            rgb_img = face_img  # 이미 RGB일 경우 그대로
+
+        # 얼굴 위치를 이미지 전체로 설정
+        h, w = rgb_img.shape[:2]
+        rect = dlib.rectangle(left=0, top=0, right=w, bottom=h)
+
+        shape = shape_predictor(rgb_img, rect)
+        face_descriptor = face_recognizer.compute_face_descriptor(rgb_img, shape)
+
+        return np.array(face_descriptor, dtype=np.float32)
+
+    except Exception as e:
+        print(f"[예외] 얼굴 특징 추출 중 오류: {e}")
+        return None

@@ -28,11 +28,11 @@ class configger:
     """
     def __init__(self, root_dir:str, config_path: str):
         logger.info(f"Configger 초기화 시작: root_dir='{root_dir}'")
-        logger.info(f"Configger의          config_path='{config_path}'")
+        logger.info(f"Configger의         config_path='{config_path}'")
 
         # root_dir 처리: Path 객체로 만들고 사용자 홈 디렉토리 기준 절대 경로로 확장
         self.root_dir = Path(root_dir).expanduser().resolve()
-        logger.debug(f"경로 받음 및 확정(root_dir): {self.root_dir} ")
+        logger.debug(f"경로 받음 및 확정(root_dir):     {self.root_dir} ")
 
         # config_path 처리: 절대 경로이면 그대로, 상대 경로이면 root_dir과 결합하여 절대 경로 Path 객체 생성
         if os.path.isabs(config_path):
@@ -99,7 +99,7 @@ class configger:
         self.next_cfg = self.current_cfg # 현재는 동일하게 설정
 
         logger.debug(f"++++++++++++++++++++++++++++++++++") # 최종 치환 결과 로깅
-        logger.info(f"YAML 초기화 완료. self.cfg 내용: {str(self.cfg)}")
+        logger.info(f"YAML 초기화 완료. self.cfg 내용: 내용 일부: {str(self.cfg)[:500]}...")
         logger.debug(f"++++++++++++++++++++++++++++++++++") # 최종 치환 결과 로깅
 
     def _contains_placeholders(self, data: Any) -> bool:
@@ -253,7 +253,7 @@ class configger:
         logger.debug(f"값 조회 시작 for path: {key_path}")
         try:
             for i, key in enumerate(keys):
-                logger.debug(f">>> DEBUG: 현재 데이터 타입: {type(current_data)}, 찾을 키: {key}")
+                logger.debug(f"현재 데이터 타입: {type(current_data)}, 찾을 키: {key}")
                 if isinstance(current_data, dict) and key in current_data:
                     # 딕셔너리이고 키가 존재하면 다음 단계로 이동
                     current_data = current_data[key]
@@ -278,7 +278,7 @@ class configger:
                     return None # 경로 중간에 실패
 
             # 모든 키/인덱스를 따라 성공적으로 도달
-            logger.debug(f">>> DEBUG: 값 조회 성공: {current_data}")
+            logger.debug(f"값 조회 성공: {current_data}")
             return current_data
         except Exception as e:
             logger.error(f"값 조회 중 예외 발생 for path '{key_path}': {e}")

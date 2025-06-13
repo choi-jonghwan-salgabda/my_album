@@ -1,7 +1,7 @@
 import os
 import sys     # 표준 출력 스트림 사용을 위해 필요
 from pathlib import Path
-from typing import Any, List, Callable, Optional, Tuple
+from typing import Any, List, Callable, Optional, Tuple, Dict # Dict 추가
 import traceback # 초기 오류 로깅에 사용
 
 # shared_utils 패키지에서 configger 클래스 가져오기
