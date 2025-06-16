@@ -19,6 +19,7 @@ project:
 
     outputs: # 결과 폴더
       outputs_dir:              ${project.root_dir}/outputs/
+      labeled_face_crop_dir:    ${project.paths.outputs.outputs_dir}/labeled_face_crop/
       results_dir:              ${project.paths.outputs.outputs_dir}/results/
       album_index_path:         ${project.paths.outputs.results_dir}/album_index
 
@@ -56,7 +57,8 @@ project:
       # 만약 project.paths.datasets.raw_image_dir를 성공적으로 사용한다면,
       # 아래 image_source_directory 키는 사용되지 않지만, 폴백을 위해 남겨둘 수 있습니다.
       image_source_directory: ${project.source.web_service.static_dir}/images # PROJECT_ROOT 기준 상대 경로, static_dir 참조 및 따옴표 제거
-      image_serve_prefix: '/my_labeled_images' # 슬래시(/) 추가
+      image_serve_prefix: '/my_original_images' # 원본 이미지 제공용 접두사 (예시, 기존 값 유지 또는 변경)
+      face_crops_serve_prefix: '/face_crops_images'    # 크롭된 얼굴 이미지 제공용 접두사
       debug: true
 
   # requirements: ${root_dir}/requirements.txt # Poetry 사용으로 제거
@@ -167,7 +169,7 @@ json_keys:
         face_confidence_key: "confidence" # 얼굴 감지 confidence (detection 결과)
         face_class_id_key: "class_id"
         face_class_name_key: "class_name"
-        face_label_key: "label" # 얼굴 라벨 (e.g., "face")
+        face_label_key: "name" # 얼굴에 대한 실제 이름 (e.g., "홍길동")
         # 함수 설명 및 목표에 따라 가정된 키들 (실제 JSON에 있어야 함)
         face_embedding_key: "embedding" # 얼굴 임베딩 벡터 데이터 키
         face_id_key: "face_id" # 고유 얼굴 ID 키

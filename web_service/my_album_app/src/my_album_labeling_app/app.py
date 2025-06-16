@@ -156,6 +156,28 @@ try:
     if not global_json_list_file_path_str:
         logger.warning("'project.paths.datasets.json_file_list_path'가 설정 파일에 없거나 비어있습니다. 데이터 로딩 방식에 영향을 줄 수 있습니다.")
 
+    # outputs 관련 설정 (labeled_face_crop_dir 접근을 위해)
+    outputs_cfg = project_cfg.get('paths', {}).get('outputs', {})
+    if not isinstance(outputs_cfg, dict):
+        logger.error("outputs_cfg 설정을 불러오지 못했습니다. (project.paths.outputs)")
+        sys.exit(1)
+    global_labeled_face_crop_dir_str = outputs_cfg.get('labeled_face_crop_dir')
+    if not global_labeled_face_crop_dir_str:
+        logger.critical("필수 설정 누락: 'project.paths.outputs.labeled_face_crop_dir'이 설정 파일에 없거나 비어있습니다.")
+        sys.exit(1)
+    
+    # 디렉토리 경로를 Path 객체로 변환하고 존재 여부 확인 및 생성
+    labeled_face_crop_dir_path = Path(global_labeled_face_crop_dir_str)
+    if not labeled_face_crop_dir_path.exists():
+        try:
+            labeled_face_crop_dir_path.mkdir(parents=True, exist_ok=True)
+            logger.info(f"디렉토리 생성됨: {labeled_face_crop_dir_path}")
+        except OSError as e:
+            logger.error(f"디렉토리 '{labeled_face_crop_dir_path}' 생성 실패: {e}")
+            sys.exit(1) # 디렉토리 생성 실패 시 애플리케이션 종료
+    else:
+        logger.info(f"디렉토리 이미 존재함: {labeled_face_crop_dir_path}")
+
     web_service_cfg = project_cfg.get('source', {}).get('web_service', {})
     if not isinstance(web_service_cfg, dict):
         logger.error("web_service_cfg 설정을 불러오지 못했습니다.")
@@ -165,6 +187,35 @@ try:
     if not web_service_dir:
         logger.error("web_service_dir 값을 불러오지 못했습니다.")
         sys.exit(1)
+
+    # 템플릿 및 정적 파일 폴더
+    # YAML 키: project.source.web_service.flask_labeling_app.template_folder 등
+    global_templates_dir_str = web_service_cfg.get('templates_dir')
+    if not global_templates_dir_str:
+        logger.critical("필수 설정 누락: 'project.source.web_service.templates_dir'이 설정 파일에 없거나 비어있습니다.")
+        sys.exit(1)
+
+    global_static_folder_str = web_service_cfg.get('static_dir')
+    if not global_static_folder_str:
+        logger.critical("필수 설정 누락: 'project.source.web_service.static_dir'이 설정 파일에 없거나 비어있습니다.")
+        sys.exit(1)
+
+    global_image_serve_prefix_str = web_service_cfg.get('image_serve_prefix','my_original_images')
+    if not global_image_serve_prefix_str: # 값이 없는 경우
+        # The YAML key is 'project.source.web_service.image_serve_prefix', not with '.templates'
+        logger.warning("'project.source.web_service.image_serve_prefix'가 설정 파일에 없거나 비어있습니다. 기본값 '/my_original_images'를 사용합니다.")
+        global_image_serve_prefix_str = "/my_original_images" # Assign a default prefix
+    elif not global_image_serve_prefix_str.startswith('/'): # 슬래시로 시작하지 않는 경우
+        global_image_serve_prefix_str = '/' + global_image_serve_prefix_str
+        logger.debug(f"image_serve_prefix에 슬래시를 추가했습니다: {global_image_serve_prefix_str}")
+
+    global_face_crops_serve_prefix_str = web_service_cfg.get('face_crops_serve_prefix', 'face_crops_images')
+    if not global_face_crops_serve_prefix_str:
+        logger.warning("'project.source.web_service.face_crops_serve_prefix'가 설정 파일에 없거나 비어있습니다. 기본값 '/face_crops_images'를 사용합니다.")
+        global_face_crops_serve_prefix_str = "/face_crops_images"
+    elif not global_face_crops_serve_prefix_str.startswith('/'):
+        global_face_crops_serve_prefix_str = '/' + global_face_crops_serve_prefix_str
+        logger.debug(f"face_crops_serve_prefix에 슬래시를 추가했습니다: {global_face_crops_serve_prefix_str}")
 
     # JSON 키 설정을 configger에서 가져옵니다.
     try:
@@ -187,38 +238,19 @@ try:
     #     logger.error("flask_labeling_app_cfg 설정을 불러오지 못했습니다.")
     #     sys.exit(1)
 
-    # 템플릿 및 정적 파일 폴더
-    # YAML 키: project.source.web_service.flask_labeling_app.template_folder 등
-    global_templates_dir_str = web_service_cfg.get('templates_dir')
-    if not global_templates_dir_str:
-        logger.critical("필수 설정 누락: 'project.source.web_service.templates_dir'이 설정 파일에 없거나 비어있습니다.")
-        sys.exit(1)
-
-    global_static_folder_str = web_service_cfg.get('static_dir')
-    if not global_static_folder_str:
-        logger.critical("필수 설정 누락: 'project.source.web_service.static_dir'이 설정 파일에 없거나 비어있습니다.")
-        sys.exit(1)
-
-    global_image_serve_prefix_str = web_service_cfg.get('image_serve_prefix')
-    if not global_image_serve_prefix_str: # 값이 없는 경우
-        # The YAML key is 'project.source.web_service.image_serve_prefix', not with '.templates'
-        logger.warning("'project.source.web_service.image_serve_prefix'가 설정 파일에 없거나 비어있습니다. 기본값 '/images_served'를 사용합니다.")
-        global_image_serve_prefix_str = "/images_served" # Assign a default prefix
-    elif not global_image_serve_prefix_str.startswith('/'): # 슬래시로 시작하지 않는 경우
-        global_image_serve_prefix_str = '/' + global_image_serve_prefix_str
-        logger.debug(f"image_serve_prefix에 슬래시를 추가했습니다: {global_image_serve_prefix_str}")
-
     # 로깅: 설정 값들을 명확히 보여줌
     root_dir = project_cfg.get('root_dir')
     logger.info(f"project.root:{root_dir}")
-    logger.info(f"  웹서버 소스가 있는곳:{web_service_dir}")
-    logger.info(f"  JSONS 파일이 있는곳: {global_raw_jsons_dir_str if global_raw_jsons_dir_str else '설정되지 않음'}")
-    logger.info(f"  JSONS 목록이 있는곳: {global_json_list_file_path_str if global_json_list_file_path_str else '설정되지 않음'}")
+    logger.info(f"  JSONS 파일이 있는곳:    {global_raw_jsons_dir_str if global_raw_jsons_dir_str else '설정되지 않음'}")
+    logger.info(f"  JSONS 목록이 있는곳:    {global_json_list_file_path_str if global_json_list_file_path_str else '설정되지 않음'}")
     logger.info(f"  이미지 파일들이 있는곳: {global_raw_image_dir_str}")
-    logger.info(f"  템플릿(.html) 있는곳: {global_templates_dir_str}")
-    logger.info(f"  정적값(.css)가 있는곳: {global_static_folder_str}")
-    logger.info(f"  인덱싱 / 배치크기: {global_batch_size_for_indexing}")
-    logger.info(f"  이미지  접두사: {global_image_serve_prefix_str if global_image_serve_prefix_str else '설정되지 않음'}")
+    logger.info(f"  이름진 얼굴이 있는 곳:   {global_labeled_face_crop_dir_str}") # 로깅 추가
+    logger.info(f"  웹서버 소스가 있는곳:    {web_service_dir}")
+    logger.info(f"  템플릿(.html) 있는곳:   {global_templates_dir_str}")
+    logger.info(f"  정적값(.css)가 있는곳:  {global_static_folder_str}")
+    logger.info(f"  인덱싱 / 배치크기:       {global_batch_size_for_indexing}")
+    logger.info(f"  원본 이미지  접두사:    {global_image_serve_prefix_str if global_image_serve_prefix_str else '설정되지 않음'}")
+    logger.info(f"  크롭 이미지  접두사: {global_face_crops_serve_prefix_str if global_face_crops_serve_prefix_str else '설정되지 않음'}")
 
 except KeyError as e_key:
     # global_cfg_object.get_config 또는 dict.get 을 사용하면 일반적으로 KeyError가 발생하지 않지만,
@@ -262,6 +294,7 @@ app = Flask(__name__, template_folder=global_templates_dir_str, static_folder=gl
 app.config['global_raw_jsons_dir_str'] = global_raw_jsons_dir_str
 app.config['global_json_list_file_path_str'] = global_json_list_file_path_str # JSON 목록 파일 경로 저장
 app.config['global_raw_image_dir_str'] = global_raw_image_dir_str
+app.config['global_labeled_face_crop_dir_str'] = global_labeled_face_crop_dir_str # 새로 추가된 설정 저장
 app.config['global_batch_size_for_indexing'] = global_batch_size_for_indexing # 배치 크기 저장
 
 # --- 애플리케이션 전역 데이터 (시작 시 로드) ---
@@ -550,7 +583,6 @@ def ensure_global_data_loaded():
                 _load_all_photo_data_into_globals()
 
 # --- 사진 데이터 로딩 헬퍼 함수 ---
-# --- 사진 데이터 로딩 헬퍼 함수 ---
 def load_current_photos_data(page: Optional[int] = None, per_page: Optional[int] = None) -> Tuple[List[Dict[str, Any]], int]:
     """
     전역으로 로드된 사진 데이터에서 페이징 처리하여 반환합니다.
@@ -630,7 +662,7 @@ def index():
         photos_with_ids.append({
             **photo_data, 
             'id': original_index, # GLOBAL_PHOTOS_DATA에서의 인덱스
-            'image_url': url_for('serve_image', filename=image_url_filename)
+            'image_url': url_for('serve_raw_image', filename=image_url_filename) # 'serve_image'를 'serve_raw_image'로 수정
         })
 
     total_pages = (total_photos + per_page - 1) // per_page if per_page > 0 else 0
@@ -646,27 +678,66 @@ def index():
 
 @app.route('/image/<int:image_id>')
 def label_image(image_id):
-    # 이 라우트는 특정 ID의 이미지를 로드해야 하므로, 전체 데이터를 로드하거나
-    # ID 기반으로 단일 항목을 로드하는 로직이 필요합니다.
-    # 여기서는 일단 전체 데이터를 로드하는 방식을 유지합니다 (load_current_photos_data에 page 정보 없이 호출).
-    # 이제 GLOBAL_PHOTOS_DATA에서 직접 가져옵니다.
     logger.info(f"app.route('/image/<int:image_id>'): image_id={image_id}")
-    ensure_global_data_loaded() # 데이터 로드 확인
+    ensure_global_data_loaded()
 
-    global GLOBAL_PHOTOS_DATA, GLOBAL_TOTAL_PHOTOS # 전역 변수 사용 명시
+    global GLOBAL_PHOTOS_DATA, GLOBAL_TOTAL_PHOTOS
 
     if 0 <= image_id < GLOBAL_TOTAL_PHOTOS:
         image_data = GLOBAL_PHOTOS_DATA[image_id]
 
-        # YAML 설정에서 가져온 이미지 경로 키
         actual_image_path_key = f"{global_json_handler.image_info_key}.{global_json_handler.image_path_key}" if global_json_handler else "image_info_key.image_path_key"
         
-        actual_image_filename = get_value_from_json(image_data, actual_image_path_key, 'unknown.jpg')
-        if actual_image_filename == 'unknown.jpg':
-            logger.warning(f"label_image: image_id {image_id}에 대한 이미지 파일명을 찾을 수 없습니다. 사용된 키: {actual_image_path_key}. 데이터: {image_data}")
-        # 이미지 URL 생성
-        image_url = url_for('serve_image', filename=actual_image_filename)
-        return render_template('label_image.html', image_data=image_data, image_id=image_id, image_url=image_url)
+        path_from_json_str = get_value_from_json(image_data, actual_image_path_key, 'unknown.jpg')
+        logger.debug(f"label_image: JSON에서 가져온 경로 (actual_image_filename): {path_from_json_str}")
+
+        image_url_filename = 'unknown.jpg' # url_for에 사용될 최종 파일명 (상대 경로여야 함)
+
+        if path_from_json_str == 'unknown.jpg':
+            logger.warning(f"label_image: image_id {image_id}에 대한 이미지 파일명을 JSON에서 찾을 수 없습니다. 사용된 키: {actual_image_path_key}. 데이터: {image_data}")
+        else:
+            base_image_dir_obj = Path(app.config.get('global_raw_image_dir_str'))
+            path_to_resolve_obj = Path(path_from_json_str)
+            
+            absolute_image_path_obj = None
+            if path_to_resolve_obj.is_absolute():
+                absolute_image_path_obj = path_to_resolve_obj
+            elif any(path_from_json_str.startswith(p) for p in ["home/", "mnt/", "var/", "opt/", "srv/", "usr/"]):
+                absolute_image_path_obj = Path("/" + path_from_json_str)
+            else: 
+                # JSON에 이미 상대 경로로 저장되어 있거나, 단순 파일명인 경우
+                image_url_filename = path_from_json_str
+                logger.debug(f"label_image: JSON 경로가 상대 경로 또는 파일명으로 간주됨: '{image_url_filename}'")
+
+
+            if absolute_image_path_obj: # 절대 경로가 결정된 경우, 상대 경로로 변환
+                try:
+                    image_url_filename = str(absolute_image_path_obj.relative_to(base_image_dir_obj))
+                    logger.debug(f"label_image: 절대 경로 '{absolute_image_path_obj}'를 기준 디렉토리 '{base_image_dir_obj}'에 대해 상대 경로 '{image_url_filename}'(으)로 변환했습니다.")
+                except ValueError:
+                    logger.warning(
+                        f"label_image: 이미지 경로 '{absolute_image_path_obj}' (JSON 원본: '{path_from_json_str}')가 "
+                        f"기준 디렉토리 '{base_image_dir_obj}'에 속하지 않습니다. "
+                        f"파일 이름 부분 ('{absolute_image_path_obj.name}')을 사용합니다."
+                    )
+                    image_url_filename = absolute_image_path_obj.name
+        
+        if image_url_filename == 'unknown.jpg':
+            logger.error(f"label_image: image_id {image_id}에 대한 이미지 파일명을 최종적으로 결정할 수 없습니다. JSON 내 경로: {path_from_json_str}")
+        
+        # 원본 이미지를 위한 URL 생성 (serve_raw_image 사용)
+        image_url = url_for('serve_raw_image', filename=image_url_filename) # serve_raw_image로 변경
+        logger.debug(f"label_image: 생성된 image_url: {image_url} (filename='{image_url_filename}')")
+        
+        return render_template('label_image.html',
+                               image_data=image_data,
+                               image_id=image_id,
+                               image_url=image_url,
+                               face_list_key=global_json_handler.face_info_key, # detected_face 키
+                               face_label_key=global_json_handler.face_label_key # name 키 (YAML에서 설정한대로)
+                               )
+    
+    logger.warning(f"label_image: 유효하지 않은 image_id({image_id}) 또는 사진 데이터를 찾을 수 없습니다.")
     return "이미지를 찾을 수 없습니다.", 404
 
 @app.route('/save_labels/<int:image_id>', methods=['POST'])
@@ -715,11 +786,27 @@ def save_labels(image_id):
 
     return redirect(url_for('label_image', image_id=image_id))
 
-# 설정된 경로에서 이미지 파일 제공
-@app.route(f'{global_image_serve_prefix_str}/<path:filename>')
-def serve_image(filename):
-    logger.info(f"app.route({global_image_serve_prefix_str}/<path:filename>): {filename}")
-    return send_from_directory(app.config.get('global_raw_image_dir_str', ''), filename)
+# 1. 원본 이미지 제공 라우트 (기존 global_image_serve_prefix_str 사용)
+@app.route(f'{global_image_serve_prefix_str}/<path:filename>') # 기존 접두사 사용
+def serve_raw_image(filename):
+    logger.info(f"app.route({global_image_serve_prefix_str}/<path:filename>) for raw image: {filename}")
+    source_directory = app.config.get('global_raw_image_dir_str')
+    if not source_directory:
+        logger.error(f"global_raw_image_dir_str: {global_raw_image_dir_str} 설정이 없습니다.")
+        return "설정 오류", 500
+    return send_from_directory(source_directory, filename)
+
+# 2. 크롭된 얼굴 이미지 제공 라우트 (새로운 접두사 및 labeled_face_crop_dir 사용)
+
+@app.route(f'{global_face_crops_serve_prefix_str}/<path:filename>') # 새 접두사 사용
+def serve_cropped_image(filename): # 함수 이름 변경 (serve_image -> serve_cropped_image)
+    logger.info(f"app.route({global_face_crops_serve_prefix_str}/<path:filename>): {filename}")
+    # 이미지 소스 디렉토리를 global_labeled_face_crop_dir_str 로 변경
+    source_directory = app.config.get('global_labeled_face_crop_dir_str')
+    if not source_directory:
+        logger.error(f"global_labeled_face_crop_dir_str: {global_labeled_face_crop_dir_str} 설정이 없습니다.")
+        return "설정 오류", 500
+    return send_from_directory(source_directory, filename)
 
 @app.route('/search_face_capture', methods=['POST'])
 def search_by_face_capture():
@@ -808,7 +895,7 @@ def search_by_face_capture():
 
                     processed_results.append({
                         "image_id": photo_id,
-                        "image_url": url_for('serve_image', filename=image_filename_for_url),
+                        "image_url": url_for('serve_raw_image', filename=image_filename_for_url), # 원본 이미지 URL
                         "label_url": url_for('label_image', image_id=photo_id),
                         "similarity": float(round(similarity, 4)) # Ensure it's a Python float
                     })

@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>얼굴 레이블링 - 사진 {{ image_id + 1 }}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    {# 인라인 스타일은 style.css로 이전되었거나 아래에서 동적으로 생성됩니다. #}
+</head>
+<body>
+    <div class="container">
+        <h1>사진 {{ image_id + 1 }} 얼굴 레이블링</h1>
+        <p><a href="{{ url_for('index') }}">목록으로 돌아가기</a></p>
+
+        <form method="POST" action="{{ url_for('save_labels', image_id=image_id) }}">
+            <div class="image-container">
+                <img src="{{ image_url }}" alt="사진 ID {{ image_id }}">
+                {# image_data에서 얼굴 목록을 가져옵니다. face_list_key는 app.py에서 전달됩니다. (예: 'detected_face') #}
+                {% set faces_list = image_data[face_list_key] if face_list_key in image_data else [] %}
+                {% for face in faces_list %}
+                    {% set bbox = face[global_json_handler.face_box_xyxy_key if global_json_handler and global_json_handler.face_box_xyxy_key in face else 'bbox_xyxy'] %} <!-- bbox: [x1, y1, x2, y2] -->
+                    {% set x1, y1, x2, y2 = bbox[0] | float, bbox[1] | float, bbox[2] | float, bbox[3] | float %}
+                    {% set box_width = x2 - x1 %}
+                    {% set box_height = y2 - y1 %}
+                    {% set resolution_data = image_data[global_json_handler.image_info_key][global_json_handler.resolution_key] if global_json_handler and global_json_handler.image_info_key in image_data and global_json_handler.resolution_key in image_data[global_json_handler.image_info_key] else {} %}
+                {% if resolution_data and resolution_data[global_json_handler.width_key] and resolution_data[global_json_handler.height_key] %}
+                    {% set original_width = resolution_data[global_json_handler.width_key] | float %}
+                    {% set original_height = resolution_data[global_json_handler.height_key] | float %}
+                    <div class="bounding-box" style="
+                        left: {{ (x1 / original_width) * 100 }}%;
+                        top: {{ (y1 / original_height) * 100 }}%;
+                        width: {{ (box_width / original_width) * 100 }}%;
+                        height: {{ (box_height / original_height) * 100 }}%;">
+                {% else %}
+                    <!-- 해상도 정보 없을 시 fallback -->
+                    <div class="bounding-box" style="left: {{ x1 }}px; top: {{ y1 }}px; width: {{ box_width }}px; height: {{ box_height }}px;">
+                {% endif %}
+                        {# face_label_key는 app.py에서 전달됩니다. (예: 'name') #}
+                        <input type="text" name="face_{{ loop.index0 }}_name" value="{{ face[face_label_key] if face_label_key in face else '' }}" placeholder="이름 입력" class="face-label-input" style="top: 100%; margin-top: 2px; left: 0;">
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+            <br>
+            <button type="submit">레이블 저장</button>
+        </form>
+    </div>
+</body>
+</html>
