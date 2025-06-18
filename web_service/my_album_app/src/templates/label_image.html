@@ -16,31 +16,63 @@
             <div class="image-container">
                 <img src="{{ image_url }}" alt="사진 ID {{ image_id }}">
                 {# image_data에서 얼굴 목록을 가져옵니다. face_list_key는 app.py에서 전달됩니다. (예: 'detected_face') #}
-                {% set faces_list = image_data[face_list_key] if face_list_key in image_data else [] %}
-                {% for face in faces_list %}
-                    {% set bbox = face[global_json_handler.face_box_xyxy_key if global_json_handler and global_json_handler.face_box_xyxy_key in face else 'bbox_xyxy'] %} <!-- bbox: [x1, y1, x2, y2] -->
-                    {% set x1, y1, x2, y2 = bbox[0] | float, bbox[1] | float, bbox[2] | float, bbox[3] | float %}
-                    {% set box_width = x2 - x1 %}
-                    {% set box_height = y2 - y1 %}
-                    {% set resolution_data = image_data[global_json_handler.image_info_key][global_json_handler.resolution_key] if global_json_handler and global_json_handler.image_info_key in image_data and global_json_handler.resolution_key in image_data[global_json_handler.image_info_key] else {} %}
-                {% if resolution_data and resolution_data[global_json_handler.width_key] and resolution_data[global_json_handler.height_key] %}
-                    {% set original_width = resolution_data[global_json_handler.width_key] | float %}
-                    {% set original_height = resolution_data[global_json_handler.height_key] | float %}
-                    <div class="bounding-box" style="
-                        left: {{ (x1 / original_width) * 100 }}%;
-                        top: {{ (y1 / original_height) * 100 }}%;
-                        width: {{ (box_width / original_width) * 100 }}%;
-                        height: {{ (box_height / original_height) * 100 }}%;">
-                {% else %}
-                    <!-- 해상도 정보 없을 시 fallback -->
-                    <div class="bounding-box" style="left: {{ x1 }}px; top: {{ y1 }}px; width: {{ box_width }}px; height: {{ box_height }}px;">
-                {% endif %}
-                        {# face_label_key는 app.py에서 전달됩니다. (예: 'name') #}
-                        <input type="text" name="face_{{ loop.index0 }}_name" value="{{ face[face_label_key] if face_label_key in face else '' }}" placeholder="이름 입력" class="face-label-input" style="top: 100%; margin-top: 2px; left: 0;">
-                    </div>
-                </div>
+                {% set object_list = image_data.get(face_list_key, []) %} {# face_list_key is actually object_list_key from app.py #}
+                {% for obj_entry in object_list %}
+                    {% if obj_entry and passed_face_dict_key and obj_entry[passed_face_dict_key] %}
+                        {% set face = obj_entry[passed_face_dict_key] %}
+                        {# Safely get the bbox using the key from global_json_handler if available #}
+                        {% set bbox_key_to_use = global_json_handler.face_box_xyxy_key if global_json_handler and global_json_handler.face_box_xyxy_key else 'bbox_xyxy' %}
+                        {% set bbox = face.get(bbox_key_to_use) %}
+
+                        {% if bbox and bbox | length == 4 %}
+                            {% set x1, y1, x2, y2 = bbox[0] | float, bbox[1] | float, bbox[2] | float, bbox[3] | float %}
+                            {% set box_width = x2 - x1 %}
+                            {% set box_height = y2 - y1 %}
+                            {% set resolution_data = image_data.get(global_json_handler.image_info_key, {}).get(global_json_handler.resolution_key, {}) if global_json_handler else {} %}
+                            {% if resolution_data and resolution_data.get(global_json_handler.width_key) and resolution_data.get(global_json_handler.height_key) %}
+                                {% set original_width = resolution_data[global_json_handler.width_key] | float %}
+                                {% set original_height = resolution_data[global_json_handler.height_key] | float %}
+                                <div class="bounding-box" style="
+                                    left: {{ (x1 / original_width) * 100 }}%;
+                                    top: {{ (y1 / original_height) * 100 }}%;
+                                    width: {{ (box_width / original_width) * 100 }}%;
+                                    height: {{ (box_height / original_height) * 100 }}%;"></div>
+                            {% else %}
+                                <!-- 해상도 정보 없을 시 fallback -->
+                                <div class="bounding-box" style="left: {{ x1 }}px; top: {{ y1 }}px; width: {{ box_width }}px; height: {{ box_height }}px;"></div>
+                            {% endif %}
+                        {% endif %}
+                    {% endif %}
                 {% endfor %}
             </div>
+            {# 각 얼굴의 크롭된 이미지와 이름 입력 필드를 나열하는 섹션 #}
+            {% if image_data and image_data.get(face_list_key) %} {# Use .get for safety #}
+                {% set object_list = image_data.get(face_list_key, []) %}
+                {% for obj_entry in object_list %}
+                    {% if obj_entry and passed_face_dict_key and obj_entry.get(passed_face_dict_key) %}
+                        {% set actual_face_data = obj_entry.get(passed_face_dict_key) %}
+                        <div class="face-entry" style="margin-bottom: 15px; padding-bottom: 10px; border-bottom: 1px solid #eee;">
+                            {# obj_entry.object_index and actual_face_data.face_index_in_object are available from app.py #}
+                            <p style="margin-bottom: 5px;"><strong>객체 {{ obj_entry.object_index | default(loop.index0) + 1 }}의 얼굴 {{ actual_face_data.face_index_in_object | default(0) + 1 }}:</strong></p>
+                            
+                            {# Display image: prefer saved_cropped_image_url, fallback to cropped_image_base64 #}
+                            {% if actual_face_data.saved_cropped_image_url %}
+                                <img src="{{ actual_face_data.saved_cropped_image_url }}" alt="Cropped Face" style="max-width: 100px; max-height: 100px; vertical-align: middle; margin-right: 10px; border: 1px solid #ddd;">
+                            {% elif actual_face_data.cropped_image_base64 %}
+                                <img src="{{ actual_face_data.cropped_image_base64 }}" alt="Cropped Face (Base64)" style="max-width: 100px; max-height: 100px; vertical-align: middle; margin-right: 10px; border: 1px solid #ddd;">
+                            {% else %}
+                                <span style="display: inline-block; width: 100px; height: 100px; line-height:100px; text-align:center; background-color:#f0f0f0; color:#888; vertical-align: middle; margin-right: 10px; border: 1px solid #ddd;">(크롭 없음)</span>
+                            {% endif %}
+                            
+                            <input type="text" 
+                                   name="face_obj{{ obj_entry.object_index | default(loop.index0) }}_face{{ actual_face_data.face_index_in_object | default(0) }}_name" 
+                                   value="{{ actual_face_data.get(face_label_key, '') }}" 
+                                   placeholder="이름 입력" 
+                                   style="vertical-align: middle; padding: 5px; border: 1px solid #ccc; border-radius: 3px;">
+                        </div>
+                        {% endif %}
+                {% endfor %}
+            {% endif %}
             <br>
             <button type="submit">레이블 저장</button>
         </form>

@@ -19,9 +19,9 @@ import threading # 데이터 로딩 동기화를 위한 Lock
 try:
     from datetime import datetime
     from my_utils.config_utils.SimpleLogger import logger, get_argument
-    from my_utils.config_utils.configger import configger
+    from my_utils.config_utils.configger import configger, get_all_values_from_json
     from my_utils.object_utils.data_loading_helpers import load_all_json_from_list_file, load_json_batch_from_list_file
-    from my_utils.object_utils.photo_utils import JsonConfigHandler, extract_face_features_from_face_crop
+    from my_utils.object_utils.photo_utils import JsonConfigHandler, extract_face_features_from_face_crop, crop_image_from_path_to_buffer
     # 얼굴 검출 및 특징 추출, 검색 관련 모듈 임포트 (가상)
     # from my_album.src.face_utils import detect_and_extract_features  # 예시: 얼굴 검출 및 특징 추출 함수
     # from my_album.src.search_utils import search_similar_faces       # 예시: 유사 얼굴 검색 함수
@@ -589,7 +589,7 @@ def load_current_photos_data(page: Optional[int] = None, per_page: Optional[int]
     """
     ensure_global_data_loaded() # 데이터가 로드되었는지 확인 (이미 로드되었다면 아무것도 안 함)
 
-    global GLOBAL_PHOTOS_DATA, GLOBAL_TOTAL_PHOTOS
+    global GLOBAL_PHOTOS_DATA, GLOBAL_TOTAL_PHOTOS, global_json_handler
 
     if page is not None and per_page is not None and per_page > 0:
         start_index = (page - 1) * per_page
@@ -608,6 +608,7 @@ ensure_global_data_loaded()
 @app.route('/')
 def index():
     logger.info(f"app.route('/')")
+    
     page = request.args.get('page', 1, type=int)
     # 페이지당 항목 수: URL 파라미터 > 설정(indexing.batch_sizeL)
     default_per_page = app.config.get('global_batch_size_for_indexing', 10)
@@ -632,16 +633,16 @@ def index():
         image_url_filename = 'unknown.jpg' # 기본값
 
         if path_from_json_str != 'unknown.jpg':
-            base_image_dir_obj = Path(app.config.get('global_raw_image_dir_str'))
-            path_to_resolve_obj = Path(path_from_json_str)
+            base_image_dir = Path(app.config.get('global_raw_image_dir_str'))
+            image_path_to_resolve = Path(path_from_json_str)
             
             absolute_image_path_obj = None
             # 경로 해석:
             # 1. 이미 절대 경로인 경우 그대로 사용
             # 2. 절대 경로가 아니면서 'home/', 'mnt/' 등으로 시작하면 맨 앞에 '/'를 붙여 절대 경로로 간주
-            # 3. 그 외에는 base_image_dir_obj에 대한 단순 상대 경로로 간주 (이 경우 image_url_filename으로 바로 사용)
-            if path_to_resolve_obj.is_absolute():
-                absolute_image_path_obj = path_to_resolve_obj
+            # 3. 그 외에는 base_image_dir에 대한 단순 상대 경로로 간주 (이 경우 image_url_filename으로 바로 사용)
+            if image_path_to_resolve.is_absolute():
+                absolute_image_path_obj = image_path_to_resolve
             elif any(path_from_json_str.startswith(p) for p in ["home/", "mnt/", "var/", "opt/", "srv/", "usr/"]):
                 absolute_image_path_obj = Path("/" + path_from_json_str)
             else:
@@ -650,11 +651,11 @@ def index():
 
             if absolute_image_path_obj: # 절대 경로를 얻었거나 구성한 경우
                 try:
-                    image_url_filename = str(absolute_image_path_obj.relative_to(base_image_dir_obj))
+                    image_url_filename = str(absolute_image_path_obj.relative_to(base_image_dir))
                 except ValueError:
                     logger.warning(
                         f"이미지 경로 '{absolute_image_path_obj}' (JSON 원본: '{path_from_json_str}')가 "
-                        f"기준 디렉토리 '{base_image_dir_obj}'에 속하지 않습니다. "
+                        f"기준 디렉토리 '{base_image_dir}'에 속하지 않습니다. "
                         f"파일 이름 부분 ('{absolute_image_path_obj.name}')을 사용합니다."
                     )
                     image_url_filename = absolute_image_path_obj.name
@@ -684,57 +685,139 @@ def label_image(image_id):
     global GLOBAL_PHOTOS_DATA, GLOBAL_TOTAL_PHOTOS
 
     if 0 <= image_id < GLOBAL_TOTAL_PHOTOS:
-        image_data = GLOBAL_PHOTOS_DATA[image_id]
+        json_data_from_global = GLOBAL_PHOTOS_DATA[image_id]
 
-        actual_image_path_key = f"{global_json_handler.image_info_key}.{global_json_handler.image_path_key}" if global_json_handler else "image_info_key.image_path_key"
-        
-        path_from_json_str = get_value_from_json(image_data, actual_image_path_key, 'unknown.jpg')
-        logger.debug(f"label_image: JSON에서 가져온 경로 (actual_image_filename): {path_from_json_str}")
+        # 1. json정보에서 image_path를 가저온다.
+        image_path_key = f"{global_json_handler.image_info_key}.{global_json_handler.image_path_key}" if global_json_handler else "image_info_key.image_path_key"
+        logger.debug(f"JSON에서 이미지 경로를 가져오기 위한 키 경로: '{image_path_key}'")
+
+        # image_path_key 사용하여 json_data_from_global에서 실제 이미지 경로 값을 가져옵니다.
+        image_path_val = get_value_from_json(json_data_from_global, image_path_key)
 
         image_url_filename = 'unknown.jpg' # url_for에 사용될 최종 파일명 (상대 경로여야 함)
 
-        if path_from_json_str == 'unknown.jpg':
-            logger.warning(f"label_image: image_id {image_id}에 대한 이미지 파일명을 JSON에서 찾을 수 없습니다. 사용된 키: {actual_image_path_key}. 데이터: {image_data}")
+        if not image_path_val or image_path_val == image_url_filename:
+            logger.warning(f"image_id {image_id}에 대한 이미지 파일명을 JSON에서 찾을 수 없거나 유효하지 않습니다. 사용된 키 경로: {image_path_key}. 가져온 값: {image_path_val}. 데이터: {json_data_from_global}")
         else:
-            base_image_dir_obj = Path(app.config.get('global_raw_image_dir_str'))
-            path_to_resolve_obj = Path(path_from_json_str)
-            
+            base_image_dir = Path(app.config.get('global_raw_image_dir_str'))
+            # 실제 이미지 경로 값(image_path_val)을 사용하여 Path 객체 생성
+            image_path_to_resolve = Path(image_path_val)
+            logger.info(f"image_path_to_resolve: '{image_path_to_resolve}'")
+
             absolute_image_path_obj = None
-            if path_to_resolve_obj.is_absolute():
-                absolute_image_path_obj = path_to_resolve_obj
-            elif any(path_from_json_str.startswith(p) for p in ["home/", "mnt/", "var/", "opt/", "srv/", "usr/"]):
-                absolute_image_path_obj = Path("/" + path_from_json_str)
+            if image_path_to_resolve.is_absolute():
+                absolute_image_path_obj = image_path_to_resolve
+            elif any(image_path_val.startswith(p) for p in ["home/", "mnt/", "var/", "opt/", "srv/", "usr/"]):
+                absolute_image_path_obj = Path("/" + image_path_val)
             else: 
                 # JSON에 이미 상대 경로로 저장되어 있거나, 단순 파일명인 경우
-                image_url_filename = path_from_json_str
-                logger.debug(f"label_image: JSON 경로가 상대 경로 또는 파일명으로 간주됨: '{image_url_filename}'")
-
+                image_url_filename = image_path_val # 실제 경로 값 사용
+                logger.debug(f"JSON 경로가 상대 경로 또는 파일명으로 간주됨: {image_url_filename}")
 
             if absolute_image_path_obj: # 절대 경로가 결정된 경우, 상대 경로로 변환
                 try:
-                    image_url_filename = str(absolute_image_path_obj.relative_to(base_image_dir_obj))
-                    logger.debug(f"label_image: 절대 경로 '{absolute_image_path_obj}'를 기준 디렉토리 '{base_image_dir_obj}'에 대해 상대 경로 '{image_url_filename}'(으)로 변환했습니다.")
+                    image_url_filename = str(absolute_image_path_obj.relative_to(base_image_dir))
+                    logger.debug(f"절대 경로: '{absolute_image_path_obj}'를 기준 디렉토리 '{base_image_dir}'에 대해 상대 경로 '{image_url_filename}'(으)로 변환했습니다.")
                 except ValueError:
                     logger.warning(
-                        f"label_image: 이미지 경로 '{absolute_image_path_obj}' (JSON 원본: '{path_from_json_str}')가 "
-                        f"기준 디렉토리 '{base_image_dir_obj}'에 속하지 않습니다. "
+                        f"label_image: 이미지 경로 '{absolute_image_path_obj}' (JSON 원본: '{image_path_val}')가 "
+                        f"기준 디렉토리 '{base_image_dir}'에 속하지 않습니다. "
                         f"파일 이름 부분 ('{absolute_image_path_obj.name}')을 사용합니다."
                     )
                     image_url_filename = absolute_image_path_obj.name
         
         if image_url_filename == 'unknown.jpg':
-            logger.error(f"label_image: image_id {image_id}에 대한 이미지 파일명을 최종적으로 결정할 수 없습니다. JSON 내 경로: {path_from_json_str}")
+            logger.error(f"image_id {image_id}에 대한 이미지 파일명을 최종적으로 결정할 수 없습니다. JSON 내 경로 값: {image_path_val}")
+            return f"이미지 파일 경로를 확인할 수 없습니다 (ID: {image_id}). JSON 데이터 또는 설정을 확인하세요.", 404
         
-        # 원본 이미지를 위한 URL 생성 (serve_raw_image 사용)
-        image_url = url_for('serve_raw_image', filename=image_url_filename) # serve_raw_image로 변경
-        logger.debug(f"label_image: 생성된 image_url: {image_url} (filename='{image_url_filename}')")
-        
+        # 2. json정보에서 image_path를 가저온다.
+        # 템플릿에 전달할 데이터 복사본 생성 및 크롭 이미지 URL 추가
+        json_data_for_template = copy.deepcopy(json_data_from_global)
+        # logger.debug(f"json_data_for_template: {json_data_for_template}") # 너무 길 수 있으므로 필요시 주석 해제
+
+        # global_json_handler가 유효한 경우, 얼굴 목록 키와 크롭 파일명 키를 가져와 처리합니다.
+        if global_json_handler:
+            # # 템플릿으로 전달되는 face_list_key와 동일한 키를 사용하여 Python 내부에서 얼굴 목록에 접근합니다.
+            # # 이 키는 global_json_handler.face_info_key에서 직접 가져옵니다 (예: "detected_face").
+            # key_for_object_list: JSON 데이터에서 실제 객체 목록을 담고 있는 키 (예: "detected_obj")
+            try:
+                key_for_object_list = global_json_handler.object_info_key
+                key_for_face_dict_in_object = global_json_handler.face_info_key # 객체 내 얼굴 딕셔너리 키 (예: "detected_face")
+            except AttributeError:
+                logger.error(
+                    "Configuration Error: 'JsonConfigHandler' is missing 'object_info_key' or 'face_info_key' attribute. "
+                    "Please check: \n"
+                    "1. Your 'json_keys' section in 'photo_album.yaml' (for object_info_lst.key and object_info_lst.face_info_lst.key).\n"
+                    "2. The 'JsonConfigHandler' class implementation.\n"
+                    "Cropped images may not be displayed correctly until this is resolved."
+                )
+                key_for_object_list = None
+                key_for_face_dict_in_object = None
+
+            if key_for_object_list: # 객체 목록 키가 유효한 경우
+                object_list_from_data = json_data_for_template.get(key_for_object_list)
+                # logger.info(f"object_list_from_data (using key '{key_for_object_list}'): {object_list_from_data}")
+
+                if isinstance(object_list_from_data, list):
+                    for obj_idx, object_entry in enumerate(object_list_from_data): # 각 객체 (예: "person" 딕셔너리) 순회
+                        # logger.debug(f"Processing object_entry: {object_entry}")
+
+                        if isinstance(object_entry, dict):
+                            if key_for_face_dict_in_object: # 얼굴 딕셔너리 키가 유효한 경우
+                                face_info_dict = object_entry.get(key_for_face_dict_in_object)
+                                if isinstance(face_info_dict, dict):
+
+                                    # Base64 인코딩된 이미지 추가
+                                    face_box_xyxy = face_info_dict.get(global_json_handler.face_box_xyxy_key) # face_box_xyxy
+                                    if face_box_xyxy and image_path_val:
+                                        cropped_image_buffer = crop_image_from_path_to_buffer(image_path_val, face_box_xyxy)
+                                        if cropped_image_buffer:
+                                            img_bytes = cropped_image_buffer.getvalue()
+                                            base64_encoded_data = base64.b64encode(img_bytes).decode('utf-8')
+                                            face_info_dict['cropped_image_base64'] = f"data:image/jpeg;base64,{base64_encoded_data}"
+                                        else:
+                                            face_info_dict['cropped_image_base64'] = None
+                                            logger.warning(f"image_id {image_id}, obj {obj_idx}: 얼굴 이미지 자르기 실패 (bbox: {face_box_xyxy}).")
+                                    else:
+                                        face_info_dict['cropped_image_base64'] = None
+                                        if not face_box_xyxy: logger.warning(f"image_id {image_id}, obj {obj_idx}: bbox 정보 없음.")
+                                        if not image_path_val: logger.warning(f"image_id {image_id}, obj {obj_idx}: 원본 이미지 경로 없음.")
+
+                                    # 저장된 크롭 이미지 URL 추가
+                                    saved_crop_filename = face_info_dict.get(global_json_handler.face_label_key)
+                                    if saved_crop_filename:
+                                        try:
+                                            face_info_dict['saved_cropped_image_url'] = url_for('serve_cropped_image', filename=saved_crop_filename)
+                                        except Exception as e_url_crop:
+                                            logger.error(f"Error generating URL for saved_cropped_image '{saved_crop_filename}' for image_id {image_id}: {e_url_crop}", exc_info=True)
+                                            face_info_dict['saved_cropped_image_url'] = None
+                                    else:
+                                        face_info_dict['saved_cropped_image_url'] = None
+                                    
+                                    # 템플릿에서 얼굴 식별을 위한 인덱스 추가
+                                    face_info_dict['object_index'] = obj_idx
+                                    # 만약 face_info_dict 리스트 내의 단일 얼굴이 아니라,
+                                    # 객체 내 유일한 얼굴 정보를 담는 딕셔너리라면 face_index_in_object는 0 또는 불필요.
+                                    # 현재 JSON 구조상 detected_face는 객체 당 하나이므로 face_index_in_object는 0으로 간주.
+                                    face_info_dict['face_index_in_object'] = 0 
+                                else:
+                                    logger.warning(f"Value for key '{key_for_face_dict_in_object}' in object_entry is not a dict: {face_info_dict}")
+                        # elseif isinstance(object_entry, list):
+                        # else:
+                            # else: logger.warning("key_for_face_dict_in_object is not configured.")
+                # elseif isinstance(object_list_from_data, list):
+                # else:
+                
         return render_template('label_image.html',
-                               image_data=image_data,
+                               image_data=json_data_for_template, # 수정된 데이터 전달
                                image_id=image_id,
-                               image_url=image_url,
-                               face_list_key=global_json_handler.face_info_key, # detected_face 키
-                               face_label_key=global_json_handler.face_label_key # name 키 (YAML에서 설정한대로)
+                               passed_face_dict_key=key_for_face_dict_in_object, # 객체 내 얼굴 딕셔너리 키 전달 (예: "detected_face")
+                               face_list_key=key_for_object_list, # 템플릿에 실제 객체 목록 키 전달 (예: "detected_obj")
+                               face_label_key=global_json_handler.face_label_key if global_json_handler else "name", # name 키 (YAML에서 설정한대로)
+                               # face_crop_filename_key는 템플릿에서 직접 파일명을 가져올 때 사용 (현재는 Python에서 URL을 만들어 전달)
+                               # face_crop_filename_key=key_for_crop_filename_in_face_dict, 
+                               # 템플릿에서는 image_data[face_list_key]로 객체 목록 접근 후,
+                               # 각 object_item[passed_face_dict_key].cropped_image_url 사용
                                )
     
     logger.warning(f"label_image: 유효하지 않은 image_id({image_id}) 또는 사진 데이터를 찾을 수 없습니다.")
@@ -750,31 +833,74 @@ def save_labels(image_id):
         logger.error(f"잘못된 image_id({image_id}) 또는 로드된 데이터가 없습니다. 라벨을 저장할 수 없습니다.")
         return "데이터 파일을 찾을 수 없어 라벨을 저장할 수 없습니다.", 500
 
-    image_data_to_update = GLOBAL_PHOTOS_DATA[image_id] # 수정 제안
-    original_json_path_str = image_data_to_update.get('_source_json_path')
+    json_data_to_update = GLOBAL_PHOTOS_DATA[image_id] # 수정 제안
+    original_json_path_str = json_data_to_update.get('_source_json_path')
 
     if not original_json_path_str:
-        logger.error(f"image_id {image_id}에 대한 원본 JSON 파일 경로(_source_json_path)를 찾을 수 없습니다. 데이터: {image_data_to_update}")
+        logger.error(f"image_id {image_id}에 대한 원본 JSON 파일 경로(_source_json_path)를 찾을 수 없습니다. 데이터: {json_data_to_update}")
         # 이 경우, 저장을 수행할 수 없으므로 오류를 반환합니다.
         return "원본 파일 정보를 찾을 수 없어 저장할 수 없습니다.", 500
 
-    # 폼 데이터로 얼굴 이름 업데이트 (메모리 상의 GLOBAL_PHOTOS_DATA[image_id] 직접 수정)
-    #    global_json_handler.face_info_key는 'detected_face' 또는 설정된 키여야 합니다.
-    faces_key = global_json_handler.face_info_key if global_json_handler else 'faces' # 'faces'는 템플릿과 일치해야 함
-    if faces_key in image_data_to_update and isinstance(image_data_to_update[faces_key], list):
-        # 변경 전 데이터 로깅 (필요시)
-        # logger.debug(f"Updating labels for image_id {image_id}. Before: {image_data_to_update[faces_key]}")
-        for i, face_entry in enumerate(image_data_to_update[faces_key]):
-            face_name_from_form = request.form.get(f'face_{i}_name')
-            if face_name_from_form is not None:
-                # global_json_handler.face_label_key는 'label' 또는 설정된 키여야 합니다.
-                label_key_for_face = global_json_handler.face_label_key if global_json_handler else 'name' # 'name'은 템플릿과 일치해야 함
-                face_entry[label_key_for_face] = face_name_from_form.strip()
-        # 변경 후 데이터 로깅 (필요시)
-        # logger.debug(f"Updating labels for image_id {image_id}. After: {image_data_to_update[faces_key]}")
-    
+    # 폼 데이터로 얼굴 이름 업데이트 및 크롭 이미지 저장
+    if global_json_handler:
+        object_list_key = global_json_handler.object_info_key         # 예: "detected_obj"
+        face_info_key = global_json_handler.face_info_key   # 예: "detected_face"
+        face_label_key = global_json_handler.face_label_key   # 예: "name" 또는 "label"
+        face_bbox_key = global_json_handler.face_box_xyxy_key # bbox 키
+
+        # 원본 이미지의 실제 파일 경로 가져오기 (크롭을 위해)
+        image_path_key = f"{global_json_handler.image_info_key}.{global_json_handler.image_path_key}"
+        image_path_val = get_value_from_json(json_data_to_update, image_path_key)
+
+        if not image_path_val:
+            logger.error(f"image_id {image_id}의 원본 이미지 경로를 JSON에서 찾을 수 없습니다. 크롭 이미지 저장을 건너<0xEB><0><0x8E>니다.")
+            # 라벨만 저장하고 리다이렉트하거나, 오류 반환 결정 필요
+            # 여기서는 라벨만 저장 시도
+
+        if object_list_key in json_data_to_update and isinstance(json_data_to_update[object_list_key], list):
+            object_list = json_data_to_update[object_list_key]
+            for obj_idx, object_entry in enumerate(object_list): # 각 객체 순회
+                # 템플릿에서 face_obj{{obj_idx}}_face{{face_idx}}_name 형태로 이름을 전송했다고 가정
+                # 현재 구조상 객체당 얼굴은 하나이므로 face_idx는 0으로 간주
+                face_idx_in_obj = 0 
+                face_name_from_form = request.form.get(f'face_obj{obj_idx}_face{face_idx_in_obj}_name')
+                if face_name_from_form is not None and isinstance(object_entry, dict):
+                    if face_info_key in object_entry:
+                        face_info_dict = object_entry.get(face_info_key)
+                        if isinstance(face_info_dict, dict):
+                            # 1. 라벨 업데이트
+                            face_info_dict[face_label_key] = face_name_from_form.strip()
+                            logger.debug(f"Updated label for image_id {image_id}, obj_idx {obj_idx}: '{face_name_from_form.strip()}'")
+
+                            # 2. 얼굴 이미지 크롭 및 저장, JSON에 파일명 기록
+                            if image_path_val: # 원본 이미지 경로가 있을 때만 크롭 시도
+                                face_bbox_val = face_info_dict.get(face_bbox_key)
+                                if face_bbox_val:
+                                    cropped_buffer = crop_image_from_path_to_buffer(image_path_val, face_bbox_val, output_format='.jpg')
+                                    if cropped_buffer:
+                                        # 고유 파일명 생성 (예: 원본JSON명_obj인덱스_face인덱스.jpg)
+                                        original_json_stem = Path(original_json_path_str).stem
+                                        crop_filename = f"{original_json_stem}_obj{obj_idx}_face{face_idx_in_obj}.jpg"
+                                        crop_save_path = Path(app.config.get('global_labeled_face_crop_dir_str')) / crop_filename
+                                        
+                                        try:
+                                            with open(crop_save_path, 'wb') as f_crop:
+                                                f_crop.write(cropped_buffer.getvalue())
+                                            face_info_dict[face_label_key] = crop_filename # JSON에 크롭 파일명 저장
+                                            logger.info(f"Cropped face for image_id {image_id}, obj_idx {obj_idx} saved to: {crop_save_path}")
+                                        except Exception as e_crop_save:
+                                            logger.error(f"Failed to save cropped face for image_id {image_id}, obj_idx {obj_idx} to {crop_save_path}: {e_crop_save}")
+                                    else: logger.warning(f"Failed to crop face for image_id {image_id}, obj_idx {obj_idx} (bbox: {face_bbox_val}).")
+                                else: logger.warning(f"No bbox found for face in image_id {image_id}, obj_idx {obj_idx}. Cannot crop.")
+                        else:
+                            logger.warning(f"Face data for obj_idx {obj_idx} in image_id {image_id} is not a dictionary.")
+                    else:
+                        logger.warning(f"Object_entry {i} in image_id {image_id} does not contain key '{face_info_key}'.")
+        else:
+                        logger.warning(f"Object_entry {obj_idx} in image_id {image_id} does not contain key '{face_info_key}'.")
+
     # 수정된 단일 사진 데이터를 원본 개별 JSON 파일에 저장
-    save_individual_photo_data(image_data_to_update, original_json_path_str)
+    save_individual_photo_data(json_data_to_update, original_json_path_str)
     
     # 중요: GLOBAL_PHOTOS_DATA[image_id]는 이미 위에서 직접 수정되었음.
     # Gunicorn 환경에서는 이 변경이 해당 요청을 처리한 워커의 메모리에만 반영됩니다.
