@@ -1,148 +1,272 @@
-"""
-#### Data ####
-~/SambaData/OwnerData/train
-├── images
-├── jsons
-└── undetect
-    └── objects
-        └── failed_face_embedding_crops
-
-#### Source ####
-~/SambaData/Backup/FastCamp/Myproject
+Myproject
+├── README.md
 ├── config
-│   └── photo_album.yaml
-├── my_yolo_tiny
-│   ├── logs
-│   ├── models
-│   │   └── yolov8n-face.pt
-│   ├── src
-│   │   ├── face_detector_with_json.py
-│   │   └── object_detector.py
-│   ├── poetry_init.sh
-│   ├── poetry.lock
-│   ├── pyproject.toml
-│   ├── pyproject.toml_v10
-│   └── README.md
+│   └── photo_album.yaml
+├── index
+│   ├── face_index.faiss
+│   └── face_metadata.jsonl
+├── models
+│   ├── dlib
+│   │   ├── dlib_face_recognition_resnet_model_v1.dat
+│   │   └── shape_predictor_68_face_landmarks.dat
+│   └── shape_predictor_68_face_landmarks.dat.bz2
 ├── my_album
-│   ├── logs
-│   ├── models
-│   │   ├── dlib
-│   │   │   ├── dlib_face_recognition_resnet_model_v1.dat
-│   │   │   ├── shape_predictor_68_face_landmarks.dat
-│   │   │   └── shape_predictor_68_face_landmarks.dat.bz2
-│   │   │   └── dlib_models
-│   ├── src
-│   │   └── indexer_from_face_with_embedding.py
-│   ├── poetry_init.sh
-│   ├── poetry.lock
-│   ├── poetry_setup_python310.sh
-│   ├── pyproject.toml
-│   └── README.md
-├── web_service
-│   ├── my_album_app
-│   │   ├── src
-│   │   │   ├── my_album_labeling_app
-│   │   │   │   └── app.py
-│   │   │   ├── static
-│   │   │   │   └── css
-│   │   │   │       └── style.css
-│   │   │   └── templates
-│   │   │       ├── index.html
-│   │   │       ├── label_image.html
-│   │   │       └── search.html
-│   │   ├── poetry.lock
-│   │   ├── pyproject.toml
-│   │   └── README.md
-│   ├── my_album_labeling_app_Nginx/
-│   │       ├── app.py              ← Flask 앱
-│   │       ├── templates/          ← HTML (camera.html, album.html 등)
-│   │       ├── static/
-│   │       │   └── uploads/        ← 사진 저장소
-│   │       ├── nginx/
-│   │       │   └── my_album.conf   ← Nginx 설정파일
-│   │       ├── certbot.sh          ← HTTPS 발급 스크립트
-│   │       └── requirements.txt    ← Flask, Werkzeug 등 필요한 패키지 목록
-│   ├── poetry.lock
-│   ├── pyproject.toml
-│   └── README.md
+│   ├── README.md
+│   ├── __init__.py
+│   ├── config
+│   │   ├── json_structure_template.yaml
+│   │   ├── my_album.txt
+│   │   └── my_album.yaml
+│   ├── index
+│   │   ├── face_index.faiss
+│   │   └── face_metadata.jsonl
+│   ├── logs
+│   │   └── indexer_from_face_250607.log
+│   ├── models
+│   │   └── dlib
+│   │       ├── dlib_face_recognition_resnet_model_v1.dat
+│   │       ├── shape_predictor_68_face_landmarks.dat
+│   │       └── shape_predictor_68_face_landmarks.dat.bz2
+│   ├── poetry.lock
+│   ├── poetry_init.sh
+│   ├── poetry_setup_python310.sh
+│   ├── pyproject.toml
+│   └── src
+│       ├── face_dectection_main.py
+│       ├── face_detecter_opencv_dnn.py
+│       ├── face_detection.py
+│       ├── face_indexer_from_face.py
+│       ├── indexer_from_face.py
+│       └── indexer_from_face_with_embedding.py
+├── my_photo_album
+│   ├── README.md
+│   ├── __init__.py
+│   ├── config
+│   ├── poetry.lock
+│   ├── poetry.sh
+│   ├── pyproject.toml
+│   ├── requirements.txt
+│   ├── src
+│   │   ├── config_loader.py
+│   │   ├── face_indexer.py
+│   │   └── face_search_web.py.py
+│   ├── static
+│   │   └── results
+│   └── templates
+│       └── search.html
+├── my_photo_album_2
+│   ├── README.md
+│   ├── config
+│   │   └── my_photo_album_2.txt
+│   ├── data
+│   │   └── face_index.pkl
+│   ├── poetry.lock
+│   ├── pyproject.toml
+│   ├── src
+│   │   ├── __init__.py
+│   │   ├── config_loader.py
+│   │   ├── create_face_jsons.py
+│   │   ├── create_face_jsons_polygon.py
+│   │   ├── detect_faces_with_polygon.py
+│   │   ├── face_cropper_polygon.py
+│   │   ├── face_detector.py
+│   │   ├── face_indexer_landmark.py
+│   │   ├── face_search_web.py
+│   │   ├── face_search_web_0.py
+│   │   ├── face_search_web_1.py
+│   │   ├── save_face_json_with_polygon.py
+│   │   ├── static
+│   │   │   └── results
+│   │   └── templates
+│   │       └── search.html
+│   └── templates
+│       └── search.html
+├── my_photo_album_3
+│   ├── LICENSE
+│   ├── README.md
+│   ├── config
+│   │   ├── haarcascade_frontalface_default.xml
+│   │   └── my_photo_album_3.yaml
+│   ├── output
+│   │   └── worker_logs
+│   ├── poetry.lock
+│   ├── pyproject.toml
+│   ├── requirements.txt
+│   └── src
+│       ├── (face_reviewer.py)
+│       ├── config_class.py
+│       ├── config_loader.py
+│       ├── face_detector.py
+│       ├── face_indexer_landmark.py
+│       ├── face_search_web.py
+│       └── save_face_json_with_polygon.py
 ├── my_utils
-│   ├── logs
-│   ├── logs_async
-│   ├── logs_sync
-│   ├── some_file.txt
-│   └── src
-│       └── my_utils
-│           ├── config_utils
-│           │   ├── configger_1_0.py
-│           │   ├── configger.py
-│           │   └── SimpleLogger.py
-│           ├── object_utils
-│           │   ├── photo_utils.py
-│           └── tools
-│               ├── MoveSearchedDupPhoto.py
-│               └── remove_empty_directories.py
+│   ├── README.md
+│   ├── data
+│   │   ├── not_a_dir.txt
+│   │   ├── sub_dir1
+│   │   └── sub_dir2
+│   ├── logs
+│   │   ├── configger_standalone_test_250601_195539.log
+│   │   └── configger_standalone_test_250602_093222.log
+│   ├── logs_async
+│   │   └── my_application_async.log
+│   ├── logs_sync
+│   │   └── my_application_sync.log
+│   ├── poetry.lock
+│   ├── pyproject.toml
+│   ├── some_file.txt
+│   └── src
+│       ├── SimpleLogger_250602.log
+│       ├── SimpleLogger_250604.log
+│       └── my_utils
+│           ├── __init__.py
+│           ├── __pycache__
+│           │   └── __init__.cpython-310.pyc
+│           ├── config_utils
+│           │   ├── JsonManager.py
+│           │   ├── SimpleLogger.py
+│           │   ├── __pycache__
+│           │   │   ├── SimpleLogger.cpython-310.pyc
+│           │   │   └── configger.cpython-310.pyc
+│           │   ├── configger.py
+│           │   └── configger_1_0.py
+│           ├── object_utils
+│           │   ├── __pycache__
+│           │   │   ├── data_loading_helpers.cpython-310.pyc
+│           │   │   └── photo_utils.cpython-310.pyc
+│           │   ├── data_loading_helpers.py
+│           │   └── photo_utils.py
+│           └── tools
+│               ├── MoveSearchedDupPhoto.py
+│               └── remove_empty_directories.py
+├── my_yolo_tiny
+│   ├── README.md
+│   ├── __init__.py
+│   ├── logs
+│   │   ├── face_detector_with_json_250606.log
+│   │   ├── face_detector_with_json_250607.log
+│   │   └── object_detector_250607.log
+│   ├── models
+│   │   └── yolov8n-face.pt
+│   ├── poetry.lock
+│   ├── poetry_init.sh
+│   ├── pyproject.toml
+│   ├── pyproject.toml_v10
+│   └── src
+│       ├── detect_faces_in_crop_yolo.py
+│       ├── face_detector_with_json.py
+│       ├── face_detector_with_json_10.py
+│       ├── logs
+│       │   ├── face_detector_with_json_20250519.log
+│       │   └── src_20250519.log
+│       ├── object_detector.py
+│       ├── object_detector_v20.py
+│       ├── object_detector_v30.py
+│       └── web_app.py
 ├── poetry.lock
 ├── pyproject.toml
-├── README.md
 ├── setup_tools
-│   ├── poetry_project_init.sh
-│   ├── poetry.sh
-│   ├── setup_full_my_photo_album_3.py
-│   ├── setup_full_my_photo_album.py
-│   └── setup_my_photo_album_2.py
+│   ├── poetry.sh
+│   ├── poetry_project_init.sh
+│   ├── setup_full_my_photo_album.py
+│   ├── setup_full_my_photo_album_3.py
+│   └── setup_my_photo_album_2.py
+├── static
+│   └── results
 ├── tomls
 │   └── my_photo_album.toml
-└── tools
-    ├── ConvertFIleNameAndPath.py
-    ├── dataloadbalance.py
-    ├── fdisk.sh
-    ├── font_test.py
-    ├── gen_auto_login.sh
-    ├── Git_init.sh
-    ├── __init__.py
-    ├── json_merge_bbox.py
-    ├── json_merge_bbox_text.py
-    ├── LoginToRremoteHhostSsh.sh
-    ├── MakeAbsPath.sh
-    ├── MkAbsPath.sh
-    ├── MkWildCard.sh
-    ├── MoveFile.sh
-    ├── move_mismatch_file_ext.py
-    ├── MvDupFile.sh
-    ├── MvFileForExist.sh
-    ├── organize_photos_editting.py
-    ├── organize_photos_map.json
-    ├── organize_photos_v1.0.py
-    ├── overap_image_annotation.py
-    ├── poetry.sh
-    ├── PutAwayAllFile.sh
-    ├── PutAwayDupFile20231222.sh
-    ├── PutAwayDupFileByLs.sh
-    ├── ReadDupFile.sh
-    ├── read_file_list.py
-    ├── remextention.py
-    ├── restore_filenames_report.py
-    ├── review_photos.py
-    ├── rSyncBackupToHome.sh
-    ├── set_data_use_jsons_file.py
-    ├── SetKorean.sh
-    ├── set_openvon_vars.sh
-    ├── setup_easyra.sh
-    ├── setup-openvpn-client.sh
-    ├── setup-openvpn-server.sh
-    ├── sftp_get_by_file_list.py
-    ├── sftp_get_file.py
-    ├── ShellTemplte.sh
-    ├── ShowDir.sh
-    ├── split_data.py
-    ├── sync_backup.sh
-    ├── sync_copy.sh
-    ├── sync_get_file_use_file_list.sh
-    ├── template.py
-    ├── template._v10py
-    ├── tree_directorys.txt
-    ├── update_json_keys_with_actual_filenames
-    ├── vpn_remove.sh
-    ├── vpn_set.sh
-    └── WhileTail.sh
-"""
+├── tools
+│   ├── ConvertFIleNameAndPath.py
+│   ├── Git_init.sh
+│   ├── LoginToRremoteHhostSsh.sh
+│   ├── MakeAbsPath.sh
+│   ├── MkAbsPath.sh
+│   ├── MkWildCard.sh
+│   ├── MoveFile.sh
+│   ├── MvDupFile.sh
+│   ├── MvFileForExist.sh
+│   ├── PutAwayAllFile.sh
+│   ├── PutAwayDupFile20231222.sh
+│   ├── PutAwayDupFileByLs.sh
+│   ├── ReadDupFile.sh
+│   ├── SetKorean.sh
+│   ├── ShellTemplte.sh
+│   ├── ShowDir.sh
+│   ├── WhileTail.sh
+│   ├── __init__.py
+│   ├── dataloadbalance.py
+│   ├── fdisk.sh
+│   ├── font_test.py
+│   ├── gen_auto_login.sh
+│   ├── json_merge_bbox.py
+│   ├── json_merge_bbox_text.py
+│   ├── move_mismatch_file_ext.py
+│   ├── organize_photos_editting.py
+│   ├── organize_photos_map.json
+│   ├── organize_photos_v1.0.py
+│   ├── overap_image_annotation.py
+│   ├── poetry.sh
+│   ├── rSyncBackupToHome.sh
+│   ├── read_file_list.py
+│   ├── remextention.py
+│   ├── restore_filenames_report.py
+│   ├── review_photos.py
+│   ├── set_data_use_jsons_file.py
+│   ├── set_openvon_vars.sh
+│   ├── setup-openvpn-client.sh
+│   ├── setup-openvpn-server.sh
+│   ├── setup_easyra.sh
+│   ├── sftp_get_by_file_list.py
+│   ├── sftp_get_file.py
+│   ├── split_data.py
+│   ├── sync_backup.sh
+│   ├── sync_copy.sh
+│   ├── sync_get_file_use_file_list.sh
+│   ├── template._v10py
+│   ├── template.py
+│   ├── tree_directorys.txt
+│   ├── update_json_keys_with_actual_filenames
+│   ├── vpn_remove.sh
+│   └── vpn_set.sh
+├── tree.txt
+└── web_service
+    ├── my_album.tree
+    └── my_album_app
+        ├── 192.168.219.10-key.pem
+        ├── 192.168.219.10.pem
+        ├── README.md
+        ├── index
+        │   ├── face_index.faiss
+        │   └── face_metadata.jsonl
+        ├── logs
+        │   ├── app_250617_gunicorn.log
+        │   ├── app_250618_gunicorn.log
+        │   └── app_250619_gunicorn.log
+        ├── models
+        │   └── dlib
+        │       ├── dlib_face_recognition_resnet_model_v1.dat
+        │       └── shape_predictor_68_face_landmarks.dat
+        ├── outputs
+        │   └── labeled_face_crop
+        │       ├── $R5U7TKQ_obj0_face0.jpg
+        │       └── $R5U7TKQ_obj1_face0.jpg
+        ├── poetry.lock
+        ├── pyproject.toml
+        ├── run.sh
+        ├── run_v1_0.sh
+        ├── src
+        │   ├── app_bak.py
+        │   ├── my_album_labeling_app
+        │   │   ├── __pycache__
+        │   │   │   └── app.cpython-310.pyc
+        │   │   └── app.py
+        │   ├── static
+        │   │   └── css
+        │   │       └── style.css
+        │   └── templates
+        │       ├── index.html
+        │       └── label_image.html
+        ├── 화면 캡처 2025-06-10 162804.png
+        └── 화면 캡처 2025-06-13 194325.png
+

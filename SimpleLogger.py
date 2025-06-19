@@ -13,6 +13,7 @@ SimpleLogger.py
 - logger: SimpleLogger의 공유 인스턴스로, 다른 모듈에서 import하여 사용할 수 있습니다.
 """
 
+import datetime
 import os
 import pprint
 import inspect
@@ -651,18 +652,18 @@ def get_argument() -> argparse.Namespace:
     """
 
     # argparse.ArgumentParser 객체 생성 및 설명 추가
-    curr_dir = os.getcwd()
+    current_dir = os.getcwd()
     parser = argparse.ArgumentParser(description="스크립트 실행을 위한 경로 및 로깅 레벨 설정")
     parser.add_argument(
         '--root-dir', '-root',
         type=str,
-        default=curr_dir,
+        default=current_dir,
         help='프로젝트의 루트 디렉토리. (기본값: 현재 작업 디렉토리)'
     )
     parser.add_argument(
         '--log-dir', '-log',
         type=str,
-        default=(Path(curr_dir) / 'logs').expanduser().resolve(), # 초기값을 None으로 설정하고 아래에서 동적으로 할당
+        default=(Path(current_dir) / 'logs').expanduser().resolve(), # 초기값을 None으로 설정하고 아래에서 동적으로 할당
         help='로그 파일을 저장할 디렉토리. (꼭 입력해야함)' # 로그 파일이 저장될 디렉토리
     )
     parser.add_argument(
@@ -675,7 +676,7 @@ def get_argument() -> argparse.Namespace:
     parser.add_argument(
         '--config-path', '-cfg',
         type=str,
-        default=(Path(curr_dir) / '../config' / 'photo_album.yaml').expanduser().resolve(), # 초기값을 None으로 설정하고 아래에서 동적으로 할당
+        default=(Path(current_dir) / '../config' / 'photo_album.yaml').expanduser().resolve(), # 초기값을 None으로 설정하고 아래에서 동적으로 할당
         help='설정 파일(YAML)의 경로. (꼭 입력해야함)' # YAML 설정 파일 경로
     )
     parser.add_argument(

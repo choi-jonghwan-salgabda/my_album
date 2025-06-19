@@ -606,7 +606,7 @@ def load_current_photos_data(page: Optional[int] = None, per_page: Optional[int]
 ensure_global_data_loaded()
 
 @app.route('/')
-def index():
+def index():        #client 첫 접속
     logger.info(f"app.route('/')")
     
     page = request.args.get('page', 1, type=int)
@@ -678,7 +678,7 @@ def index():
                            per_page=per_page)
 
 @app.route('/image/<int:image_id>')
-def label_image(image_id):
+def label_image(image_id):  # 선택한 사진의 얼굴을  client에게 보내줌
     logger.info(f"app.route('/image/<int:image_id>'): image_id={image_id}")
     ensure_global_data_loaded()
 
@@ -824,7 +824,7 @@ def label_image(image_id):
     return "이미지를 찾을 수 없습니다.", 404
 
 @app.route('/save_labels/<int:image_id>', methods=['POST'])
-def save_labels(image_id):
+def save_labels(image_id):  # 입력한 사진의 얼굴의 이름을 저장함
     logger.info(f"app.route('/save_labels/<int:image_id>', methods=['POST']'): image_id={image_id}")
     ensure_global_data_loaded()
     global GLOBAL_PHOTOS_DATA, GLOBAL_TOTAL_PHOTOS # 전역 변수 사용 명시
@@ -901,6 +901,8 @@ def save_labels(image_id):
 
     # 수정된 단일 사진 데이터를 원본 개별 JSON 파일에 저장
     save_individual_photo_data(json_data_to_update, original_json_path_str)
+    logger.info(f"image_id {image_id}에 대한 GLOBAL_PHOTOS_DATA 업데이트: {json_data_to_update}") # 저장 후 데이터 로깅
+    GLOBAL_PHOTOS_DATA[image_id] = json_data_to_update #  GLOBAL_PHOTOS_DATA 업데이트
     
     # 중요: GLOBAL_PHOTOS_DATA[image_id]는 이미 위에서 직접 수정되었음.
     # Gunicorn 환경에서는 이 변경이 해당 요청을 처리한 워커의 메모리에만 반영됩니다.
@@ -935,7 +937,7 @@ def serve_cropped_image(filename): # 함수 이름 변경 (serve_image -> serve_
     return send_from_directory(source_directory, filename)
 
 @app.route('/search_face_capture', methods=['POST'])
-def search_by_face_capture():
+def search_by_face_capture():   # 카메라로 찍은 사진을 받아 처리
     logger.info(f"app.route('/search_face_capture', methods=['POST'])")
     try:
         ensure_global_data_loaded() # GLOBAL_PHOTO_PATH_TO_ID_MAP 사용 전 로드 확인

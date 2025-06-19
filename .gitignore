@@ -4,23 +4,23 @@ tmp/
 data/
 .cache/
 .git/
+models/
+index/
 output/checkpoints/
 
 # 확장자별 무시
-*.swp
 *.log
-# 사진 파일 무시 설정
 *.jpg
-*.png
 *.jpeg
-*.gif
+*.png
 *.bmp
-*.tif
 *.tiff
+*.gif
 *.webp
 # 특정 파일 무시
 backup.tar.gz
 # Byte-code files
+*.dat
 *.pyc
 __pycache__/
 

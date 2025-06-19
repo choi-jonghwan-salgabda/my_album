@@ -880,8 +880,8 @@ if __name__ == "__main__":
         else:
             test_root_dir = Path(test_root_dir_str)
 
-        # if test_root_dir.exists() and str(test_root_dir) != str(Path.home()) and str(test_root_dir) != "/": # 안전장치
-        #     shutil.rmtree(test_root_dir)
+        if test_root_dir.exists() and str(test_root_dir) != str(Path.home()) and str(test_root_dir) != "/": # 안전장치
+            shutil.rmtree(test_root_dir)
         test_root_dir.mkdir(parents=True, exist_ok=True)
 
         data_dir = test_root_dir / "data"
@@ -932,10 +932,10 @@ if __name__ == "__main__":
         non_existent_subs = config_manager.get_path_list("project.paths.no_such_key_for_test", default=["default_val"])
         logger.info(f"project.paths.no_such_key_for_test 하위 디렉토리: {non_existent_subs} (예상: ['default_val'])")
 
-        # # 테스트 종료 후 임시 디렉토리 삭제
-        # if test_root_dir.exists() and "test_temp_config_root" in str(test_root_dir): # 안전장치 추가
-        #     logger.info(f"get_path_list 테스트 완료. 임시 디렉토리 삭제: {test_root_dir}")
-        #     shutil.rmtree(test_root_dir)
+        # 테스트 종료 후 임시 디렉토리 삭제
+        if test_root_dir.exists() and "test_temp_config_root" in str(test_root_dir): # 안전장치 추가
+            logger.info(f"get_path_list 테스트 완료. 임시 디렉토리 삭제: {test_root_dir}")
+            shutil.rmtree(test_root_dir)
 
     except (KeyError, TypeError, AttributeError) as e:
         logger.error(f"모델 변수값 가저오기 오류 발생: {e}")

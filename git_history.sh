@@ -1,0 +1,10 @@
+#On branch master
+git restore my_utils/README.md
+git restore my_utils/pyproject.toml
+git restore my_utils/src/my_utils/__init__.py
+git restore my_utils/src/my_utils/config_utils/SimpleLogger.py
+git restore my_utils/src/my_utils/config_utils/configger.py
+git restore my_utils/src/my_utils/object_utils/data_loading_helpers.py
+git restore my_utils/src/my_utils/object_utils/photo_utils.py
+git restore my_utils/src/my_utils/tools/MoveSearchedDupPhoto.py
+git restore my_utils/src/my_utils/tools/remove_empty_directories.py

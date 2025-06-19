@@ -200,7 +200,6 @@ def get_all_face_data_from_json_alone(
                 continue # 각 객체는 딕셔너리여야 합니다.
 
             # 2.2. 현재 객체에서 얼굴 리스트를 가져옵니다.
-            json_face_list = obj_entry.get(json_handler.face_info_key)
             # 이 데이터는 단일 얼굴의 dict이거나, 여러 얼굴의 dict 리스트일 수 있습니다.
             json_face_list = obj_entry.get(json_handler.face_info_key)
             logger.debug(f"2.2. [{json_file_path.name}] Object {objt_indx}: Raw face data for key '{json_handler.face_info_key}': type={type(json_face_list)}, length={len(json_face_list) if isinstance(json_face_list, list) else ('1' if isinstance(json_face_list, dict) else 'N/A')}")

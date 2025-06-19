@@ -173,9 +173,11 @@ json_keys:
         # 함수 설명 및 목표에 따라 가정된 키들 (실제 JSON에 있어야 함)
         face_embedding_key: "embedding" # 얼굴 임베딩 벡터 데이터 키
         face_id_key: "face_id" # 고유 얼굴 ID 키
+        face_index_key: "index" # 고유 얼굴 ID 키
         # 'box' 키는 JSON 예시에 있는 'box_xyxy'와 다를 수 있으므로 명확히 구분 (예: 'face_box_in_obj')
         # 여기서는 함수에서 사용된 'box' 키를 그대로 사용한다고 가정
         face_box_key: "box" # 얼굴 바운딩 박스 (추출/임베딩 과정에서 사용될 수도 있는 키)
+        cropped_image_dir_key: ${projetc.paths.outputs.labeled_face_crop_dir} # 예시: 크롭된 얼굴 이미지 파일명을 위한 키
         # 필요에 따라 다른 얼굴 메타데이터 키 추가
 # --- JSON/데이터 구조 키 설정 끝 ---
 
