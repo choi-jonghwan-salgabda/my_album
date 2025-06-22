@@ -291,6 +291,40 @@ def get_value_from_json(data: Dict[str, Any], path: str, default: Any = None) ->
             return default
     return current
 
+def _resolve_image_path_to_url_filename(path_from_json_str: str, base_image_dir_str: str) -> str:
+    """
+    JSON/메타데이터의 이미지 경로 문자열을 'serve_raw_image' 엔드포인트 및
+    url_for와 함께 사용하기에 적합한 상대 경로로 해석합니다.
+    """
+    if not path_from_json_str:
+        return 'unknown.jpg'
+
+    base_image_dir = Path(base_image_dir_str)
+    image_path_to_resolve = Path(path_from_json_str)
+    
+    absolute_image_path_obj = None
+    
+    if image_path_to_resolve.is_absolute():
+        absolute_image_path_obj = image_path_to_resolve
+    elif any(path_from_json_str.startswith(p) for p in ["home/", "mnt/", "var/", "opt/", "srv/", "usr/"]):
+        absolute_image_path_obj = Path("/") / image_path_to_resolve
+    else:
+        # URL에 사용하기에 적합한 상대 경로로 가정합니다.
+        return path_from_json_str
+
+    if absolute_image_path_obj:
+        try:
+            # URL을 위해 서빙 디렉토리에 대한 상대 경로를 계산합니다.
+            return str(absolute_image_path_obj.relative_to(base_image_dir))
+        except ValueError:
+            logger.warning(
+                f"이미지 경로 '{absolute_image_path_obj}' (원본: '{path_from_json_str}')가 "
+                f"기본 디렉토리 '{base_image_dir}' 내에 없습니다. 파일 이름으로 대체합니다."
+            )
+            return absolute_image_path_obj.name
+            
+    return 'unknown.jpg'
+
 app = Flask(__name__, template_folder=global_templates_dir_str, static_folder=global_static_folder_str) # 변수명 오타 수정
 app.config['global_raw_jsons_dir_str'] = global_raw_jsons_dir_str
 app.config['global_json_list_file_path_str'] = global_json_list_file_path_str # JSON 목록 파일 경로 저장
@@ -638,35 +672,10 @@ def index():        #client 첫 접속
         original_index = (page - 1) * per_page + i # GLOBAL_PHOTOS_DATA에서의 실제 인덱스
 
         path_from_json_str = get_value_from_json(photo_data, actual_image_path_key, 'unknown.jpg')
-        image_url_filename = 'unknown.jpg' # 기본값
-
-        if path_from_json_str != 'unknown.jpg':
-            base_image_dir = Path(app.config.get('global_raw_image_dir_str'))
-            image_path_to_resolve = Path(path_from_json_str)
-            
-            absolute_image_path_obj = None
-            # 경로 해석:
-            # 1. 이미 절대 경로인 경우 그대로 사용
-            # 2. 절대 경로가 아니면서 'home/', 'mnt/' 등으로 시작하면 맨 앞에 '/'를 붙여 절대 경로로 간주
-            # 3. 그 외에는 base_image_dir에 대한 단순 상대 경로로 간주 (이 경우 image_url_filename으로 바로 사용)
-            if image_path_to_resolve.is_absolute():
-                absolute_image_path_obj = image_path_to_resolve
-            elif any(path_from_json_str.startswith(p) for p in ["home/", "mnt/", "var/", "opt/", "srv/", "usr/"]):
-                absolute_image_path_obj = Path("/" + path_from_json_str)
-            else:
-                # 단순 상대 경로로 가정 (예: "image.jpg", "subdir/image.jpg")
-                image_url_filename = path_from_json_str
-
-            if absolute_image_path_obj: # 절대 경로를 얻었거나 구성한 경우
-                try:
-                    image_url_filename = str(absolute_image_path_obj.relative_to(base_image_dir))
-                except ValueError:
-                    logger.warning(
-                        f"이미지 경로 '{absolute_image_path_obj}' (JSON 원본: '{path_from_json_str}')가 "
-                        f"기준 디렉토리 '{base_image_dir}'에 속하지 않습니다. "
-                        f"파일 이름 부분 ('{absolute_image_path_obj.name}')을 사용합니다."
-                    )
-                    image_url_filename = absolute_image_path_obj.name
+        image_url_filename = _resolve_image_path_to_url_filename(
+            path_from_json_str,
+            app.config.get('global_raw_image_dir_str')
+        )
         
         photos_with_ids.append({
             **photo_data, 
@@ -702,37 +711,10 @@ def label_image(image_id):  # 선택한 사진의 얼굴을  client에게 보내
         # image_path_key 사용하여 json_data_from_global에서 실제 이미지 경로 값을 가져옵니다.
         image_path_val = get_value_from_json(json_data_from_global, image_path_key)
 
-        image_url_filename = 'unknown.jpg' # url_for에 사용될 최종 파일명 (상대 경로여야 함)
-
-        if not image_path_val or image_path_val == image_url_filename:
-            logger.warning(f"image_id {image_id}에 대한 이미지 파일명을 JSON에서 찾을 수 없거나 유효하지 않습니다. 사용된 키 경로: {image_path_key}. 가져온 값: {image_path_val}. 데이터: {json_data_from_global}")
-        else:
-            base_image_dir = Path(app.config.get('global_raw_image_dir_str'))
-            # 실제 이미지 경로 값(image_path_val)을 사용하여 Path 객체 생성
-            image_path_to_resolve = Path(image_path_val)
-            logger.info(f"image_path_to_resolve: '{image_path_to_resolve}'")
-
-            absolute_image_path_obj = None
-            if image_path_to_resolve.is_absolute():
-                absolute_image_path_obj = image_path_to_resolve
-            elif any(image_path_val.startswith(p) for p in ["home/", "mnt/", "var/", "opt/", "srv/", "usr/"]):
-                absolute_image_path_obj = Path("/" + image_path_val)
-            else: 
-                # JSON에 이미 상대 경로로 저장되어 있거나, 단순 파일명인 경우
-                image_url_filename = image_path_val # 실제 경로 값 사용
-                logger.debug(f"JSON 경로가 상대 경로 또는 파일명으로 간주됨: {image_url_filename}")
-
-            if absolute_image_path_obj: # 절대 경로가 결정된 경우, 상대 경로로 변환
-                try:
-                    image_url_filename = str(absolute_image_path_obj.relative_to(base_image_dir))
-                    logger.debug(f"절대 경로: '{absolute_image_path_obj}'를 기준 디렉토리 '{base_image_dir}'에 대해 상대 경로 '{image_url_filename}'(으)로 변환했습니다.")
-                except ValueError:
-                    logger.warning(
-                        f"label_image: 이미지 경로 '{absolute_image_path_obj}' (JSON 원본: '{image_path_val}')가 "
-                        f"기준 디렉토리 '{base_image_dir}'에 속하지 않습니다. "
-                        f"파일 이름 부분 ('{absolute_image_path_obj.name}')을 사용합니다."
-                    )
-                    image_url_filename = absolute_image_path_obj.name
+        image_url_filename = _resolve_image_path_to_url_filename(
+            image_path_val,
+            app.config.get('global_raw_image_dir_str')
+        )
         
         if image_url_filename == 'unknown.jpg':
             logger.error(f"image_id {image_id}에 대한 이미지 파일명을 최종적으로 결정할 수 없습니다. JSON 내 경로 값: {image_path_val}")
@@ -976,6 +958,8 @@ def search_by_face_capture():   # 카메라로 찍은 사진을 받아 처리
             logger.info("캡처된 이미지에서 얼굴 특징을 추출할 수 없습니다.")
             return jsonify({"message": "이미지에서 얼굴을 찾을 수 없거나 특징을 추출할 수 없습니다."}), 200 # 400 Bad Request도 고려 가능
 
+        logger.info(f"추출된 얼굴 특징 벡터 (shape: {target_features.shape}): {target_features[:5]}...") # 처음 5개 값만 로깅
+
         # 2. FAISS 인덱스에서 유사 얼굴 검색
         #    global_cfg_object main 블록에서 초기화되므로, 여기서 직접 접근은 어렵습니다.
         #    top_k 값은 애플리케이션 설정에서 가져오거나 상수로 정의해야 합니다.
@@ -990,45 +974,37 @@ def search_by_face_capture():   # 카메라로 찍은 사진을 받아 처리
             top_k_results
         )
 
+        logger.info(f"FAISS 검색 결과 (상위 {len(search_results_raw)}개):")
+        for i, res in enumerate(search_results_raw[:3]): # 상위 3개 결과만 로깅
+            logger.info(f"  - 결과 {i+1}: 유사도={res.get('similarity'):.4f}, 경로='{res.get('image_path')}'")
+        if len(search_results_raw) > 3:
+            logger.info("  - ... (추가 결과 생략)")
+
         # 3. 검색 결과를 프론트엔드 형식에 맞게 가공
         processed_results = []
+        processed_photo_ids = set() # 검색 결과에 중복된 사진이 들어가지 않도록 ID를 추적
+
         # GLOBAL_PHOTO_PATH_TO_ID_MAP은 ensure_global_data_loaded()에 의해 이미 채워져 있어야 함
         if not GLOBAL_PHOTO_PATH_TO_ID_MAP and GLOBAL_TOTAL_PHOTOS > 0 : # 데이터는 있는데 맵이 비어있는 경우 경고
              logger.warning("GLOBAL_PHOTO_PATH_TO_ID_MAP이 비어있지만 사진 데이터는 존재합니다. _load_all_photo_data_into_globals의 맵 생성 로직 및 FAISS 메타데이터의 경로 형식을 확인하세요.")
                 
         for res in search_results_raw:
-            # FAISS 메타데이터의 image_path는 _load_all_photo_data_into_globals에서 GLOBAL_PHOTO_PATH_TO_ID_MAP을 만들 때 사용한 경로 형식과 일치해야 함
-            # (예: 절대 경로)
             image_path_from_faiss = res.get("image_path") 
             similarity = res.get("similarity", 0.0) # 기본값 설정
 
             if image_path_from_faiss and image_path_from_faiss in GLOBAL_PHOTO_PATH_TO_ID_MAP:
                 photo_id = GLOBAL_PHOTO_PATH_TO_ID_MAP[image_path_from_faiss]
+                
+                if photo_id in processed_photo_ids:
+                    continue # 이미 처리된 사진이므로 건너<0xEB><0><0x8E>니다.
+
                 # 유사도 임계값 적용 (예시)
                 MIN_SIMILARITY_THRESHOLD = indexing_cfg.get('min_similarity_threshold', 0.5)
                 if similarity >= MIN_SIMILARITY_THRESHOLD:
-                    # serve_image는 파일명만 받으므로, 전체 경로에서 파일명만 추출
-                    # image_path_from_faiss는 GLOBAL_PHOTO_PATH_TO_ID_MAP의 키와 동일한 절대 경로로 가정합니다.
-                    # global_raw_image_dir_str을 기준으로 상대 경로를 계산합니다.
-                    try:
-                        base_image_dir = Path(app.config.get('global_raw_image_dir_str'))
-                        full_image_path_obj = Path(image_path_from_faiss)
-
-                        if not base_image_dir.is_absolute():
-                            logger.warning(f"설정된 기본 이미지 디렉토리 '{base_image_dir}'가 절대 경로가 아닙니다. URL 생성에 문제가 발생할 수 있습니다. 파일명만 사용합니다.")
-                            image_filename_for_url = full_image_path_obj.name
-                        elif not full_image_path_obj.is_absolute():
-                            logger.warning(f"FAISS 메타데이터의 이미지 경로 '{full_image_path_obj}'가 절대 경로가 아닙니다. URL 생성에 문제가 발생할 수 있습니다. 파일명만 사용합니다.")
-                            image_filename_for_url = full_image_path_obj.name
-                        else:
-                            image_filename_for_url = str(full_image_path_obj.relative_to(base_image_dir))
-                            logger.debug(f"이미지 상대 경로 생성: 원본='{image_path_from_faiss}', 기준='{base_image_dir}', 결과='{image_filename_for_url}'")
-                    except ValueError as e_rel_path:
-                        logger.warning(f"이미지 경로 '{image_path_from_faiss}'를 기본 디렉토리 '{base_image_dir}' 기준으로 상대 경로화할 수 없습니다: {e_rel_path}. 파일명만 사용합니다.")
-                        image_filename_for_url = Path(image_path_from_faiss).name
-                    except Exception as e_path_proc:
-                        logger.error(f"이미지 경로 처리 중 예외 발생: {e_path_proc}. 파일명만 사용합니다.")
-                        image_filename_for_url = Path(image_path_from_faiss).name
+                    image_filename_for_url = _resolve_image_path_to_url_filename(
+                        image_path_from_faiss,
+                        app.config.get('global_raw_image_dir_str')
+                    )
 
                     processed_results.append({
                         "image_id": photo_id,
@@ -1036,11 +1012,19 @@ def search_by_face_capture():   # 카메라로 찍은 사진을 받아 처리
                         "label_url": url_for('label_image', image_id=photo_id),
                         "similarity": float(round(similarity, 4)) # Ensure it's a Python float
                     })
+                    processed_photo_ids.add(photo_id) # 처리된 사진 ID 추가
             else:
-                logger.warning(f"검색된 이미지 경로 '{image_path_from_faiss}'를 GLOBAL_PHOTO_PATH_TO_ID_MAP에서 찾을 수 없습니다. FAISS 메타데이터의 경로와 맵 생성 시 경로가 일치하는지 확인하세요.")
+                logger.warning(
+                    f"FAISS 검색 결과의 이미지 경로를 맵에서 찾을 수 없습니다. "
+                    f"경로 불일치 가능성이 높습니다.\n"
+                    f"  - FAISS 메타데이터 경로: '{image_path_from_faiss}'\n"
+                    f"  - 맵에 존재하는 경로 예시: '{next(iter(GLOBAL_PHOTO_PATH_TO_ID_MAP.keys())) if GLOBAL_PHOTO_PATH_TO_ID_MAP else '맵이 비어있음'}'"
+                )
 
         if not processed_results:
             logger.info("유사한 얼굴을 찾지 못했습니다.")
+
+        logger.info(f"최종 처리된 검색 결과 ({len(processed_results)}개): {processed_results}")
 
         response = jsonify(processed_results)
         response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
