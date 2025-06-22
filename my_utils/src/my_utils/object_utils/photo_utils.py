@@ -3,6 +3,7 @@
 import sys
 import hashlib
 import json
+import io
 from pathlib import Path
 from typing import List, Dict, Any, Union, Optional # Optional 추가
 import dlib
@@ -152,6 +153,68 @@ def compute_sha256(image_data: np.ndarray) -> Optional[str]:
         return hasher.hexdigest()
     except Exception as e:
         logger.error(f"SHA256 해시 계산 중 오류 발생: {e}")
+        return None
+
+def crop_image_from_path_to_buffer(
+    image_path: Union[str, Path],
+    bbox: List[Union[int, float]],
+    output_format: str = '.jpg'
+) -> Optional[io.BytesIO]:
+    """
+    이미지 경로와 바운딩 박스를 받아 이미지를 자르고 메모리 버퍼로 반환합니다.
+
+    Args:
+        image_path (Union[str, Path]): 원본 이미지 파일의 경로.
+        bbox (List[Union[int, float]]): [x1, y1, x2, y2] 형식의 바운딩 박스.
+        output_format (str): 출력 이미지 형식 (예: '.jpg', '.png').
+
+    Returns:
+        Optional[io.BytesIO]: 잘린 이미지가 담긴 BytesIO 버퍼. 실패 시 None.
+    """
+    try:
+        # 1. 이미지 경로 확인 및 로드
+        p = Path(image_path)
+        if not p.exists():
+            logger.error(f"이미지 파일을 찾을 수 없습니다: {image_path}")
+            return None
+        
+        # OpenCV는 유니코드 경로 문제를 일으킬 수 있으므로, numpy를 통해 읽습니다.
+        img_array = np.fromfile(str(p), np.uint8)
+        image = cv2.imdecode(img_array, cv2.IMREAD_COLOR)
+
+        if image is None:
+            logger.error(f"이미지를 로드할 수 없습니다: {image_path}")
+            return None
+
+        # 2. 바운딩 박스 좌표를 정수로 변환
+        x1, y1, x2, y2 = map(int, bbox)
+
+        # 3. 이미지 자르기
+        # 좌표가 이미지 경계를 벗어나지 않도록 조정
+        h, w, _ = image.shape
+        x1, y1 = max(0, x1), max(0, y1)
+        x2, y2 = min(w, x2), min(h, y2)
+
+        if x1 >= x2 or y1 >= y2:
+            logger.warning(f"유효하지 않은 바운딩 박스 좌표로 인해 빈 이미지가 생성됩니다: {bbox}")
+            return None
+
+        cropped_image = image[y1:y2, x1:x2]
+
+        if cropped_image.size == 0:
+            logger.warning(f"자르기 결과 이미지가 비어있습니다. Bbox: {bbox}, Image shape: {image.shape}")
+            return None
+
+        # 4. 메모리 버퍼로 인코딩
+        is_success, buffer = cv2.imencode(output_format, cropped_image)
+        if not is_success:
+            logger.error(f"이미지를 '{output_format}' 형식으로 인코딩하는 데 실패했습니다.")
+            return None
+
+        return io.BytesIO(buffer)
+
+    except Exception as e:
+        logger.error(f"이미지 자르기 중 예외 발생 (경로: {image_path}, bbox: {bbox}): {e}", exc_info=True)
         return None
 
 class JsonConfigHandler:

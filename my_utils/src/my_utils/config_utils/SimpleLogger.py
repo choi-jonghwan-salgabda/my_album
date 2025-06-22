@@ -577,7 +577,7 @@ def reset_logger(min_level = 'INFO'):
     # 예를 들어, 애플리케이션 루트 디렉토리 아래 logs 폴더에 저장
     app_root = Path(__file__).resolve().parent # my_yolo_tiny.py가 있는 디렉토리
     log_directory = app_root / "logs"
-    log_file_name = f"{app_root.name}_{datetime.now().strftime('%Y%m%d')}.log"
+    log_file_name = f"{app_root.name}_{datetime.now().strftime('%y%m%d_%H%M%S')}.log"
     log_file_path = log_directory / log_file_name
 
     logger.setup(

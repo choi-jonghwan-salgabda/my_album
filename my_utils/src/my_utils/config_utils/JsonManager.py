@@ -2,7 +2,7 @@ import os
 import sys
 import yaml
 import json
-import re
+import io
 from pathlib import Path
 from datetime import datetime
 import copy
@@ -20,6 +20,7 @@ except ImportError as e:
     import traceback
     traceback.print_exc() # 전체 트레이스백 출력 (개발 단계에서 유용)
     sys.exit(1)
+
 
 class JsonManager:
     """
@@ -45,6 +46,97 @@ class JsonManager:
         if json_path:
             self.read_json(json_path)
 
+        # Helper to safely get nested values from config
+        def _get_nested_key(config_dict: Dict[str, Any], path: List[str], default: Any, log_error: bool = True) -> Any:
+            current = config_dict
+            for i, key in enumerate(path):
+                if not isinstance(current, dict):
+                    if log_error:
+                        logger.error(
+                            f"설정 오류: 경로 '{'.'.join(path[:i])}'의 값이 딕셔너리가 아닙니다 (타입: {type(current)}). "
+                            f"키 '{key}'를 찾을 수 없습니다. 기본값 '{default}'을(를) 사용합니다."
+                        )
+                    return default
+                current = current.get(key, default)
+                if current == default and i < len(path) - 1: # If default is returned mid-path, it means key was missing
+                    if log_error:
+                        logger.error(
+                            f"설정 오류: 경로 '{'.'.join(path[:i+1])}'에서 키 '{key}'를 찾을 수 없습니다. 기본값 '{default}'을(를) 사용합니다."
+                        )
+                    return default
+            return current
+
+        # Parse json_keys_config and set attributes, similar to JsonConfigHandler
+        # User Profile Keys
+        user_profile_lst = _get_nested_key(json_keys_config, ["user_profile"], {})
+        self.user_profile_key = _get_nested_key(user_profile_lst, ["key"], "user_profile")
+        self.username_key = _get_nested_key(user_profile_lst, ["username", "key"], "username")
+        self.username_val = _get_nested_key(user_profile_lst, ["username", "name"], "salgabda")
+        self.email_key = _get_nested_key(user_profile_lst, ["email", "key"], "email")
+        self.email_val = _get_nested_key(user_profile_lst, ["email", "name"], "salgasalgaba@naver.combda")
+
+        logger.debug(f"user_profile_key: {self.user_profile_key}, "
+                     f"username_key: {self.username_key}, username_val: {self.username_val}, "
+                     f"email_key: {self.email_key}, email_val: {self.email_val}")
+
+        # Image Info Keys
+        image_info_lst = _get_nested_key(json_keys_config, ["image_info_lst"], {})
+        self.image_info_key = _get_nested_key(image_info_lst, ["key"], "image_info")
+        self.image_resolution_key = _get_nested_key(image_info_lst, ["resolution", "key"], "resolution")
+        self.image_width_key = _get_nested_key(image_info_lst, ["resolution", "width_key"], "width")
+        self.image_height_key = _get_nested_key(image_info_lst, ["resolution", "height_key"], "heigth")
+        self.image_channels_key = _get_nested_key(image_info_lst, ["resolution", "channels_key"], "channels")
+        self.image_name_key = _get_nested_key(image_info_lst, ["image_name_key"], "image_name")
+        self.image_path_key = _get_nested_key(image_info_lst, ["image_path_key"], "image_path")
+        # self.image_path_val = _get_nested_key(image_info_lst, [self.image_path_key], "") # This line is problematic in JsonConfigHandler too. It tries to get a value using a key that is itself a key name.
+        self.image_hash_key = _get_nested_key(image_info_lst, ["image_hash_key"], "image_hash")
+
+        logger.debug(f"image_info_key: {self.image_info_key}, "
+                     f"image_resolution_key: {self.image_resolution_key}, "
+                     f"image_width_key: {self.image_width_key}, image_height_key: {self.image_height_key}, "
+                     f"image_channels_key: {self.image_channels_key}, image_name_key: {self.image_name_key}, "
+                     f"image_path_key: {self.image_path_key}, image_hash_key: {self.image_hash_key}")
+
+        # Object Info Keys
+        object_info_lst = _get_nested_key(json_keys_config, ["object_info_lst"], {})
+        self.object_info_key = _get_nested_key(object_info_lst, ["key"], "detected_obj")
+        self.object_label_mask = _get_nested_key(object_info_lst, ["label_mask"], "***")
+        self.object_box_xyxy_key = _get_nested_key(object_info_lst, ["object_box_xyxy_key"], "box_xyxy")
+        self.object_box_xywh_key = _get_nested_key(object_info_lst, ["object_box_xywh_key"], "box_xywh")
+        self.object_confidence_key = _get_nested_key(object_info_lst, ["object_confidence_key"], "confidence")
+        self.object_class_id_key = _get_nested_key(object_info_lst, ["object_class_id_key"], "class_id")
+        self.object_class_name_key = _get_nested_key(object_info_lst, ["object_class_name_key"], "class_name")
+        self.object_label_key = _get_nested_key(object_info_lst, ["object_label_key"], "label")
+        self.object_index_key = _get_nested_key(object_info_lst, ["object_index_key"], "index")
+        logger.debug(f"object_info_key: {self.object_info_key}, object_label_mask: {self.object_label_mask}"
+                     f"object_box_xyxy_key: {self.object_box_xyxy_key}, object_box_xywh_key: {self.object_box_xywh_key}, "
+                     f"object_confidence_key: {self.object_confidence_key}, object_class_id_key: {self.object_class_id_key}, "
+                     f"object_class_name_key: {self.object_class_name_key}, object_label_key: {self.object_label_key}, "
+                     f"object_index_key: {self.object_index_key}")
+
+        # Face Info Keys (nested under object_info_lst)
+        face_info_lst = _get_nested_key(object_info_lst, ["face_info_lst"], {})
+        self.face_info_key = _get_nested_key(face_info_lst, ["key"], "detected_face")
+        self.face_label_mask = _get_nested_key(face_info_lst, ["label_mask"], "***")
+        self.face_box_xyxy_key = _get_nested_key(face_info_lst, ["face_box_xyxy_key"], "box_xyxy")
+        self.face_confidence_key = _get_nested_key(face_info_lst, ["face_confidence_key"], "confidence")
+        self.face_class_id_key = _get_nested_key(face_info_lst, ["face_class_id_key"], "class_id")
+        self.face_class_name_key = _get_nested_key(face_info_lst, ["face_class_name_key"], "class_name")
+        self.face_label_key = _get_nested_key(face_info_lst, ["face_label_key"], "label")
+        self.face_embedding_key = _get_nested_key(face_info_lst, ["face_embedding_key"], "embedding")
+        self.face_id_key = _get_nested_key(face_info_lst, ["face_id_key"], "face_id")
+        self.face_box_key = _get_nested_key(face_info_lst, ["face_box_key"], "box")
+        self.cropped_image_dir_key = _get_nested_key(face_info_lst, ["cropped_image_dir_key"], "cropped_image_dir")
+
+        logger.debug(f"face_info_key: {self.face_info_key}, face_label_mask: {self.face_label_mask}"
+                     f"face_box_xyxy_key: {self.face_box_xyxy_key}, face_confidence_key: {self.face_confidence_key}, "
+                     f"face_class_id_key: {self.face_class_id_key}, face_class_name_key: {self.face_class_name_key}, "
+                     f"face_label_key: {self.face_label_key}, face_embedding_key: {self.face_embedding_key}, "
+                     f"face_id_key: {self.face_id_key}, face_box_key: {self.face_box_key}, "
+                     f"cropped_image_dir_key: {self.cropped_image_dir_key}")
+
+        logger.debug(f"JsonManager가 성공적으로 초기화되었습니다.")
+
     def get(self, section: str, key: Optional[str] = None, default: Any = None) -> Any:
         """
         특정 섹션의 값을 반환합니다.
@@ -61,6 +153,41 @@ class JsonManager:
         if key is None:
             return section_data
         return section_data.get(key, default)
+
+    def build_full_json(
+        self,
+        image_path: Path,
+        image_hash: Optional[str],
+        width: int,
+        height: int,
+        channels: int,
+        detected_objects: List[Dict[str, Any]],
+    ):
+        """
+        주어진 정보로 내부 데이터(_data)를 완전히 새로 구성합니다.
+        기존 _data 내용은 덮어쓰여집니다.
+        """
+        output_data = {}
+        user_profile_information = {
+            self.username_key: self.username_val,
+            self.email_key: self.email_val
+        }
+        image_information = {
+            self.image_resolution_key: {
+                self.image_width_key: width,
+                self.image_height_key: height,
+                self.image_channels_key: channels
+            },
+            self.image_name_key: image_path.name,
+            self.image_path_key: str(image_path),
+            self.image_hash_key: image_hash
+        }
+        output_data[self.user_profile_key] = user_profile_information
+        output_data[self.image_info_key] = image_information
+        output_data[self.object_info_key] = detected_objects
+
+        self._data = output_data # 내부 데이터 갱신
+        logger.debug("내부 JSON 데이터가 새 정보로 재구성되었습니다.")
 
     def set(self, section: str, key: str, value: Any):
         """
@@ -119,6 +246,29 @@ class JsonManager:
         except Exception as e:
             logger.error(f"JSON 저장 중 오류 발생: {e}")
             return False
+
+    @staticmethod
+    def load_json_from_path(json_path: Path) -> Optional[Dict[str, Any]]:
+        """
+        주어진 경로에서 JSON 파일을 읽어 내용을 반환합니다.
+        이 메서드는 정적(static)이므로, 특정 인스턴스의 상태(self._data)를 변경하지 않습니다.
+        파일 로딩에 실패하면 None을 반환합니다.
+
+        Args:
+            json_path (Path): 읽을 JSON 파일의 경로.
+
+        Returns:
+            Optional[Dict[str, Any]]: 로드된 JSON 데이터 또는 실패 시 None.
+        """
+        if not json_path.exists():
+            logger.warning(f"JSON 파일이 존재하지 않습니다: {json_path}")
+            return None
+        try:
+            with open(json_path, 'r', encoding='utf-8') as f:
+                return json.load(f)
+        except (json.JSONDecodeError, Exception) as e:
+            logger.error(f"'{json_path}' 파일 로딩/파싱 중 오류 발생: {e}")
+            return None
 
     def update_from_dict(self, updates: Dict[str, Dict[str, Any]]):
         """
@@ -190,54 +340,63 @@ if __name__ == "__main__":
     # 4. JsonManager 초기화
     logger.info(f"--- JsonManager.py test execution ---")
     try:
-        json_keys_config = config_manager.get_value("json_keys")
+        json_keys_config = config_manager.get_config("json_keys")
         logger.info(f"json_keys_config :{json_keys_config}")
         if json_keys_config:
             json_path = Path('/home/owner/SambaData/OwnerData/train/jsons/1525956891490.json')
-            logger.info(f"JsonManager 인스턴스 생성 시도: root_dir='{args.root_dir}', config_path='{args.config_path}'")
-            json_manager = JsonManager(json_keys_config=json_keys_config, json_path = json_path)
-            logger.info(f"JsonManager 인스턴스 생성 완료.")
+            # --- 방법 1: 새 JSON 데이터 생성 및 저장 ---
+            logger.info("\n--- 방법 1: 새 JSON 데이터 생성 및 저장 ---")
+            json_manager_new = JsonManager(json_keys_config=json_keys_config)
+            logger.info(f"새 JsonManager 인스턴스 생성 완료.")
 
-            # 5. 테스트용 JSON 경로 설정
-            test_json_path = Path(args.root_dir) / "test_data.json"
-
-            # 6. 더미 객체 리스트 및 이미지 정보 정의
             dummy_detected_objects = [
                 {
-                    json_manager.object_class_id_key: 1,
-                    json_manager.object_class_name_key: "cat",
-                    json_manager.object_box_xyxy_key: [50, 60, 200, 220],
-                    json_manager.object_confidence_key: 0.98,
-                    json_manager.object_label_key: "고양이"
+                    json_manager_new.object_class_id_key: 1,
+                    json_manager_new.object_class_name_key: "cat",
+                    json_manager_new.object_box_xyxy_key: [50, 60, 200, 220],
+                    json_manager_new.object_confidence_key: 0.98,
+                    json_manager_new.object_label_key: "고양이"
                 }
             ]
 
-            dummy_image_path = Path("sample.jpg")
-            dummy_image_hash = "abc123hash"
-            width, height, channels = 1024, 768, 3
+            dummy_image_path = Path("sample_new.jpg")
 
-            # 7. JSON 파일 쓰기 테스트
-            success = json_manager.write_json(
+            # build_full_json으로 내부 데이터 구성
+            json_manager_new.build_full_json(
                 image_path=dummy_image_path,
-                image_hash=dummy_image_hash,
-                width=width,
-                height=height,
-                channels=channels,
-                detected_objects=dummy_detected_objects,
-                json_path=test_json_path
+                image_hash="new_hash_xyz",
+                width=1024, height=768, channels=3,
+                detected_objects=dummy_detected_objects
             )
 
-            if success:
-                print(f"[성공] JSON 파일이 저장되었습니다: {test_json_path}")
-            else:
-                print(f"[실패] JSON 파일 저장에 실패했습니다.")
+            # write_json으로 저장
+            test_json_path_new = Path(args.root_dir) / "test_data_new.json"
+            success_new = json_manager_new.write_json(test_json_path_new)
+            if success_new:
+                logger.info(f"[성공] 새 JSON 파일이 저장되었습니다: {test_json_path_new}")
+                logger.info(json.dumps(json_manager_new.dump(), ensure_ascii=False, indent=2))
 
-            # 8. JSON 파일 읽기 테스트
-            data = json_manager.read_json(test_json_path)
-            if data:
-                print(f"[성공] JSON 파일을 성공적으로 읽었습니다:\n{json.dumps(data, ensure_ascii=False, indent=2)}")
+            # --- 방법 2: 기존 JSON 읽고, 수정하고, 저장 ---
+            logger.info("\n--- 방법 2: 기존 JSON 읽기, 수정, 저장 ---")
+            existing_json_path = Path('/home/owner/SambaData/OwnerData/train/jsons/1525956891490.json')
+            if existing_json_path.exists():
+                json_manager_existing = JsonManager(json_keys_config=json_keys_config, json_path=existing_json_path)
+                logger.info(f"[정보] 기존 JSON 로드 완료: {existing_json_path}")
+
+                # 데이터 수정 (set 메소드 사용)
+                logger.info("[정보] 이미지 이름과 사용자 이메일 수정 중...")
+                json_manager_existing.set(json_manager_existing.image_info_key, json_manager_existing.image_name_key, "MODIFIED_IMAGE_NAME.jpg")
+                json_manager_existing.set(json_manager_existing.user_profile_key, json_manager_existing.email_key, "modified.email@example.com")
+
+                # 수정된 내용 저장
+                test_json_path_modified = Path(args.root_dir) / "test_data_modified.json"
+                success_modified = json_manager_existing.write_json(test_json_path_modified)
+                if success_modified:
+                    logger.info(f"[성공] 수정된 JSON 파일이 저장되었습니다: {test_json_path_modified}")
+                    logger.info(json.dumps(json_manager_existing.dump(), ensure_ascii=False, indent=2))
             else:
-                print("[실패] JSON 파일 읽기에 실패했습니다.")
+                logger.warning(f"[경고] 기존 JSON 파일이 없어 방법 2 테스트를 건너뜁니다: {existing_json_path}")
+
     except (KeyError, TypeError, AttributeError) as e:
         logger.error(f"변수값 가저오기 오류 발생: {e}")
         sys.exit(1)

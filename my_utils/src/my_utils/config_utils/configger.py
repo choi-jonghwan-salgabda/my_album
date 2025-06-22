@@ -28,21 +28,21 @@ class configger:
     """
     def __init__(self, root_dir:str, config_path: str):
         logger.info(f"Configger 초기화 시작: root_dir='{root_dir}'")
-        logger.info(f"Configger의         config_path='{config_path}'")
+        logger.info(f"Configger의        config_path='{config_path}'")
 
         # root_dir 처리: Path 객체로 만들고 사용자 홈 디렉토리 기준 절대 경로로 확장
         self.root_dir = Path(root_dir).expanduser().resolve()
-        logger.debug(f"경로 받음 및 확정(root_dir):     {self.root_dir} ")
+        logger.debug(f"경로 받음 및 확정(root_dir):      {self.root_dir} ")
 
         # config_path 처리: 절대 경로이면 그대로, 상대 경로이면 root_dir과 결합하여 절대 경로 Path 객체 생성
         if os.path.isabs(config_path):
             self.config_path = Path(config_path).resolve()
-            logger.debug(f"config_path는 절대 경로입니다: {self.config_path}")
+            logger.debug(f"config_path는 절대 경로입니다:   {self.config_path}")
         else:
             self.config_path = (self.root_dir / config_path).resolve()
             logger.debug(f"config_path는 상대 경로이므로 root_dir과 결합하여 절대 경로를 만듭니다: {self.config_path}")
 
-        logger.debug(f"_load_yaml 호출 직전, 경로 확정(config_path):   {self.config_path} ")
+        logger.debug(f"_load_yaml 호출 직전, config_path 확정:{self.config_path} ")
 
         # YAML 파일 로드
         self.cfg = self._load_yaml()
@@ -52,7 +52,7 @@ class configger:
             logger.error("설정 파일 로드 실패. 초기화를 중단합니다.")
             return
 
-        logger.debug(f"YAML 로드 완료. self.cfg 내용 일부: {str(self.cfg)[:500]}...")
+        logger.debug(f"YAML 로드 완료. self.cfg 내용 일부:    {str(self.cfg)[:500]}...")
 
         # 플레이스홀더 치환 시작 (전체 cfg 딕셔너리를 대상으로 재귀 호출)
         # 치환은 원본 self.cfg 객체를 직접 수정하도록 구현할 수 있습니다.
@@ -153,6 +153,7 @@ class configger:
         # current_key_path_str = ".".join(map(str, current_key_path_list)) if current_key_path_list else "root" # 디버깅용
         # logger.debug(f"_traverse_resolve_and_normalize_paths start, 현재 경로: {current_key_path_str}") # 너무 많은 로그를 유발할 수 있음
 
+        logger.info(f"시작 : data: {data} ")
         if isinstance(data, dict):
             for key, value in list(data.items()): # Iterate over a copy of items for safe modification
                 new_value = value # 변경될 수 있는 값을 저장할 변수
@@ -250,7 +251,7 @@ class configger:
         """
         keys = key_path.split('.')
         current_data = data
-        logger.debug(f"값 조회 시작 for path: {key_path}")
+        logger.info(f"시작 for path: {key_path}, data: {data}")
         try:
             for i, key in enumerate(keys):
                 logger.debug(f"현재 데이터 타입: {type(current_data)}, 찾을 키: {key}")
@@ -743,7 +744,7 @@ class configger:
         """
         keys = key.split(".")
         cur_cfg = self.cfg
-        logger.info(f"get_config 호출됨: key='{key}', split keys: {keys}")
+        logger.info(f"시작: key='{key}', split keys: {keys}")
 
         try:
             for i, key_name in enumerate(keys):

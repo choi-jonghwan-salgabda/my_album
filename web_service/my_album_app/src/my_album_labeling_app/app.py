@@ -19,10 +19,11 @@ import threading # 데이터 로딩 동기화를 위한 Lock
 try:
     from datetime import datetime
     from my_utils.config_utils.SimpleLogger import logger, get_argument
-    from my_utils.config_utils.configger import configger, get_all_values_from_json
+    from my_utils.config_utils.configger import configger
+    from my_utils.config_utils.JsonManager import JsonManager
     from my_utils.object_utils.data_loading_helpers import load_all_json_from_list_file, load_json_batch_from_list_file
-    from my_utils.object_utils.photo_utils import JsonConfigHandler, extract_face_features_from_face_crop, crop_image_from_path_to_buffer
-    # 얼굴 검출 및 특징 추출, 검색 관련 모듈 임포트 (가상)
+    from my_utils.object_utils.photo_utils import crop_image_from_path_to_buffer
+    # `label_image`와 `save_labels`에서 얼굴 이미지를 동적으로 자르기 위해 필요합니다.
     # from my_album.src.face_utils import detect_and_extract_features  # 예시: 얼굴 검출 및 특징 추출 함수
     # from my_album.src.search_utils import search_similar_faces       # 예시: 유사 얼굴 검색 함수
 except ImportError as e: # logger 사용하도록 변경 (main에서 초기화 후)
@@ -78,7 +79,7 @@ else:
 
     # Gunicorn 환경에서는 SimpleLogger의 print 출력을 최소화하기 위해 로거를 먼저 설정합니다.
     try:
-        _log_file_name = f"{Path(__file__).stem}_{datetime.now().strftime('%y%m%d')}_gunicorn.log"
+        _log_file_name = f"{Path(__file__).stem}_{datetime.now().strftime('%y%m%d_%H%M%S')}_gunicorn.log"
         _full_log_path = Path(LOG_DIR_FOR_LOGGER) / _log_file_name
         Path(LOG_DIR_FOR_LOGGER).mkdir(parents=True, exist_ok=True) # 로그 디렉토리 생성
         logger.setup(
@@ -219,9 +220,9 @@ try:
 
     # JSON 키 설정을 configger에서 가져옵니다.
     try:
-        global_json_handler = JsonConfigHandler(json_keys_cfg)
+        global_json_handler = JsonManager(json_keys_cfg)
     except Exception as e_json_handler:
-        logger.error(f"JsonConfigHandler 초기화 중 오류 발생: {e_json_handler}", exc_info=True)
+        logger.error(f"JsonManager 초기화 중 오류 발생: {e_json_handler}", exc_info=True)
         sys.exit(1)
 
     # 여러 JSON 파일 로드용 디렉토리 경로. YAML 키: project.paths.datasets.raw_jsons_dir
@@ -518,12 +519,19 @@ def _load_all_photo_data_into_globals():
 
     if list_file_path:
         logger.info(f".lst 파일에서 모든 사진 데이터 로드 시도: {list_file_path}")
-        photos_data_temp = load_all_json_from_list_file(
+        # global_json_handler.read_json은 부울 값을 반환하고 인스턴스 상태를 변경하므로,
+        # 여러 파일을 로드하는 데 적합하지 않습니다. 상태 비저장(stateless) 정적 메서드를 사용합니다.
+        loaded_data_with_nones = load_all_json_from_list_file(
             list_file_path,
-            global_json_handler.read_json, # global_json_handler가 초기화된 후 사용 가능해야 함
+            JsonManager.load_json_from_path, # 상태를 변경하지 않는 정적 메서드 사용
             base_dir_for_loader
         )
-        total_items_temp = len(photos_data_temp)
+        # 로드 중 오류가 발생하여 None이 반환된 항목들을 필터링합니다.
+        photos_data_temp = [item for item in loaded_data_with_nones if item is not None]
+        
+        if len(loaded_data_with_nones) != len(photos_data_temp):
+            logger.warning(f"{len(loaded_data_with_nones) - len(photos_data_temp)}개의 JSON 파일을 로드하는 데 실패했습니다.")
+
     elif raw_jsons_base_dir_str: # .lst 파일이 없고 raw_jsons_dir만 있는 경우 (대안)
         logger.warning(f".lst 파일 경로가 제공되지 않았습니다. '{raw_jsons_base_dir_str}' 디렉토리에서 직접 JSON 파일 로드를 시도합니다.")
         # 이 부분은 data_loading_helpers에 load_all_json_from_directory 와 같은 함수가 필요합니다.
@@ -536,7 +544,7 @@ def _load_all_photo_data_into_globals():
 
     if not photos_data_temp:
         logger.warning("로드된 사진 데이터가 없습니다.")
-    
+    total_items_temp = len(photos_data_temp)
     GLOBAL_PHOTOS_DATA = photos_data_temp
     GLOBAL_TOTAL_PHOTOS = total_items_temp
     logger.info(f"전역 사진 데이터 로드 완료. 총 {GLOBAL_TOTAL_PHOTOS}개 항목 로드됨.")
@@ -745,10 +753,10 @@ def label_image(image_id):  # 선택한 사진의 얼굴을  client에게 보내
                 key_for_face_dict_in_object = global_json_handler.face_info_key # 객체 내 얼굴 딕셔너리 키 (예: "detected_face")
             except AttributeError:
                 logger.error(
-                    "Configuration Error: 'JsonConfigHandler' is missing 'object_info_key' or 'face_info_key' attribute. "
+                    "Configuration Error: 'JsonManager' is missing 'object_info_key' or 'face_info_key' attribute. "
                     "Please check: \n"
                     "1. Your 'json_keys' section in 'photo_album.yaml' (for object_info_lst.key and object_info_lst.face_info_lst.key).\n"
-                    "2. The 'JsonConfigHandler' class implementation.\n"
+                    "2. The 'JsonManager' class implementation.\n"
                     "Cropped images may not be displayed correctly until this is resolved."
                 )
                 key_for_object_list = None
@@ -784,7 +792,7 @@ def label_image(image_id):  # 선택한 사진의 얼굴을  client에게 보내
                                         if not image_path_val: logger.warning(f"image_id {image_id}, obj {obj_idx}: 원본 이미지 경로 없음.")
 
                                     # 저장된 크롭 이미지 URL 추가
-                                    saved_crop_filename = face_info_dict.get(global_json_handler.face_label_key)
+                                    saved_crop_filename = face_info_dict.get('face_crop_filename') # BUGFIX: 이름(label) 대신 크롭 파일명 키 사용
                                     if saved_crop_filename:
                                         try:
                                             face_info_dict['saved_cropped_image_url'] = url_for('serve_cropped_image', filename=saved_crop_filename)
@@ -886,7 +894,8 @@ def save_labels(image_id):  # 입력한 사진의 얼굴의 이름을 저장함
                                         try:
                                             with open(crop_save_path, 'wb') as f_crop:
                                                 f_crop.write(cropped_buffer.getvalue())
-                                            face_info_dict[face_label_key] = crop_filename # JSON에 크롭 파일명 저장
+                                            # BUGFIX: 이름(label)을 덮어쓰지 않고 별도 키에 크롭 파일명 저장
+                                            face_info_dict['face_crop_filename'] = crop_filename
                                             logger.info(f"Cropped face for image_id {image_id}, obj_idx {obj_idx} saved to: {crop_save_path}")
                                         except Exception as e_crop_save:
                                             logger.error(f"Failed to save cropped face for image_id {image_id}, obj_idx {obj_idx} to {crop_save_path}: {e_crop_save}")
