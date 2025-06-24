@@ -33,6 +33,7 @@ from typing import Optional, Dict, List, Any # 타입 힌트 호환성을 위해
 # 사용자 정의 유틸리티 모듈 임포트
 try:
     from my_utils.config_utils.SimpleLogger import logger, calc_digit_number, get_argument, visual_length # type: ignore
+    # from my_utils.object_utils.photo_utils import compute_sha256_from_file
 except ImportError as e:
     print(f"치명적 오류: my_utils를 임포트할 수 없습니다. PYTHONPATH 및 의존성을 확인해주세요: {e}")
     sys.exit(1)
@@ -128,6 +129,100 @@ def collect_image_hashes(
     logger.info(f"{directory_path} 에서 {len(image_files)}개 이미지 스캔, {len(hashes)}개의 고유 해시 발견.")
     return hashes
 
+def move_internal_duplicates_logic(
+        trgt_dir: Path, 
+        dest_dir: Path, 
+        dry_run=False
+        ):
+    """
+    지정된 단일 소스 디렉토리(trgt_dir) 내에서 중복된 사진을 찾아
+    대상 디렉토리(dest_dir)로 이동시키는 로직을 수행합니다.
+
+    Args:
+        trgt_dir (Path): 중복을 검사할 소스 이미지 디렉토리.
+        dest_dir (Path): 중복 이미지를 이동시킬 대상 디렉토리.
+        dry_run (bool): True이면 실제 파일 이동 없이 로그만 남깁니다.
+
+    Returns:
+        dict: 처리 과정에 대한 통계 정보를 담은 딕셔너리.
+    """
+    status = copy.deepcopy(DEFAULT_STATUS_TEMPLATE)
+
+    # 1. 입력 디렉토리 유효성 검사
+    if not trgt_dir.is_dir():
+        logger.error(f"중복된 사진이 있는지 찾을곳(trgt_dir)을 찾을 수 없습니다: {trgt_dir}")
+        return status
+
+    # 2. 출력 디렉토리 C 생성
+    try:
+        dest_dir.mkdir(parents=True, exist_ok=True)
+        logger.info(f"중복된 사진을 옮겨 둘곳(dest_dir): {dest_dir}")
+    except OSError as e:
+        logger.error(f"대상 디렉토리(C)를 생성할 수 없습니다 ({dest_dir}): {e}")
+        return status
+
+    # 3. 소스 디렉토리에서 이미지 해시 수집
+    hashes_trgt = collect_image_hashes(
+        trgt_dir, 
+        status,
+        "images_scanned_trgt_dir", 
+        "hashes_calculated_trgt_dir", 
+        "unique_hashes_trgt_dir"
+    )
+
+    # 4. 디렉토리 내의 중복 해시(중복된 이미지) 찾기
+    # 해시에 대해 2개 이상의 파일 경로가 있는 그룹만 필터링합니다.
+    duplicate_groups = {h: paths for h, paths in hashes_trgt.items() if len(paths) > 1}
+    status["duplicate_groups_found"]["value"] = len(duplicate_groups)
+
+    if not duplicate_groups:
+        logger.info(f"{trgt_dir} 내에서 중복된 이미지를 찾지 못했습니다.")
+        return status
+    
+    logger.info(f"{len(duplicate_groups)}개의 중복 이미지 그룹(해시 기준)을 찾았습니다. 파일 이동을 시작합니다...")
+
+    # 5. 중복 그룹별로 파일 이동 처리
+    group_digit_width = calc_digit_number(len(duplicate_groups))
+    for group_idx, (h_val, files_in_group) in enumerate(duplicate_groups.items()):
+        status["total_duplicate_images_processed"]["value"] += len(files_in_group)
+
+        # 해시값 자체를 하위 디렉토리 이름으로 사용
+        dest_group_dir = dest_dir / h_val
+        
+        try:
+            if not dry_run:
+                dest_group_dir.mkdir(parents=True, exist_ok=True)
+        except OSError as e:
+            logger.error(f"하위 디렉토리 생성 실패 {dest_group_dir}: {e}")
+            status["move_errors"]["value"] += len(files_in_group)
+            continue
+        
+        logger.info(f"[{group_idx+1:{group_digit_width}}/{len(duplicate_groups)}] 그룹 '{h_val}' 처리 중 ({len(files_in_group)}개 파일 처리 예정)")
+
+        # 그룹 내 모든 중복 파일을 대상 디렉토리로 이동
+        for file_to_move in files_in_group:
+            dest_file_path = dest_group_dir / file_to_move.name
+            
+            # 파일명 충돌 처리: 대상 경로에 파일이 이미 존재하면 고유한 이름으로 변경
+            if not dry_run and dest_file_path.exists():
+                new_name = f"{file_to_move.stem}_{uuid.uuid4().hex[:8]}{file_to_move.suffix}"
+                dest_file_path = dest_group_dir / new_name
+                logger.warning(f"  파일명 충돌: '{file_to_move.name}'이(가) 대상 폴더에 이미 존재합니다. 새 이름 '{new_name}'(으)로 저장합니다.")
+
+            try:
+                if dry_run:
+                    logger.info(f"(Dry Run) 이동 예정: '{file_to_move}' -> '{dest_file_path}'")
+                else:
+                    shutil.move(str(file_to_move), str(dest_file_path))
+                logger.info(f"  이동: '{file_to_move}' -> '{dest_file_path}'")
+                status["images_moved_to_c"]["value"] += 1
+            except Exception as e_move:
+                logger.error(f"  파일 이동 오류 ('{file_to_move}'): {e_move}")
+                status["move_errors"]["value"] += 1
+    
+    status["subdirectories_created_in_c"]["value"] = len(duplicate_groups)
+    return status
+
 def move_duplicate_photos_logic(
         sorc_dir: Path, 
         trgt_dir: Path, 
@@ -207,7 +302,8 @@ def move_duplicate_photos_logic(
         # 대표 파일명을 사용하여 하위 디렉토리 이름 결정 (첫 번째 파일의 이름 사용) + 고유 ID 추가
         # all_files_in_group_for_stats는 paths_from_trgt가 비어있지 않으므로 최소 1개 이상의 요소를 가집니다.
         representative_file_path = all_files_in_group_for_stats[0]
-        subdir_name_stem = f"{representative_file_path.stem}_{uuid.uuid4().hex[:8]}"     # 확장자 제외한 파일명
+        #  subdir_name_stem = f"{representative_file_path.stem}_{uuid.uuid4().hex[:8]}"     # 확장자 제외한 파일명으로 디렉토리 만들기
+        subdir_name_stem = h_val  # 해시값 자체를 디렉토리 이름으로 사용
         dest_group_dir = dest_dir / subdir_name_stem # 대상 디렉토리 C 아래에 하위 디렉토리 경로 생성
         
         # 실제 생성된 디렉토리 추적용 set 정의 및 카운팅
@@ -275,7 +371,7 @@ def run_main():
     # 로거 설정 (my_utils.SimpleLogger 사용 또는 표준 로깅 사용)
     # logger.setup은 프로젝트 내 유틸리티로 가정.
     if hasattr(logger, "setup"):
-        date_str = datetime.now().strftime("%y%m%d")
+        date_str = datetime.now().strftime("%y%m%d_%H%M")
         log_file_name = f"{script_name}_{date_str}.log"
         # parsed_args.log_dir이 Path 객체가 아닐 수 있으므로 Path로 변환
         # 로그 파일 경로가 이미 핸들러에 추가되었는지 확인하여 중복 추가 방지
@@ -308,40 +404,40 @@ def run_main():
     logger.info(f"명령줄 인자: {vars(parsed_args)}")
 
     # 필수 디렉토리 인자 확인
-    if parsed_args.source_dir is None:
-        logger.error("첫 번째 소스 디렉토리 (--source-dir or -src)가 제공되지 않았습니다. 스크립트를 종료합니다.")
+    if parsed_args.target_dir is None:
+        logger.error("중복을 찾을 디렉토리 (--target-dir or -tgt)가 제공되지 않았습니다. 스크립트를 종료합니다.")
         sys.exit(1)
     if parsed_args.destination_dir is None:
-        logger.error("두 번째 소스 디렉토리 (--destination-dir or -dst)가 제공되지 않았습니다. 스크립트를 종료합니다.")
-        sys.exit(1)
-    if parsed_args.target_dir is None:
-        logger.error("대상 디렉토리 (--target-dir or -tgt)가 제공되지 않았습니다. 스크립트를 종료합니다.")
+        logger.error("결과물 디렉토리 (--destination-dir or -dst)가 제공되지 않았습니다. 스크립트를 종료합니다.")
         sys.exit(1)
 
     # 명령줄 인자로부터 디렉토리 경로를 Path 객체로 변환 및 절대 경로로 해석
-    src_dir = Path(parsed_args.source_dir).expanduser().resolve()
-    tst_dir = Path(parsed_args.target_dir).expanduser().resolve() # 대상 디렉토리 C
-    dst_dir = Path(parsed_args.destination_dir).expanduser().resolve()
+    tst_dir = Path(parsed_args.target_dir).expanduser().resolve() # 중복을 찾을 디렉토리 (B)
+    dst_dir = Path(parsed_args.destination_dir).expanduser().resolve() # 결과물 디렉토리 (C)
 
     # dry_run 인자 값 가져오기
     dry_run_mode = getattr(parsed_args, 'dry_run', False) # get_argument_fallback에 dry_run이 없으면 기본값 False
 
     try:
-        # 핵심 로직 함수 호출
-        """
-        def move_duplicate_photos_logic(
-                sorc_dir: Path, 
-                trgt_dir: Path, 
-                dest_dir: Path, 
-                dry_run=False
-                ):
-        """
-        final_status = move_duplicate_photos_logic(
-                sorc_dir= src_dir, 
-                trgt_dir = tst_dir, 
-                dest_dir = dst_dir, 
-                dry_run=dry_run_mode
-        )
+        if parsed_args.source_dir:
+            # 모드 1: 두 디렉토리(A, B) 간의 중복 비교
+            logger.info("모드 1: 두 디렉토리 간의 중복 파일을 검색합니다 (A vs B).")
+            src_dir = Path(parsed_args.source_dir).expanduser().resolve()
+            final_status = move_duplicate_photos_logic(
+                    sorc_dir=src_dir, 
+                    trgt_dir=tst_dir, 
+                    dest_dir=dst_dir, 
+                    dry_run=dry_run_mode
+            )
+        else:
+            # 모드 2: 단일 디렉토리(B) 내의 중복 비교
+            logger.info("모드 2: 단일 디렉토리 내의 중복 파일을 검색합니다 (B vs B).")
+            logger.warning("기준 디렉토리(--source-dir)가 지정되지 않았습니다. --target-dir 내에서 중복을 찾습니다.")
+            final_status = move_internal_duplicates_logic(
+                    trgt_dir=tst_dir,
+                    dest_dir=dst_dir,
+                    dry_run=dry_run_mode
+            )
 
         logger.warning("--- 중복 사진 이동 처리 통계 ---")
         # 통계 메시지 중 가장 긴 것을 기준으로 출력 너비 조절

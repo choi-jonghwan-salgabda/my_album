@@ -1,7 +1,0 @@
-
-# torch==0.4.1.post2
-# torchvision==0.2.1
-opencv-python
-scipy
-scikit-image
-Polygon3==3.0.8 # Or just Polygon3

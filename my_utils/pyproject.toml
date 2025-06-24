@@ -17,6 +17,11 @@ python = ">=3.10" # 마루님께서 사용하시는 파이썬 버전과 일치�
 # PyYAML = ">=6.0"
 # numpy = "^1.26.0"
 pyyaml = "^6.0.2"
+dlib = "^20.0.0"
+numpy = "^1.26.0"
+opencv-python = "^4.11.0.86"
+torch = "^2.7.1"
+ultralytics = "^8.3.158"
 
 [build-system]
 requires = ["poetry-core>=1.0.0"]

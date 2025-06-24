@@ -25,6 +25,8 @@ except ImportError as e:
 # 이 파일 내에서 직접적인 로깅은 최소화하고, 호출하는 쪽에서 로깅을 처리한다고 가정합니다.
 # 필요시 logger 객체를 함수 인자로 받거나 전역 로거를 사용할 수 있습니다.
 
+
+
 def _get_string_key_from_config(config_dict: Optional[Dict[str, Any]], key_name: str, default_value: str, logger_instance) -> str:
     """
     설정 딕셔너리에서 문자열 값을 가져오며, 문자열이 아닐 경우 오류를 로깅하고 기본값을 반환합니다.
@@ -130,7 +132,29 @@ def rotate_image_if_needed(image_path_str: str) -> bool:
             rotated_img.close()
         return False
 
-def compute_sha256(image_data: np.ndarray) -> Optional[str]:
+
+def compute_sha256_from_file(file_path: Path) -> Optional[str]:
+    """
+    주어진 파일 경로에 대해 SHA256 해시 값을 계산하여 문자열로 반환합니다.
+
+    Args:
+        file_path (Path): 해시를 계산할 파일의 경로.
+
+    Returns:
+        str | None: 계산된 SHA256 해시 값 (16진수 문자열). 파일 읽기 오류 시 None을 반환합니다.
+    """
+    sha256_hash = hashlib.sha256()
+    try:
+        # 파일을 바이너리 읽기 모드('rb')로 열어서 처리
+        with open(file_path, "rb") as f:
+            for byte_block in iter(lambda: f.read(4096), b""):
+                sha256_hash.update(byte_block) # 파일 내용을 조금씩 읽어 해시 업데이트
+        return sha256_hash.hexdigest()
+    except IOError as e:
+        logger.error(f"파일 읽기 오류 {file_path}: {e}")
+        return None
+
+def compute_sha256_from_memory(image_data: np.ndarray) -> Optional[str]:
     """
     이미지 데이터(NumPy 배열)의 SHA256 해시 값을 계산합니다.
 

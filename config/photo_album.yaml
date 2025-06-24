@@ -1,6 +1,7 @@
 
 project:
   name: my_album      # 프로젝트 이름
+  base_dir: '~/SambaData/Backup/FastCamp/Myproject'        # 현재 작업 디렉토리를 root_dir로 설정 꼭 문자열 경로여야함.
   root_dir: ${PWD}        # 현재 작업 디렉토리를 root_dir로 설정 꼭 문자열 경로여야함.
   pyproject_toml_path: ${project.root_dir}/pyproject.toml
 
@@ -65,7 +66,7 @@ project:
   README:   ${project.root_dir}/README.md # 올바른 파일명으로 수정
 
 models:
-  models_dir: ${project.root_dir}/models/
+  models_dir: ${project.base_dir}/models/
 
   # 어떤 모델 설정을 사용할지 선택 (model_selection을 이 위치로 옮기는 것이 일반적입니다)
   model_selection : 1 # 1로 설정하여 YOLO 모델 사용을 나타냅니다.
@@ -77,7 +78,7 @@ models:
     # 일반 객체 검출에 사용될 수 있는 YOLO 모델 설정 (필요하다면)
     object_detection_model:
       model_name: yolov8n
-      model_weights_path: ${models.models_dir}/yolov8n.pt
+      model_weights_path: ${models.models_dir}/${models.object_yolo_tiny_model.object_detection_model.model_name}/yolov8n.pt
       confidence_threshold: 0.25
       iou_threshold: 0.45
       classes_to_detect: [0, 15, 16, 65, 67, 68, 69]
@@ -86,9 +87,11 @@ models:
 
     # 얼굴 검출에 초점을 맞춘 YOLO 모델 설정
     face_detection_model: # 키 이름을 변경
-      model_name: yolov8n-face.pt # 사용할 모델 명칭
-      model_weights_path: ${models.models_dir}/${models.object_yolo_tiny_model.face_detection_model.model_name} # 전체 경로 사용
+      model_name: yolov8n-face # 사용할 모델 명칭
+      model_weights_path: ${models.models_dir}/${models.object_yolo_tiny_model.face_detection_model.model_name}/yolov8n-face.pt # 전체 경로 사용
       confidence_threshold: 0.25
+      iou_threshold: 0.45
+      classes_to_detect: [0, 15, 16, 65, 67, 68, 69]
       use_cpu: True # CPU 사용 여부 (이전 블록에서 가져옴)
       imgsz: 640 # YOLO 입력 이미지 크기 (이전 블록에서 가져옴)
       # 필요한 경우 classes_to_detect도 여기에 포함
@@ -147,10 +150,11 @@ json_keys:
       key: "resolution"
       width_key: "width"
       height_key: "height"
-      channels_key: "channels"
-    image_name_key: "image_name"
-    image_path_key: "image_path"
-    image_hash_key: "image_hash"
+      channels_key: "channels"    
+    image_name_key: "image_name"  # 사진이름
+    image_path_key: "image_path"  # 경로를 포함한 사진이름
+    image_hash_key: "image_hash"  # 사진의 hash값
+    image_tags_key: "image_tags"  # 감나무, 따는, 나무위...
     # JSON 파일 내에서 감지된 객체(detected_obj) 리스트에 접근하는 키
   object_info_lst:
     key: "detected_obj"
@@ -160,7 +164,7 @@ json_keys:
     object_confidence_key: "confidence"
     object_class_id_key: "class_id"
     object_class_name_key: "class_name"
-    object_label_key: "label" # 얼굴 라벨 (e.g., "face")
+    object_label_key: "label" # 오브젝트 라벨 (e.g., "최종환")
     object_index_key: "index"  
     face_info_lst:
         key: "detected_face"
@@ -169,7 +173,7 @@ json_keys:
         face_confidence_key: "confidence" # 얼굴 감지 confidence (detection 결과)
         face_class_id_key: "class_id"
         face_class_name_key: "class_name"
-        face_label_key: "name" # 얼굴에 대한 실제 이름 (e.g., "홍길동")
+        face_label_key: "name" # 얼굴에 대한 실제 이름 (e.g., "최종환")
         # 함수 설명 및 목표에 따라 가정된 키들 (실제 JSON에 있어야 함)
         face_embedding_key: "embedding" # 얼굴 임베딩 벡터 데이터 키
         face_id_key: "face_id" # 고유 얼굴 ID 키
@@ -228,6 +232,7 @@ indexing: # 벡터 인덱싱 및 검색 설정
   # L2: 유클리디안 거리 (값이 작을수록 유사)
   # IP: 내적 (값이 클수록 유사, 벡터가 정규화된 경우 코사인 유사도와 동일)
   similarity_metric: L2 # IndexFlatL2/IndexIVFFlat 사용 시 L2, IndexFlatIP 사용 시 IP
+  min_similarity_threshold: 0.65 
 
   # 검색 결과로 반환할 가장 유사한 얼굴 개수 (Top-K 검색)
   top_k_search_results: 10 # 예시: 가장 유사한 10개 얼굴 반환

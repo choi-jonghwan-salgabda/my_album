@@ -698,9 +698,17 @@ def get_argument() -> argparse.Namespace:
     )
 
     parser.add_argument(
-        '--dry_run', '-dry',
+        '--dry-run', '--dry_run', '-dry',
+        dest='dry_run',
         action="store_true",
-        help="실제 파일 이동/삭제 없이 로그만 출력합니다." # 특정 작업의 대상이 되는 디렉토리
+        help="실제 파일 이동/삭제 없이 로그만 출력합니다."
+    )
+
+    parser.add_argument(
+        '--delete-top-if-empty',
+        dest='delete_top_if_empty',
+        action="store_true",
+        help="최상위 디렉토리도 비어있을 경우 함께 삭제합니다. (remove_empty_directories.py에서 사용)"
     )
 
     # 명령줄 인자 파싱
