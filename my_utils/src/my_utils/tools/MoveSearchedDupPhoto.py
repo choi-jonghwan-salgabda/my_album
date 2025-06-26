@@ -32,8 +32,10 @@ from typing import Optional, Dict, List, Any # 타입 힌트 호환성을 위해
 # object_detector.py 파일 내 임포트 구문
 # 사용자 정의 유틸리티 모듈 임포트
 try:
-    from my_utils.config_utils.SimpleLogger import logger, calc_digit_number, get_argument, visual_length # type: ignore
-    # from my_utils.object_utils.photo_utils import compute_sha256_from_file
+    from my_utils.config_utils.SimpleLogger import logger
+    from my_utils.config_utils.arg_utils import get_argument
+    from my_utils.config_utils.display_utils import calc_digit_number
+    from my_utils.config_utils.file_utils import safe_move, DiskFullError
 except ImportError as e:
     print(f"치명적 오류: my_utils를 임포트할 수 없습니다. PYTHONPATH 및 의존성을 확인해주세요: {e}")
     sys.exit(1)
@@ -182,43 +184,46 @@ def move_internal_duplicates_logic(
     logger.info(f"{len(duplicate_groups)}개의 중복 이미지 그룹(해시 기준)을 찾았습니다. 파일 이동을 시작합니다...")
 
     # 5. 중복 그룹별로 파일 이동 처리
-    group_digit_width = calc_digit_number(len(duplicate_groups))
-    for group_idx, (h_val, files_in_group) in enumerate(duplicate_groups.items()):
-        status["total_duplicate_images_processed"]["value"] += len(files_in_group)
+    try: # 디스크 공간 부족 예외를 처리하기 위한 외부 try 블록
+        group_digit_width = calc_digit_number(len(duplicate_groups))
+        for group_idx, (h_val, files_in_group) in enumerate(duplicate_groups.items()):
+            status["total_duplicate_images_processed"]["value"] += len(files_in_group)
 
-        # 해시값 자체를 하위 디렉토리 이름으로 사용
-        dest_group_dir = dest_dir / h_val
-        
-        try:
-            if not dry_run:
-                dest_group_dir.mkdir(parents=True, exist_ok=True)
-        except OSError as e:
-            logger.error(f"하위 디렉토리 생성 실패 {dest_group_dir}: {e}")
-            status["move_errors"]["value"] += len(files_in_group)
-            continue
-        
-        logger.info(f"[{group_idx+1:{group_digit_width}}/{len(duplicate_groups)}] 그룹 '{h_val}' 처리 중 ({len(files_in_group)}개 파일 처리 예정)")
-
-        # 그룹 내 모든 중복 파일을 대상 디렉토리로 이동
-        for file_to_move in files_in_group:
-            dest_file_path = dest_group_dir / file_to_move.name
+            # 해시값 자체를 하위 디렉토리 이름으로 사용
+            dest_group_dir = dest_dir / h_val
             
-            # 파일명 충돌 처리: 대상 경로에 파일이 이미 존재하면 고유한 이름으로 변경
-            if not dry_run and dest_file_path.exists():
-                new_name = f"{file_to_move.stem}_{uuid.uuid4().hex[:8]}{file_to_move.suffix}"
-                dest_file_path = dest_group_dir / new_name
-                logger.warning(f"  파일명 충돌: '{file_to_move.name}'이(가) 대상 폴더에 이미 존재합니다. 새 이름 '{new_name}'(으)로 저장합니다.")
-
             try:
-                if dry_run:
-                    logger.info(f"(Dry Run) 이동 예정: '{file_to_move}' -> '{dest_file_path}'")
-                else:
-                    shutil.move(str(file_to_move), str(dest_file_path))
-                logger.info(f"  이동: '{file_to_move}' -> '{dest_file_path}'")
-                status["images_moved_to_c"]["value"] += 1
-            except Exception as e_move:
-                logger.error(f"  파일 이동 오류 ('{file_to_move}'): {e_move}")
-                status["move_errors"]["value"] += 1
+                if not dry_run:
+                    dest_group_dir.mkdir(parents=True, exist_ok=True)
+            except OSError as e:
+                logger.error(f"하위 디렉토리 생성 실패 {dest_group_dir}: {e}")
+                status["move_errors"]["value"] += len(files_in_group)
+                continue
+            
+            logger.info(f"[{group_idx+1:{group_digit_width}}/{len(duplicate_groups)}] 그룹 '{h_val}' 처리 중 ({len(files_in_group)}개 파일 처리 예정)")
+
+            # 그룹 내 모든 중복 파일을 대상 디렉토리로 이동
+            for file_to_move in files_in_group:
+                dest_file_path = dest_group_dir / file_to_move.name
+                
+                # 파일명 충돌 처리: 대상 경로에 파일이 이미 존재하면 고유한 이름으로 변경
+                if not dry_run and dest_file_path.exists():
+                    new_name = f"{file_to_move.stem}_{uuid.uuid4().hex[:8]}{file_to_move.suffix}"
+                    dest_file_path = dest_group_dir / new_name
+                    logger.warning(f"  파일명 충돌: '{file_to_move.name}'이(가) 대상 폴더에 이미 존재합니다. 새 이름 '{new_name}'(으)로 저장합니다.")
+
+                try:
+                    if dry_run:
+                        logger.info(f"(Dry Run) 이동 예정: '{file_to_move}' -> '{dest_file_path}'")
+                    else:
+                        safe_move(str(file_to_move), str(dest_file_path))
+                    logger.info(f"  이동: '{file_to_move}' -> '{dest_file_path}'")
+                    status["images_moved_to_c"]["value"] += 1
+                except Exception as e_move:
+                    logger.error(f"  파일 이동 오류 ('{file_to_move}'): {e_move}")
+                    status["move_errors"]["value"] += 1
+    except DiskFullError as e:
+        logger.critical(f"디스크 공간 부족으로 작업을 중단합니다. 오류: {e}")
     
     status["subdirectories_created_in_c"]["value"] = len(duplicate_groups)
     return status
@@ -287,67 +292,70 @@ def move_duplicate_photos_logic(
     logger.info(f"{len(common_hashes)}개의 중복 이미지 그룹(해시 기준)을 찾았습니다. 파일 이동을 시작합니다...")
 
     # 6. 공통 해시 그룹별로 파일 이동 처리
-    group_digit_width = calc_digit_number(len(common_hashes)) # 로그 출력용 자릿수
-    for group_idx, h_val in enumerate(common_hashes):
-        paths_from_sorc = hashes_sorc.get(h_val, [])
-        paths_from_trgt = hashes_trgt.get(h_val, [])
-        # 해당 해시를 가진 A와 B의 모든 파일 (통계용)
-        all_files_in_group_for_stats = paths_from_sorc + paths_from_trgt
-        status["total_duplicate_images_processed"]["value"] += len(all_files_in_group_for_stats)
+    try: # 디스크 공간 부족 예외를 처리하기 위한 외부 try 블록
+        group_digit_width = calc_digit_number(len(common_hashes)) # 로그 출력용 자릿수
+        for group_idx, h_val in enumerate(common_hashes):
+            paths_from_sorc = hashes_sorc.get(h_val, [])
+            paths_from_trgt = hashes_trgt.get(h_val, [])
+            # 해당 해시를 가진 A와 B의 모든 파일 (통계용)
+            all_files_in_group_for_stats = paths_from_sorc + paths_from_trgt
+            status["total_duplicate_images_processed"]["value"] += len(all_files_in_group_for_stats)
 
-        if not paths_from_trgt: # 대상 디렉토리(B)에 해당 해시의 파일이 없으면 건너<0xEB><0><0x8F><0xBB>니다.
-            logger.debug(f"  해시 {h_val}에 대해 대상 디렉토리(B)에 파일이 없습니다. 건너<0xEB><0><0x8F><0xBB>니다.")
-            continue
+            if not paths_from_trgt: # 대상 디렉토리(B)에 해당 해시의 파일이 없으면 건너<0xEB><0><0x8F><0xBB>니다.
+                logger.debug(f"  해시 {h_val}에 대해 대상 디렉토리(B)에 파일이 없습니다. 건너<0xEB><0><0x8F><0xBB>니다.")
+                continue
 
-        # 대표 파일명을 사용하여 하위 디렉토리 이름 결정 (첫 번째 파일의 이름 사용) + 고유 ID 추가
-        # all_files_in_group_for_stats는 paths_from_trgt가 비어있지 않으므로 최소 1개 이상의 요소를 가집니다.
-        representative_file_path = all_files_in_group_for_stats[0]
-        #  subdir_name_stem = f"{representative_file_path.stem}_{uuid.uuid4().hex[:8]}"     # 확장자 제외한 파일명으로 디렉토리 만들기
-        subdir_name_stem = h_val  # 해시값 자체를 디렉토리 이름으로 사용
-        dest_group_dir = dest_dir / subdir_name_stem # 대상 디렉토리 C 아래에 하위 디렉토리 경로 생성
-        
-        # 실제 생성된 디렉토리 추적용 set 정의 및 카운팅
-
-        try:
-            dest_group_dir.mkdir(parents=True, exist_ok=True)
-            # 이전에 생성되지 않았다면 카운트 (이미 존재할 수도 있음 - 다른 해시 그룹이 같은 stem을 가질 경우 드물게 발생 가능)
-            # 좀 더 정확하려면 생성된 디렉토리 set을 관리해야 하지만, 여기서는 단순화.
-            # status["subdirectories_created_in_c"]["value"] += 1 # 이 방식은 중복 카운트 가능
-        except OSError as e:
-            logger.error(f"하위 디렉토리 생성 실패 {dest_group_dir}: {e}")
-            status["move_errors"]["value"] += len(paths_from_trgt) # 이 그룹의 대상 디렉토리(B) 파일 이동 실패로 간주
-            continue
-        
-        logger.info(f"[{group_idx+1:{group_digit_width}}/{len(common_hashes)}] 그룹 '{subdir_name_stem}' 처리 중 (대상 디렉토리(B)에서 {len(paths_from_trgt)}개 파일 처리 예정)")
-
-        moved_filenames_in_dest_subdir = set() # 현재 그룹의 대상 하위 디렉토리에 이미 이동된 파일명들을 추적 (파일명 충돌 방지)
-
-        # 대상 디렉토리(B)의 파일만 처리합니다.
-        for file_from_trgt_dir in paths_from_trgt:
-            dest_file_path = dest_group_dir / file_from_trgt_dir.name # 최종 이동될 경로
+            # 대표 파일명을 사용하여 하위 디렉토리 이름 결정 (첫 번째 파일의 이름 사용) + 고유 ID 추가
+            # all_files_in_group_for_stats는 paths_from_trgt가 비어있지 않으므로 최소 1개 이상의 요소를 가집니다.
+            representative_file_path = all_files_in_group_for_stats[0]
+            #  subdir_name_stem = f"{representative_file_path.stem}_{uuid.uuid4().hex[:8]}"     # 확장자 제외한 파일명으로 디렉토리 만들기
+            subdir_name_stem = h_val  # 해시값 자체를 디렉토리 이름으로 사용
+            dest_group_dir = dest_dir / subdir_name_stem # 대상 디렉토리 C 아래에 하위 디렉토리 경로 생성
             
+            # 실제 생성된 디렉토리 추적용 set 정의 및 카운팅
+
             try:
-                if file_from_trgt_dir.name not in moved_filenames_in_dest_subdir:
-                    # 대상 하위 디렉토리에 아직 동일한 이름의 파일이 이동되지 않았다면 이동
-                    if dry_run:
-                        logger.info(f"(Dry Run) 이동 예정 (B에서 C로): '{file_from_trgt_dir}' -> '{dest_file_path}'")
+                dest_group_dir.mkdir(parents=True, exist_ok=True)
+                # 이전에 생성되지 않았다면 카운트 (이미 존재할 수도 있음 - 다른 해시 그룹이 같은 stem을 가질 경우 드물게 발생 가능)
+                # 좀 더 정확하려면 생성된 디렉토리 set을 관리해야 하지만, 여기서는 단순화.
+                # status["subdirectories_created_in_c"]["value"] += 1 # 이 방식은 중복 카운트 가능
+            except OSError as e:
+                logger.error(f"하위 디렉토리 생성 실패 {dest_group_dir}: {e}")
+                status["move_errors"]["value"] += len(paths_from_trgt) # 이 그룹의 대상 디렉토리(B) 파일 이동 실패로 간주
+                continue
+            
+            logger.info(f"[{group_idx+1:{group_digit_width}}/{len(common_hashes)}] 그룹 '{subdir_name_stem}' 처리 중 (대상 디렉토리(B)에서 {len(paths_from_trgt)}개 파일 처리 예정)")
+
+            moved_filenames_in_dest_subdir = set() # 현재 그룹의 대상 하위 디렉토리에 이미 이동된 파일명들을 추적 (파일명 충돌 방지)
+
+            # 대상 디렉토리(B)의 파일만 처리합니다.
+            for file_from_trgt_dir in paths_from_trgt:
+                dest_file_path = dest_group_dir / file_from_trgt_dir.name # 최종 이동될 경로
+                
+                try:
+                    if file_from_trgt_dir.name not in moved_filenames_in_dest_subdir:
+                        # 대상 하위 디렉토리에 아직 동일한 이름의 파일이 이동되지 않았다면 이동
+                        if dry_run:
+                            logger.info(f"(Dry Run) 이동 예정 (B에서 C로): '{file_from_trgt_dir}' -> '{dest_file_path}'")
+                        else:
+                            safe_move(str(file_from_trgt_dir), str(dest_file_path))
+                        logger.info(f"  이동 (B에서 C로): '{file_from_trgt_dir}' -> '{dest_file_path}'")
+                        moved_filenames_in_dest_subdir.add(file_from_trgt_dir.name)
+                        status["images_moved_to_c"]["value"] += 1
                     else:
-                        shutil.move(str(file_from_trgt_dir), str(dest_file_path))
-                    logger.info(f"  이동 (B에서 C로): '{file_from_trgt_dir}' -> '{dest_file_path}'")
-                    moved_filenames_in_dest_subdir.add(file_from_trgt_dir.name)
-                    status["images_moved_to_c"]["value"] += 1
-                else:
-                    # 대상 디렉토리(B) 내에서 같은 해시 그룹에 속하지만 파일명이 동일하여,
-                    # 하나는 C로 이동되고 나머지는 B에서 삭제되는 경우입니다.
-                    logger.info(f"  중복 파일명 (B 내): '{file_from_trgt_dir.name}' (대상 폴더 '{dest_group_dir.name}'에 이미 동일 해시의 다른 B파일 존재). 원본 '{file_from_trgt_dir}'(B에 위치) 삭제 중...")
-                    if dry_run:
-                        logger.info(f"(Dry Run) 삭제 예정 (B에서): '{file_from_trgt_dir}'")
-                    else:
-                        file_from_trgt_dir.unlink() # 원본 파일(B에 위치) 삭제
-                    status["source_files_removed_as_redundant"]["value"] += 1
-            except Exception as e_move:
-                logger.error(f"  파일 처리 오류 (B의 파일 '{file_from_trgt_dir}'): {e_move}")
-                status["move_errors"]["value"] += 1
+                        # 대상 디렉토리(B) 내에서 같은 해시 그룹에 속하지만 파일명이 동일하여,
+                        # 하나는 C로 이동되고 나머지는 B에서 삭제되는 경우입니다.
+                        logger.info(f"  중복 파일명 (B 내): '{file_from_trgt_dir.name}' (대상 폴더 '{dest_group_dir.name}'에 이미 동일 해시의 다른 B파일 존재). 원본 '{file_from_trgt_dir}'(B에 위치) 삭제 중...")
+                        if dry_run:
+                            logger.info(f"(Dry Run) 삭제 예정 (B에서): '{file_from_trgt_dir}'")
+                        else:
+                            file_from_trgt_dir.unlink() # 원본 파일(B에 위치) 삭제
+                        status["source_files_removed_as_redundant"]["value"] += 1
+                except Exception as e_move:
+                    logger.error(f"  파일 처리 오류 (B의 파일 '{file_from_trgt_dir}'): {e_move}")
+                    status["move_errors"]["value"] += 1
+    except DiskFullError as e:
+        logger.critical(f"디스크 공간 부족으로 작업을 중단합니다. 오류: {e}")
     
     # 생성된 하위 디렉토리 수 업데이트 (실제 생성된 유니크한 디렉토리 수)
     # common_hashes의 각 항목이 고유한 subdir_name_stem을 만든다고 가정 (대부분의 경우)

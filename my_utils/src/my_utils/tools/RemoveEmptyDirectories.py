@@ -5,7 +5,9 @@ from datetime import datetime
 import copy
 
 try:
-    from my_utils.config_utils.SimpleLogger import logger, calc_digit_number, get_argument, visual_length
+    from my_utils.config_utils.SimpleLogger import logger
+    from my_utils.config_utils.arg_utils import get_argument
+    from my_utils.config_utils.display_utils import calc_digit_number, visual_length
 except ImportError as e:
     print(f"치명적 오류: my_utils를 임포트할 수 없습니다. PYTHONPATH 및 의존성을 확인해주세요: {e}")
     sys.exit(1)

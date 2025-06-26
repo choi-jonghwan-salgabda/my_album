@@ -14,25 +14,25 @@ SimpleLogger.py
 """
 
 import os
+import sys
+import time # 필요에 따라 스레드 대기 등에 사용될 수 있습니다.
+import threading # threading 모듈 임포트
+import shutil
+from pathlib import Path
+from collections import deque
+from datetime import datetime
 import pprint
 import inspect
 import queue # queue 모듈 임포트
-import threading # threading 모듈 임포트
 import tempfile # tempfile 모듈 임포트
-import time # 필요에 따라 스레드 대기 등에 사용될 수 있습니다.
-import sys
 import yaml
 import errno
-import shutil
 import math
 import argparse
-from pathlib import Path
-from datetime import datetime
 import traceback
 from tqdm import tqdm # tqdm 진행률 바와의 호환성을 위해 임포트
 import unicodedata # visual_length 함수에서 사용
-from collections import deque
-from typing import List, Tuple, Optional
+from typing import List, Tuple
 import statistics
 
 # 로그 레벨 이름과 해당 정수 값을 정의합니다. 숫자가 낮을수록 더 상세한 로그 레벨입니다.
@@ -46,9 +46,6 @@ LOG_LEVELS = {
 
 # 비동기 파일 쓰기 스레드를 안전하게 종료시키기 위한 특별한 객체(Sentinel)입니다.
 _SENTINEL = object()
-
-# setup 메서드에서 인자가 전달되었는지 여부를 확인하기 위한 Sentinel 객체입니다.
-_SETUP_SENTINEL = object()
 
 class SimpleLogger:
     """
@@ -71,20 +68,13 @@ class SimpleLogger:
 
         self._async = False
         self._async_file_writing_enabled = False # 비동기 파일 쓰기 활성화 여부
-        self._log_queue: Optional[queue.Queue] = None # 비동기 로깅 시 사용할 메시지 큐
+        self._log_queue = deque(maxlen=10000)    # 비동기 로깅 시 사용할 메시지 큐
         self._stop_event = threading.Event()     # 비동기 쓰기 스레드 종료 이벤트
         self._writing_thread = None
         self._writer_thread = None               # 비동기 쓰기 스레드 객체
         self._file_handle = None                 # 파일 핸들 (비동기 쓰기 스레드에서 사용)
         self._initialized = False                # 로거가 독립 실행 모드로 초기화되었는지 여부
         self._tqdm_aware = False                 # tqdm 호환 출력 모드 활성화 여부
-        self._log_queue_max_size = 10000         # 비동기 로그 큐의 최대 크기
-        self._log_queue_full_warning_sent = False # 로그 큐가 가득 찼다는 경고를 보냈는지 여부
-
-        # --- Log Rotation 기능 추가 ---
-        self._log_rotation_max_bytes = 0  # 로그 회전 파일 최대 크기 (0은 비활성화)
-        self._log_rotation_backup_count = 5 # 유지할 백업 로그 파일 수
-        self._log_rotation_lock = threading.Lock() # 로그 회전 시 스레드 안전성을 위한 잠금
 
         # --- DiskSpaceMonitor 기능 통합 ---
         # DiskSpaceMonitor의 상태를 SimpleLogger의 속성으로 직접 관리합니다.
@@ -172,86 +162,82 @@ class SimpleLogger:
         self._initialized = True # 독립 실행 설정 완료 플래그
 
     def setup(self, 
-            logger_path: Optional[str] = _SETUP_SENTINEL, 
-            include_function_name: Optional[bool] = None, 
-            pretty_print: Optional[bool] = None, 
-            async_file_writing: Optional[bool] = None, 
-            console_min_level: Optional[str] = None, 
-            file_min_level: Optional[str] = None,
-            disk_monitor_threshold_percent: Optional[float] = None,
-            disk_monitor_check_interval_secs: Optional[int] = None,
-            log_queue_max_size: Optional[int] = None,
-            log_rotation_max_bytes: Optional[int] = None,
-            log_rotation_backup_count: Optional[int] = None
+        logger_path=None, 
+        include_function_name=None, 
+        pretty_print=None, 
+        async_file_writing=None, 
+        console_min_level='WARNING', 
+        file_min_level=None
         ):
         """
         로거 설정을 변경합니다. 각 인자는 None이 아닌 경우에만 해당 설정을 업데이트합니다.
 
         Args:
-            logger_path (str): 로그 파일 경로 (예: './logs/app.log').
-            file_min_level (str): 파일로 저장할 최소 로그 레벨. (DEBUG, INFO, WARNING, ERROR, CRITICAL)
-            console_min_level (str): 콘솔에 출력할 최소 로그 레벨.
-            include_function_name (bool): 로그 메시지에 호출 함수 이름 포함 여부.
-            pretty_print (bool): dict 또는 list 객체를 보기 좋게 출력할지 여부.
-            disk_monitor_threshold_percent (float, optional): 디스크 사용률이 이 값 이상일 경우 정밀 감시를 시작합니다.
-            disk_monitor_check_interval_secs (int, optional): 디스크 사용량을 다시 확인하는 간격 (초).
+            logger_path (str, optional): 로그를 기록할 파일 경로. None이면 파일 기록 비활성화.
+            file_min_level (str, optional): 기록할 최소 로그 레벨.
+            include_function_name (bool, optional): 로그 메시지에 호출 함수 이름을 포함할지 여부.
+            pretty_print (bool, optional): 딕셔너리/리스트를 예쁘게 출력할지 여부.
             async_file_writing (bool, optional): 비동기 파일 기록 사용 여부.
-            log_queue_max_size (int, optional): 비동기 로그 큐의 최대 크기를 설정합니다.
-            log_rotation_max_bytes (int, optional): 로그 파일을 회전시킬 최대 크기(바이트). 0이면 비활성화.
-            log_rotation_backup_count (int, optional): 유지할 백업 로그 파일의 수.
-
-        Returns:
-            None
         """
-        old_logger_path = self._logger_path
-        old_async_state = self._async_file_writing_enabled
+        # 변경될 수 있는 새로운 경로 임시 저장 (async 설정에 영향 줄 수 있음)
+        new_logger_path = logger_path if logger_path is not None else self._logger_path
 
-        # 1. 새로운 설정을 결정합니다. 인자가 전달되지 않았으면 기존 값을 유지합니다.
-        new_logger_path = logger_path if logger_path is not _SETUP_SENTINEL else old_logger_path
+        # 변경될 수 있는 비동기 설정 임시 저장
         desired_async_state = async_file_writing if async_file_writing is not None else self._async_file_writing_enabled
 
-        # 2. 비동기 쓰기 스레드의 상태를 관리합니다.
-        # 스레드를 중지해야 하는 경우: (1) 현재 켜져 있고 (2) 끄라는 요청이 있거나, 경로가 없어지거나, 경로가 바뀔 때
-        if old_async_state and (not desired_async_state or new_logger_path is None or new_logger_path != old_logger_path):
+        # --- 비동기 쓰기 스레드 상태 변화 감지 및 처리 로직 ---
+        # Case 1: 비동기 쓰기 비활성화 요청 또는 경로가 None이 됨 (async 중지)
+        # 또는 비동기 활성화 상태에서 경로가 변경됨 (async 중지 후 재시작)
+        is_path_changing = (logger_path is not None and logger_path != self._logger_path)
+        needs_async_stop = (
+            self._async_file_writing_enabled and
+            (desired_async_state is False or new_logger_path is None or is_path_changing)
+        )
+
+        if needs_async_stop:
+            # 비동기 쓰기 스레드 중지
             self._stop_async_writer()
 
-        # 3. 로거의 속성들을 업데이트합니다.
-        if logger_path is not _SETUP_SENTINEL:
-            self._logger_path = logger_path
+        # Case 2: 비동기 쓰기 활성화 요청 또는 비동기 활성화 상태에서 경로가 변경됨 (async 시작/재시작)
+        # 단, 새 경로가 유효해야 함
+        needs_async_start = (
+             desired_async_state is True and
+             new_logger_path is not None and # 유효한 경로 필요
+             (not self._async_file_writing_enabled or is_path_changing) # 현재 비활성화 상태이거나 경로가 변경된 경우
+        )
 
+        # 로거 경로 업데이트 (stop 로직 이후, start 로직 이전에)
+        if logger_path is not None:
+             # 새 로그 파일 경로 설정
+             self._logger_path = logger_path
+             # 만약 async_file_writing 설정은 None으로 넘어왔는데 logger_path가 None이 되었고 async가 켜져있었다면
+             # 위 needs_async_stop에서 이미 async는 꺼졌을 것입니다.
+
+        if needs_async_start:
+             # 새 경로로 비동기 쓰기 스레드 시작
+             self._start_async_writer(self._logger_path)
+
+        # --- 나머지 설정 업데이트 ---
         if file_min_level is not None:
+            # 최소 로그 레벨 업데이트
             self._file_min_level = self._validate_level(file_min_level)
             self._file_min_level_int = self.LOG_LEVELS[self._file_min_level]
         if include_function_name is not None:
+            # 함수 이름 포함 여부 업데이트
             self._include_function_name = bool(include_function_name)
         if pretty_print is not None:
-            self._pretty_print = bool(pretty_print)
-        if console_min_level is not None:
-            self._console_min_level = self._validate_level(console_min_level)
+            # Pretty print 사용 여부 업데이트
+             self._pretty_print = bool(pretty_print)
+        # self._async_file_writing_enabled는 _start_async_writer/_stop_async_writer 에서 설정됨
 
-        # 4. 비동기 쓰기 스레드를 시작해야 하는 경우 시작합니다.
-        # 스레드가 꺼져 있고, 켜라는 요청이 있으며, 경로가 유효할 때
-        if desired_async_state and new_logger_path is not None and not self._async_file_writing_enabled:
-            self._start_async_writer(new_logger_path)
-
-        # 5. 비동기 쓰기가 요청되었으나 경로가 없는 경우 경고
-        if desired_async_state and new_logger_path is None:
+        # 비동기 쓰기가 요청되었으나 경로가 없을 경우 경고
+        if async_file_writing is True and self._logger_path is None:
             print("경고: 비동기 파일 기록을 요청했지만 로그 파일 경로가 지정되지 않았습니다. 비동기 기록을 활성화할 수 없습니다.")
 
-        # --- Disk Monitor 설정 업데이트 ---
-        if disk_monitor_threshold_percent is not None:
-            self._disk_threshold_percent = float(disk_monitor_threshold_percent)
-        if disk_monitor_check_interval_secs is not None:
-            self._disk_check_interval_secs = int(disk_monitor_check_interval_secs)
-        
-        if log_queue_max_size is not None:
-            self._log_queue_max_size = int(log_queue_max_size)
-        
-        # --- Log Rotation 설정 업데이트 ---
-        if log_rotation_max_bytes is not None:
-            self._log_rotation_max_bytes = int(log_rotation_max_bytes)
-        if log_rotation_backup_count is not None:
-            self._log_rotation_backup_count = int(log_rotation_backup_count)
+        if console_min_level is not None:
+            self._console_min_level = self._validate_level(console_min_level)
+        if file_min_level is not None:
+            self._file_min_level = self._validate_level(file_min_level)
 
     def _async_writer_task(self, log_file_path):
         """
@@ -264,55 +250,49 @@ class SimpleLogger:
         """
         print(f"비동기 로깅 스레드 시작. 파일: {log_file_path}")
         try:
-            # 파일 핸들을 스레드 내부에 유지합니다.
-            self._file_handle = None
-            # 로그 디렉토리가 없으면 생성
+            # 디렉토리가 없으면 생성
             log_dir = os.path.dirname(log_file_path)
             if log_dir and not os.path.exists(log_dir):
                 os.makedirs(log_dir, exist_ok=True)
-            self._file_handle = open(log_file_path, 'a', encoding='utf-8', errors='surrogateescape')
 
-            while not self._stop_event.is_set():
-                try:
-                    # 큐에서 메시지 가져오기 (짧은 타임아웃 사용)
-                    message = self._log_queue.get(timeout=0.1)
+            # 파일 열기
+            # Note: 파일 핸들을 스레드 내부에 유지합니다.
+            with open(log_file_path, 'a', encoding='utf-8', errors='surrogateescape') as f: # 추가 모드('a')로 파일 열기, 에러 핸들러 추가
+                self._file_handle = f # 클래스 속성에 파일 핸들 저장 (shutdown에서 필요할 수 있음)
+                while not self._stop_event.is_set():
+                    try:
+                        # 큐에서 메시지 가져오기 (짧은 타임아웃 사용)
+                        # 타임아웃이 없으면 stop_event.is_set()을 확인하기 어려움
+                        message = self._log_queue.get(timeout=0.1)
 
-                    if message is _SENTINEL:
-                        # 종료 Sentinel을 받으면 루프 종료
-                        print("비동기 로깅 스레드: 종료 Sentinel 수신.")
-                        break
-                    
-                    # --- 로그 회전 확인 ---
-                    if self._log_rotation_max_bytes > 0:
-                        # 현재 파일 크기가 임계값을 넘으면 회전
-                        # 메시지 길이도 고려하여 회전 여부 결정
-                        if self._file_handle.tell() + len(message.encode('utf-8', 'surrogateescape')) >= self._log_rotation_max_bytes:
-                            self._file_handle.close() # 현재 파일 핸들 닫기
-                            self._rotate_log_file() # 파일 회전
-                            # 회전 후 새 파일 핸들 열기
-                            self._file_handle = open(log_file_path, 'a', encoding='utf-8', errors='surrogateescape')
+                        if message is _SENTINEL:
+                            # 종료 Sentinel을 받으면 루프 종료
+                            print("비동기 로깅 스레드: 종료 Sentinel 수신.")
+                            break
+                        
+                        # 메시지 파일에 쓰기
+                        f.write(message + '\n')
+                        f.flush() # 매 메시지마다 파일 버퍼를 비워 디스크에 즉시 기록 (안전하지만 성능에 영향 가능)
+                        self._log_queue.task_done() # 큐 작업 완료 알림
 
-                    # 메시지 파일에 쓰기
-                    self._file_handle.write(message + '\n')
-                    self._file_handle.flush() # 매 메시지마다 파일 버퍼를 비워 디스크에 즉시 기록
-                    self._log_queue.task_done() # 큐 작업 완료 알림
-
-                except queue.Empty:
-                    # 큐가 비어있으면 타임아웃 발생. 루프 조건(stop_event) 다시 확인.
-                    continue
-                except Exception as e:
-                    # 파일 쓰기 중 오류 발생 시 콘솔에 알림
-                    print(f"오류: 비동기 쓰기 스레드에서 파일 '{log_file_path}'에 쓰기 실패: {e}")
-                    if self._log_queue.qsize() > 0: # 오류 발생했더라도 메시지는 큐에서 제거
-                            self._log_queue.task_done()
+                    except queue.Empty:
+                        # 큐가 비어있으면 타임아웃 발생. 루프 조건(stop_event) 다시 확인.
+                        pass
+                    except Exception as e:
+                        # 파일 쓰기 중 오류 발생 시 콘솔에 알림
+                        print(f"오류: 비동기 쓰기 스레드에서 파일 '{log_file_path}'에 쓰기 실패: {e}")
+                        # 심각한 오류 시 스레드를 중지할 수도 있지만, 여기서는 계속 시도
+                        if self._log_queue.qsize() > 0: # 오류 발생했더라도 메시지는 큐에서 제거
+                             self._log_queue.task_done()
 
         except Exception as e:
             print(f"오류: 비동기 로깅 스레드 초기화 또는 파일 열기 실패: {e}")
 
         finally:
+            # 루프 종료 후 파일 닫기
             if self._file_handle and not self._file_handle.closed:
-                self._file_handle.close()
-                print(f"비동기 로깅 스레드: 파일 '{log_file_path}' 닫힘.")
+                 self._file_handle.close()
+                 print(f"비동기 로깅 스레드: 파일 '{log_file_path}' 닫힘.")
             self._file_handle = None # 핸들 해제
             print("비동기 로깅 스레드 종료.")
 
@@ -336,8 +316,8 @@ class SimpleLogger:
 
         print(f"비동기 쓰기 스레드 시작 요청. 경로: {path}")
         self._logger_path = path # 스레드 시작 전에 경로 확정
-        self._log_queue = queue.Queue(maxsize=self._log_queue_max_size) # 최대 크기가 있는 큐 생성
-        self._stop_event = threading.Event() # 스레드 종료를 위한 이벤트 객체 생성 (재사용 가능하도록)
+        self._log_queue = queue.Queue()      # 로그 메시지를 담을 큐 생성
+        self._stop_event = threading.Event() # 스레드 종료를 위한 이벤트 객체 생성
         # 데몬 스레드 사용 시 메인 프로그램 종료 시 강제 종료될 수 있음
         # 명시적인 shutdown() 호출을 권장합니다.
         self._writer_thread = threading.Thread(target=self._async_writer_task, args=(self._logger_path,), daemon=False) # daemon=False로 명시적 종료 대기
@@ -463,14 +443,15 @@ class SimpleLogger:
         print("----------------------")
 
     def _get_caller_function_name(self):
-        """
-        로깅 함수를 호출한 실제 사용자 함수 이름을 가져옵니다.
-        로거 내부의 래퍼 함수(예: debug, info, warning, error, critical, log, _format_message)를 건너뜁니다.
-        """
+        """로깅 함수를 호출한 상위 함수 이름을 가져옵니다."""
         if not self._include_function_name:
+            # 함수 이름 포함 설정이 꺼져있으면 None 반환
             return None
 
-        stack = inspect.stack()
+        # 현재 실행 중인 프레임 정보를 가져옵니다.
+        # inspect.currentframe()은 현재 함수의 프레임을 반환합니다.
+        # 호출 스택을 거슬러 올라가 로깅 함수를 호출한 함수의 이름을 찾습니다.
+        frame = inspect.currentframe()
         # 스택 구조: currentframe -> _get_caller_function_name -> log -> level_method -> user_function
         # user_function의 프레임은 currentframe 기준으로 4단계 위에 있습니다.
         # frame0: currentframe (_get_caller_function_name 내부)
@@ -481,22 +462,29 @@ class SimpleLogger:
 
         caller_frame = None
         try:
-            # 로거 파일의 절대 경로를 가져옵니다.
-            logger_file_path = Path(__file__).resolve()
+            # 4단계 위 프레임을 얻어보자. (simple_logger 클래스 내 메소드 호출 스택 고려)
+            # log -> info/debug/etc -> user_function
+            # _format_message -> log -> info/debug/etc -> user_function
+            # _get_caller_function_name -> _format_message -> log -> info/debug/etc -> user_function
+            # 즉 _get_caller_function_name에서 user_function까지는 4단계
+            # 스택 프레임이 충분히 깊은지 확인하여 AttributeError 방지
+            if frame and frame.f_back and frame.f_back.f_back and frame.f_back.f_back.f_back and frame.f_back.f_back.f_back.f_back:
+                 caller_frame = frame.f_back.f_back.f_back.f_back
+                 function_name = caller_frame.f_code.co_name
+                 return function_name
+            elif frame and frame.f_back and frame.f_back.f_code.co_name == 'log': # 직접 log()를 호출한 경우
+                 caller_frame = frame.f_back
+                 function_name = caller_frame.f_code.co_name
+                 return function_name
+            else:
+                 return "UnknownFunction" # 스택 깊이가 예상과 다르거나 프레임이 없는 경우
 
-            # 스택을 역순으로 탐색하여 로거 파일 외부의 첫 번째 호출자를 찾습니다.
-            # stack[0]은 _get_caller_function_name 자신입니다.
-            for frame_info in stack:
-                if Path(frame_info.filename).resolve() != logger_file_path:
-                    return frame_info.function
-            return "UnknownFunction" # 로거 외부의 호출자를 찾지 못한 경우
-        except Exception as e:
-            self.error(f"함수 이름 가져오기 오류: {e}", exc_info=True)
+        except Exception:
             return "ErrorGettingFunctionName"
         finally:
-            # 스택 객체는 잠재적으로 큰 메모리를 차지하고 순환 참조를 유발할 수 있으므로,
-            # 사용 후 명시적으로 삭제하여 메모리 누수를 방지하는 것이 좋습니다.
-            del stack
+            # 프레임 객체는 순환 참조를 유발할 수 있으므로 사용 후 명시적으로 해제하는 것이 좋습니다.
+            del frame
+            # caller_frame도 필요 이상 유지하지 않도록 처리 (여기서는 반환 후 GC 대상)
 
     def _format_message(self, message, level):
         """
@@ -538,22 +526,6 @@ class SimpleLogger:
 
         return formatted_output
 
-    def _write_to_file_sync(self, formatted_message: str):
-        """동기적으로 파일에 직접 씁니다."""
-        if not self._logger_path:
-            return
-        try:
-            # 디렉토리가 없으면 생성
-            log_dir = os.path.dirname(self._logger_path)
-            if log_dir and not os.path.exists(log_dir):
-                os.makedirs(log_dir, exist_ok=True)
-
-            # 파일에 메시지 추가 모드로 쓰기
-            with open(self._logger_path, 'a', encoding='utf-8', errors='surrogateescape') as f:
-                f.write(formatted_message + '\n')
-        except Exception as e:
-            print(f"오류: 동기 모드에서 로그 파일 '{self._logger_path}'에 쓰기 실패: {e}")
-
     def _write_to_file(self, formatted_message):
         """
         포맷된 로그 메시지를 파일에 기록합니다.
@@ -570,28 +542,23 @@ class SimpleLogger:
             # 비동기 모드: 메시지를 큐에 넣음
             if self._log_queue:
                 try:
-                    # Non-blocking put을 사용하여 큐가 가득 찼을 때 프로그램이 멈추는 것을 방지
-                    self._log_queue.put_nowait(formatted_message)
-                    # 큐에 성공적으로 추가되면, 이전에 경고를 보냈더라도 이제 공간이 생겼을 수 있으므로 플래그를 리셋
-                    self._log_queue_full_warning_sent = False
-                except queue.Full:
-                    # 큐가 가득 차서 현재 로그 메시지는 유실됩니다.
-                    # 경고 메시지를 반복적으로 출력하지 않도록 플래그를 사용합니다.
-                    if not self._log_queue_full_warning_sent:
-                        warning_msg = f"경고: 비동기 로그 큐가 가득 찼습니다 (최대: {self._log_queue.maxsize}개). 일부 로그가 유실됩니다."
-                        # 이 경고 메시지는 큐에 넣지 않고 직접 출력/기록합니다.
-                        formatted_warning = self._format_message(warning_msg, "WARNING")
-                        try:
-                            self._print(formatted_warning)
-                        except Exception:
-                            pass # 오류 보고 중 오류 발생 방지
-                        self._write_to_file_sync(formatted_warning)
-                        self._log_queue_full_warning_sent = True
+                    self._log_queue.put(formatted_message) # 큐에 메시지 추가
                 except Exception as e:
                     print(f"오류: 비동기 큐에 메시지 추가 실패: {e}")
         else:
             # 동기 모드: 즉시 파일에 쓰기
-            self._write_to_file_sync(formatted_message)
+            try:
+                # 디렉토리가 없으면 생성
+                log_dir = os.path.dirname(self._logger_path)
+                if log_dir and not os.path.exists(log_dir):
+                    os.makedirs(log_dir, exist_ok=True)
+
+                # 파일에 메시지 추가 모드로 쓰기
+                with open(self._logger_path, 'a', encoding='utf-8', errors='surrogateescape') as f: # 'a' (append) 모드로 파일 열기, 에러 핸들러 추가
+                    f.write(formatted_message + '\n')
+            except Exception as e:
+                # 파일 쓰기 실패 시 에러 메시지 출력 (기본 print 사용)
+                print(f"오류: 동기 모드에서 로그 파일 '{self._logger_path}'에 쓰기 실패: {e}")
 
     def log(self, message, level="INFO"):
         level_str = self._validate_level(level)
@@ -650,29 +617,6 @@ class SimpleLogger:
         """CRITICAL 레벨의 로그를 기록합니다."""
         self.log(message, level="CRITICAL")
 
-    def _rotate_log_file(self):
-        """로그 파일을 회전시킵니다."""
-        if not self._logger_path or not os.path.exists(self._logger_path):
-            return
-
-        with self._log_rotation_lock: # 회전 작업 중 다른 스레드가 파일에 접근하지 못하도록 잠금
-            self.info(f"로그 파일 회전 시작: {self._logger_path}")
-            # 백업 파일 이름 변경 (e.g., app.log.1 -> app.log.2, app.log.2 -> app.log.3)
-            for i in range(self._log_rotation_backup_count - 1, 0, -1):
-                sfn = f"{self._logger_path}.{i}"
-                dfn = f"{self._logger_path}.{i + 1}"
-                if os.path.exists(sfn):
-                    if os.path.exists(dfn):
-                        os.remove(dfn)
-                    os.rename(sfn, dfn)
-
-            # 현재 로그 파일을 첫 번째 백업 파일로 이름 변경 (e.g., app.log -> app.log.1)
-            dfn = f"{self._logger_path}.1"
-            if os.path.exists(dfn):
-                os.remove(dfn)
-            os.rename(self._logger_path, dfn)
-            self.info(f"로그 파일이 회전되었습니다. 이전 로그는 {dfn} 에서 확인할 수 있습니다.")
-
     # --- DiskSpaceMonitor 통합 메서드 ---
     def _disk_get_device_info(self, path: Path) -> Tuple[int, Path]:
         """주어진 경로의 장치 ID와 해당 장치에 존재하는 경로를 가져옵니다."""
@@ -687,38 +631,22 @@ class SimpleLogger:
             return os.stat(root_path).st_dev, root_path
 
     def _disk_update_monitoring_status(self, dev_id: int, existing_path_on_device: Path):
-        """주기적으로 디스크 사용량을 확인하고 모니터링 상태를 동적으로 업데이트합니다."""
+        """주기적으로 디스크 사용량을 확인하고 모니터링 상태를 업데이트합니다."""
         now = time.time()
         dev_info = self._disk_monitoring_devices.get(dev_id, {'monitoring': False, 'last_check': 0})
-        was_monitoring = dev_info.get('monitoring', False)
 
-        # 마지막 확인 후 일정 시간이 지났으면 항상 재확인
-        if now - dev_info.get('last_check', 0) > self._disk_check_interval_secs:
+        if not dev_info['monitoring'] and (now - dev_info['last_check'] > self._disk_check_interval_secs):
             try:
                 usage = shutil.disk_usage(existing_path_on_device)
                 percent_used = (usage.used / usage.total) * 100
                 dev_info['last_check'] = now
-
                 if percent_used >= self._disk_threshold_percent:
-                    # 임계값을 넘으면 정밀 감시 활성화
+                    self.warning(f"장치 {dev_id}의 디스크 사용량이 {percent_used:.2f}%로, 임계값({self._disk_threshold_percent}%)을 초과했습니다. 이 장치에 대한 정밀 검사를 활성화합니다.")
                     dev_info['monitoring'] = True
-                    if not was_monitoring:
-                        # 이전에 감시 중이 아니었다면, 상태 변경을 알림
-                        self.warning(f"장치 {dev_id}의 디스크 사용량이 {percent_used:.2f}%로, 임계값({self._disk_threshold_percent}%)을 초과했습니다. 이 장치에 대한 정밀 검사를 활성화합니다.")
-                else:
-                    # 임계값 미만이면 정밀 감시 비활성화
-                    dev_info['monitoring'] = False
-                    if was_monitoring:
-                        # 이전에 감시 중이었다면, 상태 변경을 알림
-                        self.info(f"장치 {dev_id}의 디스크 사용량이 {percent_used:.2f}%로, 임계값({self._disk_threshold_percent}%) 미만으로 회복되었습니다. 정밀 검사를 비활성화합니다.")
-                
                 self._disk_monitoring_devices[dev_id] = dev_info
             except Exception as e:
                 self.error(f"장치 {dev_id}의 디스크 공간 확인 실패: {e}")
-                # 오류 발생 시 안전을 위해 모니터링 상태를 유지하거나, 기본값으로 되돌릴 수 있음
-                # 여기서는 마지막 상태를 유지하도록 별도 처리를 하지 않음
-                dev_info['last_check'] = now # 오류가 났더라도 체크 시간은 업데이트하여 반복적인 오류 방지
-                self._disk_monitoring_devices[dev_id] = dev_info
+                self._disk_monitoring_devices[dev_id] = {'monitoring': False, 'last_check': now}
 
     def disk_pre_write_check(self, dest_path: Path, size_to_write: int):
         """파일을 쓰기 전에 디스크 공간이 충분한지 확인합니다."""
@@ -731,17 +659,9 @@ class SimpleLogger:
                     usage = shutil.disk_usage(existing_path_on_device)
                     if usage.free < size_to_write:
                         raise DiskFullError(f"사전 검사 실패: '{dest_path}'에 {size_to_write} 바이트를 쓸 공간이 부족합니다. (남은 공간: {usage.free} 바이트)")
-                except DiskFullError:
-                    # 이 예외는 의도적으로 발생시킨 것이므로, 다시 발생시켜 호출자에게 전달합니다.
-                    raise
                 except Exception as e:
-                    # shutil.disk_usage() 등에서 발생할 수 있는 다른 예외들은 로깅합니다.
-                    self.error(f"디스크 공간 사전 검사 중 예상치 못한 오류 발생: {e}")
+                    self.error(f"디스크 공간 사전 검사 중 오류 발생: {e}")
     # --- 통합 완료 ---
-
-# === 공유 로거 인스턴스 ===
-# 이 logger 인스턴스를 다른 모듈에서 import하여 사용합니다.
-logger = SimpleLogger()
 
 def make_normaized_path(arg_path:Path)->Path:
     # Configger 클래스 또는 경로 처리 함수 내에서
@@ -755,6 +675,11 @@ def make_normaized_path(arg_path:Path)->Path:
 
     # 최종적으로 normalized_path 사용
     return normalized_path
+
+
+# === 공유 로거 인스턴스 ===
+# 이 logger 인스턴스를 다른 모듈에서 import하여 사용합니다.
+logger = SimpleLogger()
 
 # def reset_logger(file_min_level = 'INFO'):
 #     """
@@ -778,11 +703,9 @@ def make_normaized_path(arg_path:Path)->Path:
 #     )
 #     logger.info(f"애플리케이션 로거 초기화 완료. 로그 파일: {log_file_path}")
 #     logger.show_config()
-class DiskFullError(Exception):
-    def __init__(self, message, code="DISK_FULL", percent_used=None):
-        super().__init__(message)
-        self.code = code
-        self.percent_used = percent_used
+class DiskFullError(OSError):
+    """디스크 공간 부족 시 발생하는 예외"""
+    pass
 
 def check_disk_space(path: Path, min_free_bytes: int = 1 * 1024**3) -> bool:
     """경로가 속한 디스크의 여유 공간이 최소 요구량 이상인지 확인"""
@@ -1266,12 +1189,6 @@ if __name__ == "__main__":
             # 이렇게 하면 디스크 사용량이 조금만 있어도 '정밀 모니터링' 상태가 됩니다.
             logger._disk_threshold_percent = 0.0001
             logger._disk_check_interval_secs = 0.01 # 짧은 간격으로 확인하여 즉시 모니터링 상태 반영
-            logger.setup(
-                disk_monitor_threshold_percent=0.0001,
-                disk_monitor_check_interval_secs=0.01
-            )
-            logger._disk_threshold_percent = 0.0001
-            logger._disk_check_interval_secs = 0.01 # 짧은 간격으로 확인하여 즉시 모니터링 상태 반영
             logger._disk_monitoring_devices = {} # 이전 모니터링 상태 초기화
 
             # 재차 safe_copy 시도 (DiskFullError가 발생할 수 있는지 확인)
@@ -1308,52 +1225,14 @@ if __name__ == "__main__":
             logger.error(f"디스크 공간 모니터 테스트 중 최상위 오류 발생: {e}", exc_info=True)
         finally:
             # 원래 임계값과 간격으로 복원하고 모니터링 상태를 초기화합니다.
-            logger.setup(
-                disk_monitor_threshold_percent=original_threshold,
-                disk_monitor_check_interval_secs=original_interval
-            )
+            logger._disk_threshold_percent = original_threshold
+            logger._disk_check_interval_secs = original_interval
             logger._disk_monitoring_devices = {} # 모니터링 상태 초기화
 
             if temp_dir and temp_dir.exists():
                 logger.info(f"임시 테스트 디렉토리 삭제: {temp_dir}")
                 shutil.rmtree(temp_dir)
             logger.info("--- Disk Space Monitor 테스트 완료 ---")
-
-    def test_log_rotation():
-        print("\n--- Test: Log Rotation ---")
-        log_dir = Path("./logs_rotation_test")
-        if log_dir.exists():
-            shutil.rmtree(log_dir)
-        log_dir.mkdir()
-        log_path = log_dir / "rotation_test.log"
-
-        # 작은 크기로 로그 회전 설정
-        logger.setup(
-            logger_path=str(log_path),
-            log_rotation_max_bytes=1024, # 1KB
-            log_rotation_backup_count=3,
-            file_min_level="DEBUG",
-            async_file_writing=False # 동기 모드로 테스트하여 즉시 파일 크기 확인
-        )
-        logger.info("--- 로그 회전 테스트 시작 ---")
-
-        # 1KB를 초과하는 로그 메시지 작성
-        long_message = "A" * 200 # 200바이트 메시지
-        for i in range(10): # 10 * 200 = 2000 바이트 (1KB 초과)
-            logger.debug(f"로그 메시지 {i}: {long_message}")
-
-        # 파일 존재 여부 확인
-        if (log_dir / "rotation_test.log").exists() and \
-           (log_dir / "rotation_test.log.1").exists():
-            logger.info("[성공] 로그 회전이 성공적으로 수행되었습니다. rotation_test.log 와 rotation_test.log.1 파일이 생성되었습니다.")
-        else:
-            logger.error(f"[실패] 로그 회전이 수행되지 않았습니다. 파일 존재 여부: {(log_dir / 'rotation_test.log').exists()}, {(log_dir / 'rotation_test.log.1').exists()}")
-
-        # 정리
-        shutil.rmtree(log_dir)
-        logger.info("로그 회전 테스트 디렉토리 정리 완료.")
-        # 로거 설정을 기본값으로 되돌림
-        logger.setup(logger_path=None, log_rotation_max_bytes=0) # 로그 회전 기능 비활성화
 
     def async_test_4():
 
@@ -1373,7 +1252,6 @@ if __name__ == "__main__":
     # 정의된 테스트 함수들 실행
     test_disk_space_monitor() # 새로운 테스트 함수 호출
     test_1()
-    test_log_rotation() # 로그 회전 테스트 호출
     test_2()
     async_test_3()
     async_test_4()
