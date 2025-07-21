@@ -114,6 +114,7 @@ processing:
   - .tiff
   - .gif
   - .webp
+  - .heic # 새로운 포맷 추가 예시
 
   frame_skip: 1 # 영상 처리 시 프레임 스킵
   output_format: image # 결과 저장 형식
