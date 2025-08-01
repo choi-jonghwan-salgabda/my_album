@@ -23,6 +23,7 @@ import time # 필요에 따라 스레드 대기 등에 사용될 수 있습니�
 import sys
 import yaml
 import shutil
+import textwrap
 from pathlib import Path
 from datetime import datetime
 import traceback
@@ -82,6 +83,7 @@ class SimpleLogger:
         self._tqdm_aware = False                 # tqdm 호환 출력 모드 활성화 여부
         self._log_queue_max_size = 10000         # 비동기 로그 큐의 최대 크기
         self._log_queue_full_warning_sent = False # 로그 큐가 가득 찼다는 경고를 보냈는지 여부
+        self._max_log_line_width = 0             # 로그 메시지 최대 너비 (0은 비활성화)
 
         # --- Log Rotation 기능 추가 ---
         self._log_rotation_max_bytes = 0  # 로그 회전 파일 최대 크기 (0은 비활성화)
@@ -184,7 +186,8 @@ class SimpleLogger:
             disk_monitor_check_interval_secs: Optional[int] = None,
             log_queue_max_size: Optional[int] = None,
             log_rotation_max_bytes: Optional[int] = None,
-            log_rotation_backup_count: Optional[int] = None
+            log_rotation_backup_count: Optional[int] = None,
+            log_line_max_width: Optional[int] = None
         ):
         """
         로거 설정을 변경합니다. 각 인자는 None이 아닌 경우에만 해당 설정을 업데이트합니다.
@@ -201,6 +204,7 @@ class SimpleLogger:
             log_queue_max_size (int, optional): 비동기 로그 큐의 최대 크기를 설정합니다.
             log_rotation_max_bytes (int, optional): 로그 파일을 회전시킬 최대 크기(바이트). 0이면 비활성화.
             log_rotation_backup_count (int, optional): 유지할 백업 로그 파일의 수.
+            log_line_max_width (int, optional): 로그 메시지의 최대 너비. 초과 시 자동 줄바꿈. 0은 비활성화.
 
         Returns:
             None
@@ -254,6 +258,8 @@ class SimpleLogger:
             self._log_rotation_max_bytes = int(log_rotation_max_bytes)
         if log_rotation_backup_count is not None:
             self._log_rotation_backup_count = int(log_rotation_backup_count)
+        if log_line_max_width is not None:
+            self._max_log_line_width = int(log_line_max_width)
 
     def _async_writer_task(self, log_file_path):
         """
@@ -514,18 +520,19 @@ class SimpleLogger:
             str: 포맷팅된 최종 로그 메시지 문자열.
         """
         timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-
-        pid = os.getpid() # 현재 프로세스 ID 가져오기
-        header_parts = [f"[{pid:>5}]", f"[{timestamp}]", f"[{(level.upper()):8s}]"] # PID 추가 (5자리로 오른쪽 정렬)
+        
+        pid_str = f"{os.getpid():>5}"
+        level_str = f"{level.upper():<8}" # 8자리로 왼쪽 정렬
+        header_parts = [pid_str, timestamp, level_str]
 
         # 함수 이름 포함 설정이 켜져있으면 함수 이름을 가져와 헤더에 추가
         if self._include_function_name:
             # 함수 이름 포함 설정이 켜져있으면, 호출 함수 이름을 가져와 헤더에 추가
             function_name = self._get_caller_function_name()
             if function_name and function_name != '<module>': # 함수 이름을 성공적으로 가져왔고 메인 모듈이 아니면 추가
-                header_parts.append(f"[{function_name}]")
+                header_parts.append(f"{function_name}")
 
-        header = " ".join(header_parts)
+        header = f"[{'|'.join(header_parts)}]"
 
         # 메시지 내용 포맷팅 (pretty_print 설정에 따름)
         if isinstance(message, (dict, list)) and self._pretty_print:
@@ -536,7 +543,29 @@ class SimpleLogger:
         else:
             # 그 외 타입은 문자열로 변환
             message_content = str(message)
-            formatted_output = f"{header} {message_content}" # 헤더와 한 줄로 표시
+
+            # 자동 줄바꿈 기능 추가
+            if self._max_log_line_width > 0:
+                header_len = len(header) + 1  # 헤더 + 공백
+                # 메시지가 들어갈 수 있는 최대 너비
+                message_width = self._max_log_line_width - header_len
+
+                if message_width > 10: # 줄바꿈을 적용하기에 너무 좁으면 의미 없음
+                    lines = textwrap.wrap(message_content, width=message_width, break_long_words=False, replace_whitespace=False)
+                    if len(lines) > 1:
+                        first_line = f"{header} {lines[0]}"
+                        # 나머지 줄들은 헤더 길이만큼 들여쓰기
+                        other_lines = [" " * header_len + line for line in lines[1:]]
+                        formatted_output = "\n".join([first_line] + other_lines)
+                    else:
+                        # 줄바꿈이 필요 없는 경우
+                        formatted_output = f"{header} {message_content}"
+                else:
+                    # 줄바꿈을 적용하기에 너비가 너무 좁은 경우
+                    formatted_output = f"{header} {message_content}"
+            else:
+                # 줄바꿈 기능이 비활성화된 경우
+                formatted_output = f"{header} {message_content}"
 
         return formatted_output
 

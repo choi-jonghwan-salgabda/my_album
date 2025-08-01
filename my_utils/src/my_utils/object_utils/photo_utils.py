@@ -9,9 +9,7 @@ from typing import List, Dict, Any, Union, Optional # Optional 추가
 import dlib
 import cv2
 import numpy as np
-from PIL import Image, ExifTags
-
-
+from PIL import Image, ExifTags, UnidentifiedImageError
 
 # shared_utils 패키지에서 configger 클래스 가져오기
 # shared_utils 프로젝트의 src/utility/configger.py에 configger 클래스가 있다고 가정
@@ -25,7 +23,70 @@ except ImportError as e:
 # 이 파일 내에서 직접적인 로깅은 최소화하고, 호출하는 쪽에서 로깅을 처리한다고 가정합니다.
 # 필요시 logger 객체를 함수 인자로 받거나 전역 로거를 사용할 수 있습니다.
 
+def calculate_sha256(file_path: Path) -> Optional[str]:
+    """
+    주어진 파일 경로에 대해 SHA256 해시 값을 계산하여 문자열로 반환합니다.
+    """
+    sha256_hash = hashlib.sha256()
+    try:
+        with open(file_path, "rb") as f:
+            for byte_block in iter(lambda: f.read(4096), b""):
+                sha256_hash.update(byte_block)
+        return sha256_hash.hexdigest()
+    except IOError as e:
+        logger.error(f"파일 읽기 오류 {file_path}: {e}")
+        return None
 
+
+def get_exif_date_taken(image_path: Path) -> Optional[str]:
+    """
+    이미지 파일에서 EXIF 'DateTimeOriginal' 태그를 읽어 촬영 날짜를 'YYYY-MM-DD' 형식으로 반환합니다.
+    EXIF 데이터가 없거나 날짜 정보가 없으면 None을 반환합니다.
+    이 함수를 사용하려면 'Pillow' 라이브러리가 설치되어 있어야 합니다 (pip install Pillow).
+    """
+    try:
+        with Image.open(image_path) as img:
+            # exif 데이터가 없는 경우도 있으므로 _getexif() 사용
+            exif_data = img._getexif()
+            if not exif_data:
+                return None
+
+            # 'DateTimeOriginal' 태그 (Tag ID 36867)를 찾습니다.
+            date_taken_str = exif_data.get(36867)
+            if date_taken_str:
+                # 값은 'YYYY:MM:DD HH:MM:SS' 형식이므로, 날짜 부분만 추출하여 포맷 변경
+                return date_taken_str.split(' ')[0].replace(':', '-')
+    except Exception as e:
+        # Pillow가 처리할 수 없는 파일이거나 다른 EXIF 관련 오류 발생 시
+        logger.debug(f"EXIF 날짜를 읽는 중 오류 발생 '{image_path.name}': {e}")
+        return "ERROR"
+    return None
+
+def is_image_valid_debug(img_path: Path) -> bool:
+    """
+    BMP 등의 이미지 파일의 유효성을 더 자세히 검사하고,
+    구체적인 에러 메시지를 통해 디버깅 가능하도록 로그 출력.
+
+    Args:
+        img_path (Path): 이미지 경로
+
+    Returns:
+        bool: 유효하면 True, 오류 발생 시 False
+    """
+    try:
+        with Image.open(img_path) as img:
+            img.load()  # 이미지 전체 디코딩 시도
+        logger.debug(f"✅ 유효한 이미지: {img_path}")
+        return True
+    except UnidentifiedImageError:
+        logger.warning(f"❌ 이미지 형식 인식 실패: {img_path}")
+        return False
+    except OSError as e:
+        logger.warning(f"❌ 이미지 디코딩 실패: {img_path} - {e}")
+        return False
+    except Exception as e:
+        logger.error(f"❗ 예상치 못한 이미지 오류: {img_path} - {e}")
+        return False
 
 def _get_string_key_from_config(config_dict: Optional[Dict[str, Any]], key_name: str, default_value: str, logger_instance) -> str:
     """
@@ -277,7 +338,7 @@ class JsonConfigHandler:
         self.image_info_key         = self.image_info_lst.get("key", "image_info")
         self.image_resolution_key   = self.image_info_lst.get("resolution", {}).get("key", "resolution")
         self.image_width_key        = self.image_info_lst.get("resolution", {}).get("width_key", "width")
-        self.image_height_key       = self.image_info_lst.get("resolution", {}).get("height_key", "heigth")
+        self.image_height_key       = self.image_info_lst.get("resolution", {}).get("height_key", "height")
         self.image_channels_key     = self.image_info_lst.get("resolution", {}).get("channels_key", "channels")
         self.image_name_key         = self.image_info_lst.get("image_name_key", "image_name")
         self.image_path_key         = self.image_info_lst.get("image_path_key", "image_path")

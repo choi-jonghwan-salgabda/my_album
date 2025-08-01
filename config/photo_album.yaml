@@ -4,19 +4,30 @@ project:
   base_dir: '~/SambaData/Backup/FastCamp/Myproject'        # 현재 작업 디렉토리를 root_dir로 설정 꼭 문자열 경로여야함.
   root_dir: ${PWD}        # 현재 작업 디렉토리를 root_dir로 설정 꼭 문자열 경로여야함.
   pyproject_toml_path: ${project.root_dir}/pyproject.toml
+  README:   ${project.root_dir}/README.md # 올바른 파일명으로 수정
+  log_dir:  ${project.root_dir}/logs
 
   paths:
     datasets: # 데이터 폴더 - 원본 이미지 처리 정보
+      raw_photo_dir: ~/SambaData/Backup/FastCamp/data/test
       datasets_dir: ~/SambaData/OwnerData/train/
       raw_image_dir:            ${project.paths.datasets.datasets_dir}/images # config_loader가 ${변수} 치환을 지원해야 합니다.
       raw_jsons_dir:            ${project.paths.datasets.datasets_dir}/jsons
       json_list_file_path:      ${project.paths.datasets.datasets_dir}/json_files.lst # 대표 JSON 파일 경로
-      detected_dir:             ${project.paths.datasets.datasets_dir}/detected/
-      undetect_dir:             ${project.paths.datasets.datasets_dir}/undetect/
-      detected_objects_dir:     ${project.paths.datasets.detected_dir}/objects/     # 검출된 객체 저장 (얼굴/기타)
-      detected_list_path:       ${project.paths.datasets.detected_dir}/detected_jsons.lst
-      undetect_objects_dir:     ${project.paths.datasets.undetect_dir}/objects/     # 검출된 객체 저장 (얼0xEB><0><0x8E>기타)
-      undetect_list_path:       ${project.paths.datasets.undetect_dir}/undetect_jsons.lst
+
+    objects:     # 검출된 객체 저장 (사람, 개, 소, 자동차, 세...)
+      object_dir:               ${project.paths.datasets.datasets_dir}/objects/
+      detected_dir:             ${project.paths.objects.object_dir}/detected/
+      undetect_dir:             ${project.paths.objects.object_dir}/undetect/
+      detected_list_path:       ${project.paths.objects.object_dir}/detected_jsons.lst
+      undetect_list_path:       ${project.paths.objects.object_dir}/undetect_jsons.lst
+
+    sub_objects:     # 각 객체에서 검출된 부분 객체 저장 (얼굴, 바퀴, 날...)
+      sub_object_dir:           ${project.paths.datasets.datasets_dir}/sub_objects/
+      detected_dir:             ${project.paths.sub_objects.sub_object_dir}/detected/
+      undetect_dir:             ${project.paths.sub_objects.sub_object_dir}/undetect/
+      detected_list_path:       ${project.paths.sub_objects.sub_object_dir}/detected_jsons.lst
+      undetect_list_path:       ${project.paths.sub_objects.sub_object_dir}/undetect_jsons.lst
 
     outputs: # 결과 폴더
       outputs_dir:              ${project.root_dir}/outputs/
@@ -54,16 +65,14 @@ project:
       templates_dir:          ${project.source.web_service.web_service_dir}/templates/ # 또는 root_dir 기준으로 명시
       index_html_path:        ${project.source.web_service.templates_dir}/index.html
       label_image_html_path:  ${project.source.web_service.templates_dir}/label_image.html
-      search_html_path:            ${project.source.web_service.templates_dir}/search.html
+      search_html_path:       ${project.source.web_service.templates_dir}/search.html
       # 만약 project.paths.datasets.raw_image_dir를 성공적으로 사용한다면,
       # 아래 image_source_directory 키는 사용되지 않지만, 폴백을 위해 남겨둘 수 있습니다.
-      image_source_directory: ${project.source.web_service.static_dir}/images # PROJECT_ROOT 기준 상대 경로, static_dir 참조 및 따옴표 제거
-      image_serve_prefix: '/my_original_images' # 원본 이미지 제공용 접두사 (예시, 기존 값 유지 또는 변경)
-      face_crops_serve_prefix: '/face_crops_images'    # 크롭된 얼굴 이미지 제공용 접두사
+      # image_source_directory: ${project.source.web_service.static_dir}/images # PROJECT_ROOT 기준 상대 경로, static_dir 참조 및 따옴표 제거
+      # image_serve_prefix: '/my_original_images' # 원본 이미지 제공용 접두사 (예시, 기존 값 유지 또는 변경)
+      # face_crops_serve_prefix: '/face_crops_images'    # 크롭된 얼굴 이미지 제공용 접두사
       debug: true
 
-  # requirements: ${root_dir}/requirements.txt # Poetry 사용으로 제거
-  README:   ${project.root_dir}/README.md # 올바른 파일명으로 수정
 
 models:
   models_dir: ${project.base_dir}/models/
@@ -96,14 +105,14 @@ models:
       imgsz: 640 # YOLO 입력 이미지 크기 (이전 블록에서 가져옴)
       # 필요한 경우 classes_to_detect도 여기에 포함
 
-  face_recognition:
+  dlib_recognition:
     model_name: dlib
     # dlib 모델 파일(dat 파일들)이 있는 디렉토리 경로
     # 예시: /usr/share/dlib-models 또는 사용자가 다운로드 받은 경로
-    models_dir: ${models.models_dir}/${models.face_recognition.model_name} # 전체 경로 및 올바른 구문 사용
+    models_dir: ${models.models_dir}/${models.dlib_recognition.model_name} # 전체 경로 및 올바른 구문 사용
     # 개별 모델 파일 경로는 dlib_models_dir 아래에 있다고 코드에서 가정합니다.
-    face_rec_model_path: ${models.face_recognition.models_dir}/dlib_face_recognition_resnet_model_v1.dat # <-- 실제 경로로 수정 필요data
-    landmark_model_path: ${models.face_recognition.models_dir}/shape_predictor_68_face_landmarks.dat # <-- 실제 경로로 수정 필요data
+    dlib_model_path: ${models.dlib_recognition.models_dir}/dlib_face_recognition_resnet_model_v1.dat # <-- 실제 경로로 수정 필요data
+    landmark_model_path: ${models.dlib_recognition.models_dir}/shape_predictor_68_face_landmarks.dat # <-- 실제 경로로 수정 필요data
 
 processing:
   supported_image_extensions:
@@ -140,7 +149,7 @@ json_keys:
   user_profile:
     key: "user_profile"
     username:
-      key: "user_name"
+      key: "name"
       name: "salgabda"
     email:
       key: "email"
@@ -167,22 +176,22 @@ json_keys:
     object_class_name_key: "class_name"
     object_label_key: "label" # 오브젝트 라벨 (e.g., "최종환")
     object_index_key: "index"  
-    face_info_lst:
+    sub_object_info_lst:
         key: "detected_face"
         label_mask : "***"
-        face_box_xyxy_key: "bbox_xyxy" # 얼굴 영역 바운딩 박스 (detection 결과)
-        face_confidence_key: "confidence" # 얼굴 감지 confidence (detection 결과)
-        face_class_id_key: "class_id"
-        face_class_name_key: "class_name"
-        face_label_key: "name" # 얼굴에 대한 실제 이름 (e.g., "최종환")
+        sub_object_box_xyxy_key: "bbox_xyxy" # 얼굴 영역 바운딩 박스 (detection 결과)
+        sub_object_confidence_key: "confidence" # 얼굴 감지 confidence (detection 결과)
+        sub_object_class_id_key: "sub_object_id"
+        sub_object_class_name_key: "sub_object_name"
+        sub_object_label_key: "sub_object_name" # 얼굴에 대한 실제 이름 (e.g., "최종환")
         # 함수 설명 및 목표에 따라 가정된 키들 (실제 JSON에 있어야 함)
-        face_embedding_key: "embedding" # 얼굴 임베딩 벡터 데이터 키
-        face_id_key: "face_id" # 고유 얼굴 ID 키
-        face_index_key: "index" # 고유 얼굴 ID 키
+        sub_object_embedding_key: "embedding" # 얼굴 임베딩 벡터 데이터 키
+        sub_object_id_key: "sub_object_id" # 고유 얼굴 ID 키
+        sub_object_index_key: "sub_object_index" # 고유 얼굴 ID 키
         # 'box' 키는 JSON 예시에 있는 'box_xyxy'와 다를 수 있으므로 명확히 구분 (예: 'face_box_in_obj')
         # 여기서는 함수에서 사용된 'box' 키를 그대로 사용한다고 가정
-        face_box_key: "box" # 얼굴 바운딩 박스 (추출/임베딩 과정에서 사용될 수도 있는 키)
-        cropped_image_dir_key: ${project.paths.outputs.labeled_face_crop_dir} # 예시: 크롭된 얼굴 이미지 파일명을 위한 키
+        sub_object_box_key: "sub_object_box" # 얼굴 바운딩 박스 (추출/임베딩 과정에서 사용될 수도 있는 키)
+        sub_object_image_dir_key: ${project.paths.outputs.labeled_face_crop_dir} # 예시: 크롭된 얼굴 이미지 파일명을 위한 키
         # 필요에 따라 다른 얼굴 메타데이터 키 추가
 # --- JSON/데이터 구조 키 설정 끝 ---
 
@@ -251,4 +260,4 @@ indexing: # 벡터 인덱싱 및 검색 설정
     # kmeans_random_state: 42 # 재현성을 위한 랜덤 시드
 
   # batch 처리시 batch의 크기
-  batch_sizeL: 4
+  batch_size: 4

@@ -27,23 +27,23 @@ class configger:
     arg2 : config_path -> config를 구성하는 yaml파일.
     """
     def __init__(self, root_dir:str, config_path: str):
-        logger.info(f"Configger 초기화 시작: root_dir='{root_dir}'")
-        logger.info(f"Configger의        config_path='{config_path}'")
+        logger.debug(f"           root_dir='{root_dir}'")
+        logger.debug(f"        config_path='{config_path}'")
 
         # root_dir 처리: Path 객체로 만들고 사용자 홈 디렉토리 기준 절대 경로로 확장
         self.root_dir = Path(root_dir).expanduser().resolve()
-        logger.debug(f"경로 받음 및 확정(root_dir):      {self.root_dir} ")
 
         # config_path 처리: 절대 경로이면 그대로, 상대 경로이면 root_dir과 결합하여 절대 경로 Path 객체 생성
         if os.path.isabs(config_path):
             self.config_path = Path(config_path).resolve()
-            logger.debug(f"config_path는 절대 경로입니다:   {self.config_path}")
+            logger.debug(f"config_path는 절대 경로:'{self.config_path}'")
         else:
             self.config_path = (self.root_dir / config_path).resolve()
             logger.debug(f"config_path는 상대 경로이므로 root_dir과 결합하여 절대 경로를 만듭니다: {self.config_path}")
+        logger.info(f"(self.root_dir):   {self.root_dir} ")
+        logger.info(f"(self.config_path):{self.config_path} ")
 
-        logger.debug(f"_load_yaml 호출 직전, config_path 확정:{self.config_path} ")
-
+        logger.debug(f"YAML 읽기 앞")
         # YAML 파일 로드
         self.cfg = self._load_yaml()
         if self.cfg is None:
@@ -52,7 +52,8 @@ class configger:
             logger.error("설정 파일 로드 실패. 초기화를 중단합니다.")
             return
 
-        logger.debug(f"YAML 로드 완료. self.cfg 내용 일부:    {str(self.cfg)[:500]}...")
+        logger.debug(f"YAML 읽음 뒤.")
+        logger.debug(f"{str(self.cfg)[:500]}...")
 
         # 플레이스홀더 치환 시작 (전체 cfg 딕셔너리를 대상으로 재귀 호출)
         # 치환은 원본 self.cfg 객체를 직접 수정하도록 구현할 수 있습니다.
@@ -69,7 +70,8 @@ class configger:
         while self._contains_placeholders(self.cfg) and pass_count < max_passes and made_changes_in_previous_pass:
             pass_count += 1
             logger.debug(f"플레이스홀더 치환 및 경로 정규화 패스 {pass_count}/{max_passes}")
-            # 이전 상태를 복사하여 변경 여부 확인
+
+            # 이전 상태를 복사하여 잘 바뀌었는지 알고자 비교할 것임
             cfg_before_pass = copy.deepcopy(self.cfg)
             
             self._traverse_resolve_and_normalize_paths(self.cfg, []) # 빈 키 경로 리스트로 시작 (최상위)
@@ -98,23 +100,26 @@ class configger:
         self.current_cfg = self.cfg
         self.next_cfg = self.current_cfg # 현재는 동일하게 설정
 
-        logger.debug(f"++++++++++++++++++++++++++++++++++") # 최종 치환 결과 로깅
-        logger.info(f"YAML 초기화 완료. self.cfg 내용: 내용 일부: {str(self.cfg)[:500]}...")
-        logger.debug(f"++++++++++++++++++++++++++++++++++") # 최종 치환 결과 로깅
+        logger.info(f"++++++++++++++++++++++++++++++++++") # 최종 치환 결과 로깅
+        logger.info(f"{str(self.cfg)}")
+        logger.info(f"++++++++++++++++++++++++++++++++++") # 최종 치환 결과 로깅
 
     def _contains_placeholders(self, data: Any) -> bool:
         """
         주어진 데이터 구조 내에 '${...}' 형태의 플레이스홀더 문자열이 있는지 재귀적으로 확인합니다.
         """
         if isinstance(data, dict):
+            logger.debug(f"data is dict ='{data}'")
             for value in data.values():
                 if self._contains_placeholders(value):
                     return True
         elif isinstance(data, list):
+            logger.debug(f"data is list ='{data}'")
             for item in data:
                 if self._contains_placeholders(item):
                     return True
         elif isinstance(data, str):
+            logger.debug(f"data is str  ='{data}'")
             if '${' in data: # 간단히 '${' 문자열 포함 여부로 확인
                 return True
         return False
@@ -153,8 +158,8 @@ class configger:
         # current_key_path_str = ".".join(map(str, current_key_path_list)) if current_key_path_list else "root" # 디버깅용
         # logger.debug(f"_traverse_resolve_and_normalize_paths start, 현재 경로: {current_key_path_str}") # 너무 많은 로그를 유발할 수 있음
 
-        logger.info(f"시작 : data: {data} ")
         if isinstance(data, dict):
+            logger.debug(f"data is dict ='{data}'")
             for key, value in list(data.items()): # Iterate over a copy of items for safe modification
                 new_value = value # 변경될 수 있는 값을 저장할 변수
                 next_key_path_list = current_key_path_list + [key]
@@ -204,6 +209,7 @@ class configger:
                     self._traverse_resolve_and_normalize_paths(new_value, next_key_path_list)
 
         elif isinstance(data, list):
+            logger.debug(f"data is list ='{data}'")
             for index, item in enumerate(data):
                 new_item = item
                 next_key_path_list = current_key_path_list + [index]
@@ -249,34 +255,34 @@ class configger:
         Returns:
             any: 찾은 값, 또는 키 경로가 유효하지 않으면 None
         """
+        logger.debug(f"data    ='{data}'")
+        logger.debug(f"key_path='{key_path}'")
         keys = key_path.split('.')
         current_data = data
-        logger.info(f"시작 for path: {key_path}, data: {data}")
         try:
             for i, key in enumerate(keys):
-                logger.debug(f"현재 데이터 타입: {type(current_data)}, 찾을 키: {key}")
-                if isinstance(current_data, dict) and key in current_data:
-                    # 딕셔너리이고 키가 존재하면 다음 단계로 이동
+                current_path_str = '.'.join(keys[:i+1])
+                logger.debug(f"  탐색 중: 키='{key}', 현재 경로='{current_path_str}', 현재 데이터 타입='{type(current_data).__name__}'")
+
+                if isinstance(current_data, dict):
+                    if key not in current_data:
+                        logger.warning(f"  값 조회 실패: 키 '{key}'를 딕셔너리에서 찾을 수 없습니다. (전체 경로: '{key_path}')")
+                        return None
                     current_data = current_data[key]
                 elif isinstance(current_data, list):
-                    # 현재 데이터가 리스트인 경우, 키는 인덱스(숫자 문자열)여야 함
                     try:
                         index = int(key)
-                        if 0 <= index < len(current_data):
-                            # 리스트 인덱스가 유효하면 다음 단계로 이동
-                            current_data = current_data[index]
-                        else:
-                            # 유효하지 않은 리스트 인덱스
-                            logger.warning(f"  값 조회 실패: 유효하지 않은 리덱스 '{key}' at path segment '{'.'.join(keys[:i+1])}'")
-                            return None
+                        current_data = current_data[index]
                     except ValueError:
-                        # 리스트인데 키가 숫자로 변환되지 않음
-                        logger.warning(f"  값 조회 실패: 리스트에서 숫자가 아닌 키 '{key}' 사용 at path segment '{'.'.join(keys[:i+1])}'")
+                        logger.warning(f"  값 조회 실패: 리스트에 접근 시 키 '{key}'는 정수여야 합니다. (경로: '{current_path_str}')")
+                        return None
+                    except IndexError:
+                        logger.warning(f"  값 조회 실패: 리스트 인덱스 '{key}'가 범위를 벗어났습니다. (리스트 크기: {len(current_data)}, 경로: '{current_path_str}')")
                         return None
                 else:
-                    # 현재 데이터가 딕셔너리나 리스트가 아니거나 키/인덱스가 존재하지 않음
-                    logger.warning(f"  값 조회 실패: 경로 '{'.'.join(keys[:i+1])}'에서 유효한 키/인덱스 '{key}'를 찾을 수 없음. 현재 타입: {type(current_data)}")
-                    return None # 경로 중간에 실패
+                    # 경로의 중간 값이 딕셔너리나 리스트가 아닌 경우
+                    logger.warning(f"  값 조회 실패: 경로 '{'.'.join(keys[:i])}'의 값(타입: {type(current_data).__name__})은 딕셔너리나 리스트가 아니므로 '{key}'에 접근할 수 없습니다.")
+                    return None
 
             # 모든 키/인덱스를 따라 성공적으로 도달
             logger.debug(f"값 조회 성공: {current_data}")
@@ -285,37 +291,40 @@ class configger:
             logger.error(f"값 조회 중 예외 발생 for path '{key_path}': {e}")
             return None # 예외 발생 시 실패
 
-    def _get_parent_from_key_path(self, data, key_path_list):
-        """
-        키 경로 리스트를 사용하여 데이터 구조에서 최종 부모 객체(딕셔너리 또는 리스트)를 찾습니다.
+    # # 쓰이지 않음
+    # def _get_parent_from_key_path(self, data, key_path_list):
+    #     """
+    #     키 경로 리스트를 사용하여 데이터 구조에서 최종 부모 객체(딕셔너리 또는 리스트)를 찾습니다.
 
-        Args:
-            data (dict or list): 탐색 시작 데이터 (보통 최상위 self.cfg)
-            key_path_list (list): 부모까지의 키 경로 세그먼트 리스트
+    #     Args:
+    #         data (dict or list): 탐색 시작 데이터 (보통 최상위 self.cfg)
+    #         key_path_list (list): 부모까지의 키 경로 세그먼트 리스트
 
-        Returns:
-            dict or list or None: 찾은 부모 객체, 또는 경로가 유효하지 않으면 None
-        """
-        current_data = data
-        try:
-            # 마지막 키/인덱스 이전까지 탐색
-            for key in key_path_list:
-                if isinstance(current_data, dict) and key in current_data:
-                    current_data = current_data[key]
-                elif isinstance(current_data, list) and isinstance(key, int) and 0 <= key < len(current_data):
-                    current_data = current_data[key]
-                else:
-                    # 경로 중간에 실패
-                    return None
-            # 최종적으로 도달한 객체가 부모 객체입니다.
-            if isinstance(current_data, (dict, list)):
-                 return current_data
-            else:
-                 # 경로의 마지막이 딕셔너리나 리스트가 아닌 경우 (예: project.name까지 탐색)
-                 return None
-        except Exception as e:
-            logger.error(f"부모 객체 조회 중 예외 발생 for path '{'.'.join(map(str, key_path_list))}': {e}")
-            return None
+    #     Returns:
+    #         dict or list or None: 찾은 부모 객체, 또는 경로가 유효하지 않으면 None
+    #     """
+    #     logger.debug(f"data         ='{data}'")
+    #     logger.debug(f"key_path_list='{key_path_list}'")
+    #     current_data = data
+    #     try:
+    #         # 마지막 키/인덱스 이전까지 탐색
+    #         for key in key_path_list:
+    #             if isinstance(current_data, dict) and key in current_data:
+    #                 current_data = current_data[key]
+    #             elif isinstance(current_data, list) and isinstance(key, int) and 0 <= key < len(current_data):
+    #                 current_data = current_data[key]
+    #             else:
+    #                 # 경로 중간에 실패
+    #                 return None
+    #         # 최종적으로 도달한 객체가 부모 객체입니다.
+    #         if isinstance(current_data, (dict, list)):
+    #              return current_data
+    #         else:
+    #              # 경로의 마지막이 딕셔너리나 리스트가 아닌 경우 (예: project.name까지 탐색)
+    #              return None
+    #     except Exception as e:
+    #         logger.error(f"부모 객체 조회 중 예외 발생 for path '{'.'.join(map(str, key_path_list))}': {e}")
+    #         return None
 
     def _load_yaml(self) -> dict:
         # 이전과 동일 (파일 로드 및 기본 예외 처리)
@@ -333,136 +342,139 @@ class configger:
             logger.error(f"설정 파일 로딩 중 예상치 못한 오류 발생: {e}")
             sys.exit(1)
 
-    def _resolve_single_value(self, value: Any, context: dict) -> Any: # value 타입을 Any로 변경하는 것이 더 안전합니다.
-        """단일 값에서 플레이스홀더 (${...})를 context 또는 환경 변수를 사용하여 치환합니다."""
-        # 값이 문자열이 아니면 치환할 필요가 없으므로 그대로 반환
+    # def _resolve_single_value(self, value: Any, context: dict) -> Any: # value 타입을 Any로 변경하는 것이 더 안전합니다.
+    #     """단일 값에서 플레이스홀더 (${...})를 context 또는 환경 변수를 사용하여 치환합니다."""
+    #     # 값이 문자열이 아니면 치환할 필요가 없으므로 그대로 반환
 
-        if not isinstance(value, str):
-            return value
+    #     logger.debug(f"Configger '_resolve_single_value' 호출")
+    #     if not isinstance(value, str):
+    #         return value
 
-        original_value = value # 치환 전 원본 값 저장
-        resolved_value = value # 치환 후 값을 저장할 변수 초기화
+    #     original_value = value # 치환 전 원본 값 저장
+    #     resolved_value = value # 치환 후 값을 저장할 변수 초기화
 
-        # ${변수} 형태의 플레이스홀더를 찾는 정규 표현식
-        pattern = re.compile(r"\$\{([^}]+)\}")
+    #     # ${변수} 형태의 플레이스홀더를 찾는 정규 표현식
+    #     pattern = re.compile(r"\$\{([^}]+)\}")
 
-        # 여러 번 치환이 필요할 수 있으므로 (예: 중첩 플레이스홀더) 최대 5회 반복
-        # 참고: 현재 로직은 중첩 플레이스홀더를 완벽하게 처리하지는 못할 수 있습니다.
-        for _ in range(10):
-            made_change = False
-            temp_value = resolved_value # 현재까지 치환된 값을 임시 변수에 복사
-            matches = pattern.findall(temp_value) # 임시 변수에서 플레이스홀더 찾기
+    #     # 여러 번 치환이 필요할 수 있으므로 (예: 중첩 플레이스홀더) 최대 5회 반복
+    #     # 참고: 현재 로직은 중첩 플레이스홀더를 완벽하게 처리하지는 못할 수 있습니다.
+    #     for _ in range(10):
+    #         made_change = False
+    #         temp_value = resolved_value # 현재까지 치환된 값을 임시 변수에 복사
+    #         matches = pattern.findall(temp_value) # 임시 변수에서 플레이스홀더 찾기
 
-            if not matches:
-                # 더 이상 플레이스홀더가 없으면 반복 중단
-                break
+    #         if not matches:
+    #             # 더 이상 플레이스홀더가 없으면 반복 중단
+    #             break
 
-            for match in matches:
-                placeholder_key = match # 플레이스홀더 변수 이름 (예: 'root_dir')
+    #         for match in matches:
+    #             placeholder_key = match # 플레이스홀더 변수 이름 (예: 'root_dir')
 
-                # context에서 값을 찾거나, 필요하다면 환경 변수에서도 찾도록 로직 추가 가능
-                replacement = context.get(placeholder_key) # context에서 값 가져오기
-                logger.debug(f"match: {match}, placeholder_key: {placeholder_key}, replacement: {replacement}")
+    #             # context에서 값을 찾거나, 필요하다면 환경 변수에서도 찾도록 로직 추가 가능
+    #             replacement = context.get(placeholder_key) # context에서 값 가져오기
+    #             logger.debug(f"match: {match}, placeholder_key: {placeholder_key}, replacement: {replacement}")
 
-                if replacement is not None:
-                    # context에 해당 키가 있으면 값 치환
-                    placeholder_str = f"${{{placeholder_key}}}" # 예: "${root_dir}"
-                    if placeholder_str in temp_value:
-                         # 실제 플레이스홀더 문자열이 존재할 경우에만 치환 수행
-                        temp_value = temp_value.replace(placeholder_str, str(replacement))
-                        made_change = True # 변경이 발생했음을 표시
-                else:
-                    # context에서 값을 찾을 수 없는 경우 (필요시 경고 로깅)
-                    logger.warning(f"Context에서 플레이스홀더 '{placeholder_key}'에 대한 값을 찾을 수 없습니다. (원본 값: '{original_value}')")
-                    # 이 경우 해당 플레이스홀더는 치환되지 않은 채로 남습니다.
+    #             if replacement is not None:
+    #                 # context에 해당 키가 있으면 값 치환
+    #                 placeholder_str = f"${{{placeholder_key}}}" # 예: "${root_dir}"
+    #                 if placeholder_str in temp_value:
+    #                      # 실제 플레이스홀더 문자열이 존재할 경우에만 치환 수행
+    #                     temp_value = temp_value.replace(placeholder_str, str(replacement))
+    #                     made_change = True # 변경이 발생했음을 표시
+    #             else:
+    #                 # context에서 값을 찾을 수 없는 경우 (필요시 경고 로깅)
+    #                 logger.warning(f"Context에서 플레이스홀더 '{placeholder_key}'에 대한 값을 찾을 수 없습니다. (원본 값: '{original_value}')")
+    #                 # 이 경우 해당 플레이스홀더는 치환되지 않은 채로 남습니다.
 
-            resolved_value = temp_value # 이번 루프에서 변경된 내용을 반영
-            if not made_change:
-                # 이번 루프에서 어떤 치환도 일어나지 않았으면 더 이상 바뀔 것이 없으므로 중단
-                break
+    #         resolved_value = temp_value # 이번 루프에서 변경된 내용을 반영
+    #         if not made_change:
+    #             # 이번 루프에서 어떤 치환도 일어나지 않았으면 더 이상 바뀔 것이 없으므로 중단
+    #             break
 
-        # --- 로깅 코드를 for 루프 바깥으로 이동 ---
-        # 치환 전 값과 최종 치환 후 값이 다를 경우에만 로깅
-        if original_value != resolved_value:
-            logger.debug(f"플레이스홀더 치환: '{original_value:20s}' -> '{resolved_value:35s}'")
-        # -----------------------------------------
+    #     # --- 로깅 코드를 for 루프 바깥으로 이동 ---
+    #     # 치환 전 값과 최종 치환 후 값이 다를 경우에만 로깅
+    #     if original_value != resolved_value:
+    #         logger.debug(f"플레이스홀더 치환: '{original_value:20s}' -> '{resolved_value:35s}'")
+    #     # -----------------------------------------
 
-        # --- return 문도 for 루프 바깥으로 이동 ---
-        return resolved_value # 최종 치환된 값을 반환
-
-
-    def _resolve_placeholders(self, config: dict, context: dict) -> dict:
-         # 이 함수는 이제 _load_and_resolve_config에서 최종적으로 만들어진 context를 받아
-         # 전달받은 config 객체 전체를 대상으로 치환 및 Path 변환을 수행합니다.
-        """
-        [비공개 메서드] 전체 설정 딕셔너리를 순회하며 플레이스홀더 치환 및 Path 객체 변환
-        """
-        def resolve_value_and_path(key, value, current_context):
-            # 이 내부 함수는 raw_config를 사용하지 않습니다. (이전과 동일)
-            # ... (resolve_value_and_path 함수 내용) ...
-            resolved_value = value
-
-            if isinstance(value, str):
-                # 플레이스홀더 치환 로직 (current_context 사용)
-                # self._resolve_single_value 함수가 original_value_for_debug를 사용한다면
-                # 해당 변수를 resolve_value_and_path 함수의 인자로 전달하거나
-                # 다른 방식으로 사용 가능하게 해야 합니다. 현재 코드에서는 original_value_for_debug가
-                # 정의되지 않았을 수 있습니다. 이 부분을 확인하고 수정해야 합니다.
-                original_value_for_debug = value # <-- 디버그용 변수 정의 추가
-                resolved_value = self._resolve_single_value(value, current_context) # context 인자 사용
-                # 치환이 발생했는지 로깅
-                if resolved_value != original_value_for_debug:
-                     logger.debug(f"[resolve_value] 키 '{key:20s}': 값이 바뀜 '{original_value_for_debug:35s}' -> '{resolved_value}'")
+    #     # --- return 문도 for 루프 바깥으로 이동 ---
+    #     return resolved_value # 최종 치환된 값을 반환
 
 
-            # 키 이름 규칙에 따라 Path 객체로 변환 (이전과 동일)
-            if isinstance(resolved_value, str) and key is not None:
-                if key.endswith("_dir") or key.endswith("_path"):
-                    try:
-                        path_obj = Path(resolved_value).expanduser().resolve()
-                        return path_obj
-                    except Exception as e:
-                        logger.error(f"_resolve_placeholders에서 경로 문자열을 Path 객체로 변환 중 오류 ('{key}': '{resolved_value}'): {e}")
-                        return resolved_value
+    # def _resolve_placeholders(self, config: dict, context: dict) -> dict:
+    #      # 이 함수는 이제 _load_and_resolve_config에서 최종적으로 만들어진 context를 받아
+    #      # 전달받은 config 객체 전체를 대상으로 치환 및 Path 변환을 수행합니다.
+    #     """
+    #     [비공개 메서드] 전체 설정 딕셔너리를 순회하며 플레이스홀더 치환 및 Path 객체 변환
+    #     """
+    #     logger.debug(f"Configger '_resolve_placeholders' 호출")
+    #     def resolve_value_and_path(key, value, current_context):
+    #         # 이 내부 함수는 raw_config를 사용하지 않습니다. (이전과 동일)
+    #         # ... (resolve_value_and_path 함수 내용) ...
+    #         resolved_value = value
 
-            return resolved_value
-
-
-        def recursive_resolve(obj, current_context):
-            # 이 내부 함수도 raw_config를 사용하지 않습니다. (이전과 동일)
-            """설정 객체를 재귀적으로 순회하며 resolve_value_and_path 적용"""
-            if isinstance(obj, dict):
-                resolved_dict = {}
-                for k, v in obj.items():
-                     # resolved_value_and_path를 호출할 때 필요한 인자들을 정확히 전달합니다.
-                    resolved_dict[k] = recursive_resolve(resolve_value_and_path(k, v, current_context), current_context) # 재귀 호출
-                return resolved_dict
-            elif isinstance(obj, list):
-                return [recursive_resolve(v, current_context) for v in obj] # 재귀 호출
-            else:
-                return obj # dict나 list가 아니면 그대로 반환
+    #         if isinstance(value, str):
+    #             # 플레이스홀더 치환 로직 (current_context 사용)
+    #             # self._resolve_single_value 함수가 original_value_for_debug를 사용한다면
+    #             # 해당 변수를 resolve_value_and_path 함수의 인자로 전달하거나
+    #             # 다른 방식으로 사용 가능하게 해야 합니다. 현재 코드에서는 original_value_for_debug가
+    #             # 정의되지 않았을 수 있습니다. 이 부분을 확인하고 수정해야 합니다.
+    #             original_value_for_debug = value # <-- 디버그용 변수 정의 추가
+    #             resolved_value = self._resolve_single_value(value, current_context) # context 인자 사용
+    #             # 치환이 발생했는지 로깅
+    #             if resolved_value != original_value_for_debug:
+    #                  logger.debug(f"[resolve_value] 키 '{key:20s}': 값이 바뀜 '{original_value_for_debug:35s}' -> '{resolved_value}'")
 
 
-        # 최종적으로 완성된 context를 사용하여 전달받은 config 객체 재귀적 치환 및 Path 객체 변환
-        # raw_config를 사용하는 아래 라인을 제거합니다.
-        # resolved_config_raw = recursive_resolve(copy.deepcopy(raw_config), context) # 이 라인 제거
+    #         # 키 이름 규칙에 따라 Path 객체로 변환 (이전과 동일)
+    #         if isinstance(resolved_value, str) and key is not None:
+    #             if key.endswith("_dir") or key.endswith("_path"):
+    #                 try:
+    #                     path_obj = Path(resolved_value).expanduser().resolve()
+    #                     return path_obj
+    #                 except Exception as e:
+    #                     logger.error(f"_resolve_placeholders에서 경로 문자열을 Path 객체로 변환 중 오류 ('{key}': '{resolved_value}'): {e}")
+    #                     return resolved_value
 
-        # 대신 전달받은 config 객체를 처리합니다.
-        final_resolved_config = recursive_resolve(copy.deepcopy(config), context) # config 매개변수 사용
+    #         return resolved_value
 
-        # --- 추가했던 디버그 print들은 최종 결과인 final_resolved_config에 대해 수행합니다 ---
-        logger.debug(f">>> DEBUG PRINT (resolve): _resolve_placeholders 반환 값 타입: {type(final_resolved_config)}")
-        # 너무 크다면 일부만 출력
-        logger.debug(f">>> DEBUG PRINT (resolve): _resolve_placeholders 반환 값 내용 (처음 200자): {str(final_resolved_config)[:200]}...")
-        # --- 추가 끝 ---
 
-        # 최종 결과를 반환합니다.
-        return final_resolved_config # final_resolved_config 변수 반환
+    #     def recursive_resolve(obj, current_context):
+    #         # 이 내부 함수도 raw_config를 사용하지 않습니다. (이전과 동일)
+    #         """설정 객체를 재귀적으로 순회하며 resolve_value_and_path 적용"""
+    #         if isinstance(obj, dict):
+    #             resolved_dict = {}
+    #             for k, v in obj.items():
+    #                  # resolved_value_and_path를 호출할 때 필요한 인자들을 정확히 전달합니다.
+    #                 resolved_dict[k] = recursive_resolve(resolve_value_and_path(k, v, current_context), current_context) # 재귀 호출
+    #             return resolved_dict
+    #         elif isinstance(obj, list):
+    #             return [recursive_resolve(v, current_context) for v in obj] # 재귀 호출
+    #         else:
+    #             return obj # dict나 list가 아니면 그대로 반환
+
+
+    #     # 최종적으로 완성된 context를 사용하여 전달받은 config 객체 재귀적 치환 및 Path 객체 변환
+    #     # raw_config를 사용하는 아래 라인을 제거합니다.
+    #     # resolved_config_raw = recursive_resolve(copy.deepcopy(raw_config), context) # 이 라인 제거
+
+    #     # 대신 전달받은 config 객체를 처리합니다.
+    #     final_resolved_config = recursive_resolve(copy.deepcopy(config), context) # config 매개변수 사용
+
+    #     # --- 추가했던 디버그 print들은 최종 결과인 final_resolved_config에 대해 수행합니다 ---
+    #     logger.debug(f">>> DEBUG PRINT (resolve): _resolve_placeholders 반환 값 타입: {type(final_resolved_config)}")
+    #     # 너무 크다면 일부만 출력
+    #     logger.debug(f">>> DEBUG PRINT (resolve): _resolve_placeholders 반환 값 내용 (처음 200자): {str(final_resolved_config)[:200]}...")
+    #     # --- 추가 끝 ---
+
+    #     # 최종 결과를 반환합니다.
+    #     return final_resolved_config # final_resolved_config 변수 반환
 
     def get_value(self, key: str, default: Any = None, ensure_exists: bool = True) -> Union[Path, Any]:
         """
         중첩된 키 이름(ex: 'dataset.raw_image_dir')을 기반으로 Path 객체 또는 값를 반환합니다.
         """
+        logger.debug(f"Configger 'get_value' 호출")
         keys = key.split(".")
         current_level = self.cfg # 현재 탐색 중인 딕셔너리/리스트
 
@@ -535,6 +547,7 @@ class configger:
         # last_cfg = self.cfg.get_config(key_base)
         # return last_cfg.get(last_key, None)
 
+        logger.debug(f"Configger 'get_path' 호출")
         logger.info(f"get_path called for key: '{key}'")
 
         raw_value = None
@@ -615,133 +628,137 @@ class configger:
 
         return path_obj
 
-    def get_path_list(self, key: str, default: Optional[List[str]] = None, ensure_exists: bool = True) -> List[str]:
-        """
-        설정에서 경로 키에 해당하는 디렉토리의 하위 디렉토리 이름 목록을 반환합니다.
-        Args:
-            key (str): 설정에서 찾을 점으로 구분된 키 경로 (예: 'project.paths.data_dir').
-            default (Optional[List[str]], optional): 키를 찾지 못하거나 오류 발생 시 반환할 기본값.
-                                                     기본값은 None이며, 이 경우 빈 리스트가 반환됩니다.
-            ensure_exists (bool, optional): True이면 get_path를 통해 경로를 가져올 때
-                                            경로(또는 파일의 부모 디렉토리)가 존재하도록 시도합니다. 기본값은 True.
-        Returns:
-            List[str]: 하위 디렉토리 이름의 리스트. 경로를 찾지 못하거나, 경로가 디렉토리가 아니거나,
-                       오류 발생 시 'default'가 None이면 빈 리스트를 반환하고, 아니면 'default' 값을 반환합니다.
-        """
-        logger.info(f"get_path_list 호출됨: key='{key}', default={default}, ensure_exists={ensure_exists}")
-        try:
-            # 1. get_path를 사용하여 기본 경로 객체를 가져옵니다.
-            #    get_path_list의 ensure_exists를 get_path에 전달합니다.
-            #    get_path에서 키를 못 찾으면 예외가 발생하거나 get_path의 default가 반환될 수 있습니다.
-            #    여기서는 get_path가 None을 반환할 수 있도록 default=None으로 호출하고, 여기서 최종 default를 처리합니다.
-            base_path_obj = self.get_path(key, default=None, ensure_exists=ensure_exists)
+    # def get_path_list(self, key: str, default: Optional[List[str]] = None, ensure_exists: bool = True) -> List[str]:
+    #     """
+    #     설정에서 경로 키에 해당하는 디렉토리의 하위 디렉토리 이름 목록을 반환합니다.
+    #     Args:
+    #         key (str): 설정에서 찾을 점으로 구분된 키 경로 (예: 'project.paths.data_dir').
+    #         default (Optional[List[str]], optional): 키를 찾지 못하거나 오류 발생 시 반환할 기본값.
+    #                                                  기본값은 None이며, 이 경우 빈 리스트가 반환됩니다.
+    #         ensure_exists (bool, optional): True이면 get_path를 통해 경로를 가져올 때
+    #                                         경로(또는 파일의 부모 디렉토리)가 존재하도록 시도합니다. 기본값은 True.
+    #     Returns:
+    #         List[str]: 하위 디렉토리 이름의 리스트. 경로를 찾지 못하거나, 경로가 디렉토리가 아니거나,
+    #                    오류 발생 시 'default'가 None이면 빈 리스트를 반환하고, 아니면 'default' 값을 반환합니다.
+    #     """
+    #     logger.debug(f"Configger 'get_path_list' 호출")
+    #     logger.info(f"key='{key}', default={default}, ensure_exists={ensure_exists}")
+    #     try:
+    #         # 1. get_path를 사용하여 기본 경로 객체를 가져옵니다.
+    #         #    get_path_list의 ensure_exists를 get_path에 전달합니다.
+    #         #    get_path에서 키를 못 찾으면 예외가 발생하거나 get_path의 default가 반환될 수 있습니다.
+    #         #    여기서는 get_path가 None을 반환할 수 있도록 default=None으로 호출하고, 여기서 최종 default를 처리합니다.
+    #         base_path_obj = self.get_path(key, default=None, ensure_exists=ensure_exists)
 
-            # 2. base_path_obj 유효성 검사
-            if base_path_obj is None:
-                logger.warning(f"get_path_list: 키 '{key}'에 해당하는 경로를 찾을 수 없습니다. default 값 '{default}' 반환.")
-                return default if default is not None else []
+    #         # 2. base_path_obj 유효성 검사
+    #         if base_path_obj is None:
+    #             logger.warning(f"get_path_list: 키 '{key}'에 해당하는 경로를 찾을 수 없습니다. default 값 '{default}' 반환.")
+    #             return default if default is not None else []
 
-            if not isinstance(base_path_obj, Path):
-                logger.warning(f"get_path_list: 키 '{key}'의 값은 Path 객체가 아니지만 '{type(base_path_obj)}' 타입입니다. default 값 '{default}' 반환.")
-                return default if default is not None else []
+    #         if not isinstance(base_path_obj, Path):
+    #             logger.warning(f"get_path_list: 키 '{key}'의 값은 Path 객체가 아니지만 '{type(base_path_obj)}' 타입입니다. default 값 '{default}' 반환.")
+    #             return default if default is not None else []
 
-            if not base_path_obj.is_dir():
-                logger.warning(f"get_path_list: 경로 '{base_path_obj}' (키: '{key}')는 디렉토리가 아닙니다. 빈 리스트 반환.")
-                return [] # 디렉토리가 아니면 빈 리스트 (default를 반환하지 않음)
+    #         if not base_path_obj.is_dir():
+    #             logger.warning(f"get_path_list: 경로 '{base_path_obj}' (키: '{key}')는 디렉토리가 아닙니다. 빈 리스트 반환.")
+    #             return [] # 디렉토리가 아니면 빈 리스트 (default를 반환하지 않음)
 
-            # 3. 하위 디렉토리 이름 목록 가져오기
-            sub_directories = [item.name for item in base_path_obj.iterdir() if item.is_dir()]
-            logger.debug(f"get_path_list: 경로 '{base_path_obj}' (키: '{key}')에서 다음 하위 디렉토리들을 찾았습니다: {sub_directories}")
-            return sub_directories
+    #         # 3. 하위 디렉토리 이름 목록 가져오기
+    #         sub_directories = [item.name for item in base_path_obj.iterdir() if item.is_dir()]
+    #         logger.debug(f"get_path_list: 경로 '{base_path_obj}' (키: '{key}')에서 다음 하위 디렉토리들을 찾았습니다: {sub_directories}")
+    #         return sub_directories
 
-        except Exception as e: # get_path 내부에서 발생한 예외 또는 여기서 발생한 경로 관련 예외 포함
-            logger.error(f"get_path_list: 키 '{key}' 처리 중 오류 발생: {e}", exc_info=True)
-            if default is not None:
-                logger.warning(f"get_path_list: 오류로 인해 default 값 '{default}' 반환.")
-                return default
-            return [] # 오류 발생 시 default가 없으면 빈 리스트 반환
+    #     except Exception as e: # get_path 내부에서 발생한 예외 또는 여기서 발생한 경로 관련 예외 포함
+    #         logger.error(f"get_path_list: 키 '{key}' 처리 중 오류 발생: {e}", exc_info=True)
+    #         if default is not None:
+    #             logger.warning(f"get_path_list: 오류로 인해 default 값 '{default}' 반환.")
+    #             return default
+    #         return [] # 오류 발생 시 default가 없으면 빈 리스트 반환
 
-    """
-    # 이 메소드는 get_path_list와 유사하지만, 파일 시스템의 디렉토리 대신 
-    # 설정(YAML) 구조 내의 딕셔너리 키를 다룹니다.
-    # 다음은 configger.py 파일에 적용될 변경 사항입니다.
-    """
-    def get_key_list(self, key: str, default: Optional[List[str]] = None) -> List[str]:
-        """
-        설정에서 특정 키 경로에 해당하는 딕셔너리의 하위 키 이름 목록을 반환합니다.
-        Args:
-            key (str): 설정에서 찾을 점으로 구분된 키 경로 (예: 'project.paths').
-            default (Optional[List[str]], optional): 키를 찾지 못하거나, 해당 값이 딕셔너리가 아니거나,
-                                                     오류 발생 시 반환할 기본값.
-                                                     기본값은 None이며, 이 경우 빈 리스트가 반환됩니다.
-        Returns:
-            List[str]: 하위 키 이름의 리스트. 조건을 만족하지 못하면 'default'가 None일 경우
-                       빈 리스트를, 아니면 'default' 값을 반환합니다.
-        """
-        logger.info(f"get_key_list 호출됨: key='{key}', default={default}")
-        try:
-            # 1. get_value를 사용하여 해당 키의 값을 가져옵니다.
-            target_value = self.get_value(key, default=None) # ensure_exists는 get_value에서 처리
+    # """
+    # # 이 메소드는 get_path_list와 유사하지만, 파일 시스템의 디렉토리 대신 
+    # # 설정(YAML) 구조 내의 딕셔너리 키를 다룹니다.
+    # # 다음은 configger.py 파일에 적용될 변경 사항입니다.
+    # """
+    # def get_key_list(self, key: str, default: Optional[List[str]] = None) -> List[str]:
+    #     """
+    #     설정에서 특정 키 경로에 해당하는 딕셔너리의 하위 키 이름 목록을 반환합니다.
+    #     Args:
+    #         key (str): 설정에서 찾을 점으로 구분된 키 경로 (예: 'project.paths').
+    #         default (Optional[List[str]], optional): 키를 찾지 못하거나, 해당 값이 딕셔너리가 아니거나,
+    #                                                  오류 발생 시 반환할 기본값.
+    #                                                  기본값은 None이며, 이 경우 빈 리스트가 반환됩니다.
+    #     Returns:
+    #         List[str]: 하위 키 이름의 리스트. 조건을 만족하지 못하면 'default'가 None일 경우
+    #                    빈 리스트를, 아니면 'default' 값을 반환합니다.
+    #     """
+    #     logger.debug(f"Configger 'get_key_list' 호출")
+    #     logger.info(f"get_key_list 호출됨: key='{key}', default={default}")
+    #     try:
+    #         # 1. get_value를 사용하여 해당 키의 값을 가져옵니다.
+    #         target_value = self.get_value(key, default=None) # ensure_exists는 get_value에서 처리
 
-            # 2. target_value 유효성 검사
-            if target_value is None:
-                logger.warning(f"get_key_list: 키 '{key}'에 해당하는 값을 찾을 수 없습니다. default 값 '{default}' 반환.")
-                return default if default is not None else []
+    #         # 2. target_value 유효성 검사
+    #         if target_value is None:
+    #             logger.warning(f"get_key_list: 키 '{key}'에 해당하는 값을 찾을 수 없습니다. default 값 '{default}' 반환.")
+    #             return default if default is not None else []
 
-            if not isinstance(target_value, dict):
-                logger.warning(f"get_key_list: 키 '{key}'의 값은 딕셔너리가 아니지만 '{type(target_value)}' 타입입니다. default 값 '{default}' 반환.")
-                return default if default is not None else []
+    #         if not isinstance(target_value, dict):
+    #             logger.warning(f"get_key_list: 키 '{key}'의 값은 딕셔너리가 아니지만 '{type(target_value)}' 타입입니다. default 값 '{default}' 반환.")
+    #             return default if default is not None else []
 
-            # 3. 하위 키 이름 목록 가져오기
-            sub_keys = list(target_value.keys())
-            logger.debug(f"get_key_list: 키 '{key}'에서 다음 하위 키들을 찾았습니다: {sub_keys}")
-            return sub_keys
-        except Exception as e: # get_value 내부에서 발생한 예외 또는 여기서 발생한 예외 포함
-            logger.error(f"get_key_list: 키 '{key}' 처리 중 오류 발생: {e}", exc_info=True)
-            return default if default is not None else []
+    #         # 3. 하위 키 이름 목록 가져오기
+    #         sub_keys = list(target_value.keys())
+    #         logger.debug(f"get_key_list: 키 '{key}'에서 다음 하위 키들을 찾았습니다: {sub_keys}")
+    #         return sub_keys
+    #     except Exception as e: # get_value 내부에서 발생한 예외 또는 여기서 발생한 예외 포함
+    #         logger.error(f"get_key_list: 키 '{key}' 처리 중 오류 발생: {e}", exc_info=True)
+    #         return default if default is not None else []
 
-    def get_value_list(self, key: str, default: Optional[List[Any]] = None) -> List[Any]:
-        """
-        설정에서 특정 키 경로에 해당하는 리스트 값을 반환합니다.
-        해당 키의 값이 리스트가 아니면 default 값을 반환합니다.
+    # def get_value_list(self, key: str, default: Optional[List[Any]] = None) -> List[Any]:
+    #     """
+    #     설정에서 특정 키 경로에 해당하는 리스트 값을 반환합니다.
+    #     해당 키의 값이 리스트가 아니면 default 값을 반환합니다.
 
-        Args:
-            key (str): 설정에서 찾을 점으로 구분된 키 경로 (예: 'project.features').
-            default (Optional[List[Any]], optional): 키를 찾지 못하거나, 해당 값이 리스트가 아니거나,
-                                                     오류 발생 시 반환할 기본값.
-                                                     기본값은 None이며, 이 경우 빈 리스트가 반환됩니다.
+    #     Args:
+    #         key (str): 설정에서 찾을 점으로 구분된 키 경로 (예: 'project.features').
+    #         default (Optional[List[Any]], optional): 키를 찾지 못하거나, 해당 값이 리스트가 아니거나,
+    #                                                  오류 발생 시 반환할 기본값.
+    #                                                  기본값은 None이며, 이 경우 빈 리스트가 반환됩니다.
 
-        Returns:
-            List[Any]: 설정에서 가져온 리스트. 조건을 만족하지 못하면 'default'가 None일 경우
-                       빈 리스트를, 아니면 'default' 값을 반환합니다.
-        """
-        logger.info(f"get_value_list 호출됨: key='{key}', default={default}")
-        try:
-            # 1. get_value를 사용하여 해당 키의 값을 가져옵니다.
-            # get_value는 키가 없거나 값이 null이면 None을 반환할 수 있습니다 (자신의 default가 None일 때).
-            target_value = self.get_value(key, default=None)
+    #     Returns:
+    #         List[Any]: 설정에서 가져온 리스트. 조건을 만족하지 못하면 'default'가 None일 경우
+    #                    빈 리스트를, 아니면 'default' 값을 반환합니다.
+    #     """
+    #     logger.debug(f"Configger 'get_value_list' 호출")
+    #     logger.info(f"get_value_list 호출됨: key='{key}', default={default}")
+    #     try:
+    #         # 1. get_value를 사용하여 해당 키의 값을 가져옵니다.
+    #         # get_value는 키가 없거나 값이 null이면 None을 반환할 수 있습니다 (자신의 default가 None일 때).
+    #         target_value = self.get_value(key, default=None)
 
-            # 2. target_value 유효성 검사
-            if target_value is None: # 키를 찾지 못했거나, 키의 값이 명시적으로 null인 경우
-                logger.warning(f"get_value_list: 키 '{key}'에 해당하는 값을 찾을 수 없거나 값이 null입니다. default 값 '{default}' 반환.")
-                return default if default is not None else []
+    #         # 2. target_value 유효성 검사
+    #         if target_value is None: # 키를 찾지 못했거나, 키의 값이 명시적으로 null인 경우
+    #             logger.warning(f"get_value_list: 키 '{key}'에 해당하는 값을 찾을 수 없거나 값이 null입니다. default 값 '{default}' 반환.")
+    #             return default if default is not None else []
 
-            if not isinstance(target_value, list):
-                logger.warning(f"get_value_list: 키 '{key}'의 값은 리스트가 아니지만 '{type(target_value)}' 타입입니다. default 값 '{default}' 반환.")
-                return default if default is not None else []
+    #         if not isinstance(target_value, list):
+    #             logger.warning(f"get_value_list: 키 '{key}'의 값은 리스트가 아니지만 '{type(target_value)}' 타입입니다. default 값 '{default}' 반환.")
+    #             return default if default is not None else []
 
-            # 3. 값이 리스트인 경우 해당 리스트 반환
-            logger.debug(f"get_value_list: 키 '{key}'에서 다음 리스트 값을 찾았습니다: {target_value}")
-            return target_value # target_value is already a list
-        except Exception as e: # get_value 내부에서 발생한 예외 또는 여기서 발생한 예외 포함
-            logger.error(f"get_value_list: 키 '{key}' 처리 중 오류 발생: {e}", exc_info=True)
-            return default if default is not None else []
+    #         # 3. 값이 리스트인 경우 해당 리스트 반환
+    #         logger.debug(f"get_value_list: 키 '{key}'에서 다음 리스트 값을 찾았습니다: {target_value}")
+    #         return target_value # target_value is already a list
+    #     except Exception as e: # get_value 내부에서 발생한 예외 또는 여기서 발생한 예외 포함
+    #         logger.error(f"get_value_list: 키 '{key}' 처리 중 오류 발생: {e}", exc_info=True)
+    #         return default if default is not None else []
 
     def get_config(self, key: str) -> Any | None: # 반환 타입을 Any | None으로 변경
         """
         주어진 점(.)으로 구분된 키 문자열에 해당하는 중첩된 설정 딕셔너리 또는 값을 가져옵니다.
         키가 존재하지 않으면 None을 반환합니다.
         """
+        logger.debug(f"Configger 'get_config' 호출")
         keys = key.split(".")
         cur_cfg = self.cfg
         logger.info(f"시작: key='{key}', split keys: {keys}")
@@ -974,4 +991,3 @@ if __name__ == "__main__":
 
     except Exception as e:
         logger.error(f"Error getting value list: {e}")
-

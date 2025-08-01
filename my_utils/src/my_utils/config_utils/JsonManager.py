@@ -84,7 +84,7 @@ class JsonManager:
         self.image_info_key = _get_nested_key(image_info_lst, ["key"], "image_info")
         self.image_resolution_key = _get_nested_key(image_info_lst, ["resolution", "key"], "resolution")
         self.image_width_key = _get_nested_key(image_info_lst, ["resolution", "width_key"], "width")
-        self.image_height_key = _get_nested_key(image_info_lst, ["resolution", "height_key"], "heigth")
+        self.image_height_key = _get_nested_key(image_info_lst, ["resolution", "height_key"], "height")
         self.image_channels_key = _get_nested_key(image_info_lst, ["resolution", "channels_key"], "channels")
         self.image_name_key = _get_nested_key(image_info_lst, ["image_name_key"], "image_name")
         self.image_path_key = _get_nested_key(image_info_lst, ["image_path_key"], "image_path")

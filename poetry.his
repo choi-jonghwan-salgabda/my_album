@@ -1,0 +1,170 @@
+ 1194  poetry run python src/my_utils/config_utils/JsonManager.py 
+ 1195  poetry list
+ 1196  poetry run python src/my_utils/config_utils/JsonManager.py 
+ 1197  poetry add PyYAML
+ 1198  poetry run python src/my_utils/config_utils/JsonManager.py 
+ 1207  poetry run python src/my_utils/config_utils/JsonManager.py 
+ 1209  poetry run python src/my_utils/config_utils/JsonManager.py 
+ 1211  poetry install
+ 1212  poetry env list
+ 1213  poetry show
+ 1215  poetry run python src/my_utils/config_utils/JsonManager.py 
+ 1216  poetry run python src/my_utils/config_utils/SimpleLogger.py 
+ 1217  poetry run python src/my_utils/config_utils/JsonManager.py 
+ 1218  poetry run python src/my_utils/config_utils/SimpleLogger.py 
+ 1219  poetry run python src/my_utils/config_utils/JsonManager.py 
+ 1220  poetry run python src/my_utils/config_utils/configger.py 
+ 1240  poetry env list
+ 1242  poetry run python src/my_utils/config_utils/SimpleLogger.py 
+ 1243  poetry add yaml
+ 1244  poetry add PyYAML
+ 1245  poetry run python src/my_utils/config_utils/SimpleLogger.py 
+ 1246  poetry run python src/my_utils/config_utils/SimpleLogger.py 
+ 1247  poetry run python src/my_utils/config_utils/configger.py 
+ 1248  poetry env list
+ 1249  poetry env remove .venv
+ 1251  poetry config virtualenvs.in-project
+ 1253  poetry install
+ 1254  poetry run python src/my_utils/config_utils/configger.py
+ 1295  poetry run python src/my_utils/config_utils/JsonManager.py 
+ 1296  poetry add PyYAML
+ 1297  poetry run python src/my_utils/config_utils/JsonManager.py 
+ 1299  poetry run python src/my_utils/config_utils/JsonManager.py 
+ 1300  poetry run python -m my_utils.config_utils.JsonManager
+ 1301  poetry install
+ 1302  poetry run python -m my_utils.config_utils.JsonManager
+ 1303  poetry run python -m my_utils.config_utils.configger
+ 1327  poetry run python src/my_utils/config_utils/SimpleLogger.py 
+ 1328  poetry env list
+ 1390  poetry install
+ 1407  poetry install
+ 1408  poetry lock
+ 1409  poetry install
+ 1410  poetry run python -m my_utils.config_utils.JsonManager
+ 1411  poetry run python -m my_utils.config_utils.configger
+ 1423  poetry lock
+ 1424  poetry install
+ 1425  poetry run python -m my_utils.config_utils.configger
+ 1427  poetry run python -m my_utils.config_utils.SimpleLogger
+ 1428  poetry add PyYAML
+ 1429  poetry run python -m my_utils.config_utils.SimpleLogger
+ 1431  poetry run python -m my_utils.config_utils.configger
+ 1445  poetry lock
+ 1446  poetry add PyYAML
+ 1447  poetry install
+ 1448  poetry run python -m my_utils.config_utils.SimpleLogger
+ 1449  poetry run python -m my_utils.config_utils.configger
+ 1456  poetry lock
+ 1457  poetry add PyYAML
+ 1458  poetry install
+ 1459  poetry run python -m my_utils.config_utils.SimpleLogger
+ 1460  poetry run python -m my_utils.config_utils.configger
+ 1462  poetry run python -m my_utils.config_utils.configger
+ 1463  poetry run python -m my_utils.config_utils.configger -lvl debug
+ 1464  poetry run python -m my_utils.config_utils.configger -lvl info
+ 1465  poetry run python -m my_utils.config_utils.configger -lvl debug
+ 1466  poetry run python -m my_utils.config_utils.JsonManager -lvl debug
+ 1474  poetry run python -m my_utils.config_utils.JsonManager -lvl debug
+ 1484  poetry run python -m my_utils.config_utils.JsonManager -lvl debug
+ 1490  poetry run python -m my_utils.config_utils.JsonManager -lvl debug
+ 1492  poetry run python -m my_utils.config_utils.JsonManager -lvl debug
+ 1569  poetry run python src/my_utils/tools/MoveSearchedDupPhoto.py
+ 1570  poetry run python src/my_utils/tools/MoveSearchedDupPhoto.py -tgt ~/SambaData/SsamData/dup_photos/ ~/SambaData/SsamData/dup_photos_to_hash
+ 1571  poetry run python src/my_utils/tools/MoveSearchedDupPhoto.py -tgt ~/SambaData/SsamData/dup_photos/ -dst ~/SambaData/SsamData/dup_photos_to_hash
+ 1572  poetry run python src/my_utils/tools/OrganizePhotosByHash.py -tgt ~/SambaData/SsamData/dup_photos/ -dst ~/SambaData/SsamData/dup_photos_to_hash --dry-run
+ 1573  poetry run python src/my_utils/tools/OrganizePhotosByHash.py -tgt ~/SambaData/SsamData/dup_photos/ -dst ~/SambaData/SsamData/dup_photos_to_hash --dry_run
+ 1574  poetry run python src/my_utils/tools/RemoveEmptyDirectories.py -tgt ~/SambaData/SsamData/dup_photos/ --dry_run
+ 1577  poetry run python src/my_utils/tools/OrganizePhotosByHash.py -tgt ~/SambaData/SsamData/dup_photos/ -dst ~/SambaData/SsamData/dup_photos_to_hash --dry_run
+ 1578  poetry run python src/my_utils/tools/OrganizePhotosByHash.py -tgt ~/SambaData/SsamData/dup_photos/ -dst ~/SambaData/SsamData/dup_photos_to_hash
+ 1580  poetry run python src/my_utils/tools/RemoveEmptyDirectories.py -tgt ~/SambaData/SsamData/dup_photos/
+ 1581  poetry run python src/my_utils/tools/OrganizePhotosByHash.py -tgt ~/SambaData/SsamData/dup_photos_to_hash/ -dst ~/SambaData/SsamData/dup_photos
+ 1582  poetry run python src/my_utils/tools/OrganizePhotosByHash.py -tgt ~/SambaData/SsamData/dup_photos/ -dst ~/SambaData/SsamData/dup_photos_to_hash/
+ 1583  poetry run python src/my_utils/tools/OrganizePhotosByHash.py -tgt ~/SambaData/SsamData/dup_photos_to_hash/ -dst ~/SambaData/SsamData/dup_photos
+ 1586  poetry run python src/my_utils/tools/OrganizePhotosByHash.py -tgt ~/SambaData/Backup/FastCamp/org/ -dst ~/SambaData/SsamData/dup_photos
+ 1595  poetry run python src/my_utils/config_utils/PhotoAlbumConfig.py 
+ 1596  poetry run python src/my_utils/config_utils/PhotoAlbumConfig.py -lvl debug
+ 1609  poetry run python src/my_album_indeser.py
+ 1612  poetry run python src/my_utils/object_utils/my_album_indeser.py
+ 1613  poetry run python src/my_utils/object_utils/dlib_utils.py 
+ 1614  poetry add dlib
+ 1615  poetry run python src/my_utils/object_utils/dlib_utils.py 
+ 1616  poetry add numpy
+ 1617  poetry add numpy@^1.26.0
+ 1618  poetry run python src/my_utils/object_utils/dlib_utils.py 
+ 1619  poetry add opencv-python
+ 1620  poetry run python src/my_utils/object_utils/dlib_utils.py 
+ 1625  poetry run python src/my_utils/object_utils/dlib_utils.py 
+ 1626  poetry run python src/my_utils/object_utils/dlib_utils.py  -lvl debug
+ 1627  poetry run python src/my_utils/object_utils/yolo_utils.py  -lvl debug
+ 1628  poetry add opencv-python
+ 1629  poetry run python src/my_utils/object_utils/yolo_utils.py  -lvl debug
+ 1630  poetry add torch
+ 1631  poetry run python src/my_utils/object_utils/yolo_utils.py  -lvl debug
+ 1632  poetry add ultralytics
+ 1633  poetry run python src/my_utils/object_utils/yolo_utils.py  -lvl debug
+ 1635  poetry run python src/my_utils/object_utils/yolo_utils.py  -lvl debug
+ 1639  poetry run python src/my_utils/object_utils/yolo_utils.py  -lvl debug
+ 1660  poetry run python src/my_utils/object_utils/yolo_utils.py -lvl debug
+ 1669  poetry run python src/my_utils/object_utils/yolo_utils.py -lvl debug
+ 1671  poetry run python src/my_utils/object_utils/yolo_utils.py -lvl debug
+ 1674  poetry run python src/my_utils/object_utils/yolo_utils.py -lvl debug
+ 1720  poetry run python src/my_utils/tools/OrganizePhotosByHash.py ~/SambaData/Backup/FastCamp/org/ ~/SambaData/Backup/FastCamp/dup_photos/ -lvl debug
+ 1721  poetry run python src/my_utils/tools/OrganizePhotosByHash.py -tgt ~/SambaData/Backup/FastCamp/org/ -dgt ~/SambaData/Backup/FastCamp/dup_photos/ -lvl debug
+ 1722  poetry run python src/my_utils/tools/OrganizePhotosByHash.py -tgt ~/SambaData/Backup/FastCamp/org/ -dst ~/SambaData/Backup/FastCamp/dup_photos/ -lvl debug
+ 1754  poetry run python src/my_utils/config_utils/SimpleLogger_gpt.py 
+ 1766  poetry run python src/my_utils/config_utils/SimpleLogger.py 
+ 1769  poetry run python src/my_utils/config_utils/SimpleLogger.py 
+ 1779  poetry run python src/my_utils/tools/OrganizePhotosByHash.py -lvl info -act copy -src ~/SambaData/Backup/기준사진들 ~/SambaData/Backup/FastCamp/data/minephotos/
+ 1780  poetry run python src/my_utils/tools/OrganizePhotosByHash.py -lvl info -act copy -src ~/SambaData/Backup/기준사진들 -dst ~/SambaData/Backup/FastCamp/data/minephotos/
+ 1782  poetry run python src/my_utils/tools/OrganizePhotosByHash.py -lvl -act copy -src ~/SambaData/Backup/기준사진들 -dst ~/SambaData/Backup/FastCamp/data/minephotos/
+ 1783  poetry run python src/my_utils/tools/OrganizePhotosByHash.py -lvl info -act copy -src ~/SambaData/Backup/기준사진들 -dst ~/SambaData/Backup/FastCamp/data/minephotos/
+ 1786  poetry run python src/my_utils/tools/OrganizePhotosByHash.py -lvl info -act copy -src ~/SambaData/Backup/기준사진들/ -dst ~/SambaData/Backup/FastCamp/data/minephotos/
+ 1788  poetry run python src/my_utils/tools/OrganizePhotosByHash.py -lvl info -act copy -src ~/SambaData/OwnerData/ -dst ~/SambaData/Backup/FastCamp/data/minephotos/
+ 1789  poetry run python src/my_utils/tools/OrganizePhotosByHash.py -lvl info -act copy -src ~/SambaData/OwnerData/ -dst ~/SambaData/Backup/FastCamp/data/minephotos/ls /home/owner/SambaData/OwnerData/source_backup/my_photo_album_2/static/results/201
+ 1793  poetry run python src/my_utils/tools/OrganizePhotosByHash.py -lvl info -act move -dst ~/SambaData/Backup/FastCamp/data/minephotos/ -src ~/SambaData/Backup/FastCamp/org/
+ 1794  poetry run python src/my_utils/tools/OrganizePhotosByHash.py -lvl info -act copy -dst ~/SambaData/Backup/FastCamp/data/minephotos/ -src ~/SambaData/Backup/FastCamp/org/
+ 1806  poetry run python src/my_utils/tools/OrganizePhotosByHash.py -lvl info -act move -dst ~/SambaData/Backup/FastCamp/data/minephotos/ -src ~/SambaData/Backup/FastCamp/org/
+ 1807  poetry run -m python src.my_utils.tools.OrganizePhotosByHash.py -lvl info -act move -dst ~/SambaData/Backup/FastCamp/data/minephotos/ -src ~/SambaData/Backup/FastCamp/org/
+ 1815  poetry run python src/my_utils/tools/OrganizePhotosByHash.py 
+ 1822  poetry run python src/my_utils/tools/OrganizePhotosByHash.py 
+ 1828  poetry run python src/my_utils/tools/OrganizePhotosByHash.py 
+ 1835  poetry run python src/my_utils/tools/OrganizePhotosByHash.py
+ 1836  poetry run python src/my_utils/tools/OrganizePhotosByHash.py -lvl debug -src ~/SambaData/Backup/FastCamp/org/ -dst ~/SambaData/Backup/FastCamp/data/minephotos/
+ 1837  poetry run python src/my_utils/tools/OrganizePhotosByHash.py -lvl debug -act move -src ~/SambaData/Backup/FastCamp/org/ -dst ~/SambaData/Backup/FastCamp/data/minephotos/
+ 1908  poetry add Pillow
+ 1915  poetry run python src/my_utils/tools/OrganizePhotosByHash.py -src ~/SambaData/Backup/집컴백업/ -dst ~/SambaData/Backup/FastCamp/data/minephotos/ --action move --dry_run
+ 1917  poetry run python src/my_utils/tools/OrganizePhotosByHash.py -src ~/SambaData/Backup/집컴백업/ -dat ~/SambaData/Backup/FastCamp/data/my_photos/ --action move --dry_run 
+ 1918  poetry run python src/my_utils/tools/OrganizePhotosByHash.py -src ~/SambaData/Backup/집컴백업/ -dst ~/SambaData/Backup/FastCamp/data/my_photos/ --action move --dry_run 
+ 1919  poetry run python src/my_utils/tools/RemoveEmptyDirectories.py --dry_run
+ 1921  poetry run python src/my_utils/tools/RemoveEmptyDirectories.py --dry_run
+ 1922  poetry run python src/my_utils/tools/RemoveEmptyDirectories.py --dry_run --tgt ~/SambaData/Backup/FastCamp/data/minephotos/
+ 1923  poetry run python src/my_utils/tools/RemoveEmptyDirectories.py --dry_run -tgt ~/SambaData/Backup/FastCamp/data/minephotos/
+ 1924  poetry run python src/my_utils/tools/RemoveEmptyDirectories.py --dry_run -tgt ~/SambaData/Backup/집컴백업/
+ 1925  poetry run python src/my_utils/tools/RemoveEmptyDirectories.py --dry_run -tgt ~/SambaData/OwnerData/
+ 1926  poetry run python src/my_utils/tools/RemoveEmptyDirectories.py --dry_run -tgt ~/SambaData/SsamData/
+ 1927  poetry run python src/my_utils/tools/RemoveEmptyDirectories.py --dry_run -tgt ~/SambaData/ShareData/
+ 1928  poetry run python src/my_utils/tools/RemoveEmptyDirectories.py --dry_run -tgt ~/SambaData/MultiData/
+ 1929  poetry run python src/my_utils/tools/RemoveEmptyDirectories.py -tgt ~/SambaData/MultiData/
+ 1930  poetry run python src/my_utils/tools/RemoveEmptyDirectories.py -tgt ~/SambaData/ShareData/
+ 1931  poetry run python src/my_utils/tools/RemoveEmptyDirectories.py -tgt ~/SambaData/SsamData/
+ 1932  poetry run python src/my_utils/tools/RemoveEmptyDirectories.py -tgt ~/SambaData/OwnerData/
+ 1933  poetry run python src/my_utils/tools/RemoveEmptyDirectories.py -tgt ~/SambaData/Backup/집컴백업/
+ 1936  poetry run python src/my_utils/tools/RemoveEmptyDirectories.py -tgt ~/SambaData/Backup
+ 1940  poetry run python src/my_utils/tools/OrganizePhotosByHash.py -src ~/SambaData/Backup/집컴백업/ -dst ~/SambaData/Backup/FastCamp/data/my_photos/ --action move 
+ 1941  poetry run python src/my_utils/tools/OrganizePhotosByHash.py -src ~/SambaData/Backup/FastCamp/data/minephotos/ -dst ~/SambaData/Backup/FastCamp/data/my_photos/ --action move 
+ 1942  poetry run python src/my_utils/tools/OrganizePhotosByHash.py -src ~/SambaData/OwnerData/ -dst ~/SambaData/Backup/FastCamp/data/my_photos/ --action move 
+ 1943  poetry run python src/my_utils/tools/OrganizePhotosByHash.py -src ~/SambaData/SsamData/ -dst ~/SambaData/Backup/FastCamp/data/my_photos/ --action move 
+ 1944  poetry run python src/my_utils/tools/OrganizePhotosByHash.py -src ~/SambaData/ShareData/ -dst ~/SambaData/Backup/FastCamp/data/my_photos/ --action move 
+ 1945  poetry run python src/my_utils/tools/OrganizePhotosByHash.py -src ~/SambaData/Backup/FastCamp/data/minephotos/ -dst ~/SambaData/Backup/FastCamp/data/my_photos/ --action move 
+ 1951  poetry run python src/my_utils/tools/OrganizePhotosByHash.py -src ~/SambaData/OwnerData/ -dst ~/SambaData/Backup/FastCamp/data/my_photos/ --action move 
+ 1952  poetry run python src/my_utils/tools/OrganizePhotosByHash.py -src ~/SambaData/SsamData/ -dst ~/SambaData/Backup/FastCamp/data/my_photos/ --action move 
+ 1953  poetry run python src/my_utils/tools/OrganizePhotosByHash.py -src ~/SambaData/ShareData/ -dst ~/SambaData/Backup/FastCamp/data/my_photos/ --action move 
+ 1954  poetry run python src/my_utils/tools/OrganizePhotosByHash.py -src ~/SambaData/Backup/FastCamp/data/minephotos/ -dst ~/SambaData/Backup/FastCamp/data/my_photos/ --action move 
+ 1955  poetry run python src/my_utils/tools/OrganizePhotosByHashExif.py -src ~/SambaData/Backup/FastCamp/data/minephotos/ -dst ~/SambaData/Backup/FastCamp/data/my_photos/ --action move 
+ 1956  poetry run python src/my_utils/tools/RemoveEmptyDirectories.py --dry_run 
+ 1980  cp ../my_yolo_tiny/poetry_init.sh .
+ 1992  bash poetry_init.sh 
+ 1993  poetry init
+ 1994  bash poetry_init.sh 
+ 1995  bash clean_poetry_init.sh 
+ 1998  bash poetry_init.sh 

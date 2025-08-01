@@ -58,16 +58,15 @@ from PIL import Image, UnidentifiedImageError
 from PIL.Image import DecompressionBombError
 
 try:
-    from my_utils.config_utils.file_utils import calculate_sha256, safe_move, safe_copy, DiskFullError, get_exif_date_taken, get_original_filename
     from my_utils.config_utils.arg_utils import get_argument
     from my_utils.config_utils.SimpleLogger import logger
+    from my_utils.config_utils.configger import configger
+    from my_utils.config_utils.file_utils import safe_move, safe_copy, DiskFullError, get_original_filename, get_unique_path
     from my_utils.config_utils.display_utils import calc_digit_number, get_display_width, truncate_string, visual_length
+    from my_utils.object_utils.photo_utils import calculate_sha256, get_exif_date_taken, is_image_valid_debug
 except ImportError as e:
     print(f"치명적 오류: my_utils를 임포트할 수 없습니다. PYTHONPATH 및 의존성을 확인해주세요: {e}")
     sys.exit(1)
-
-# 지원하는 이미지 확장자 목록 (소문자로 통일)
-IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".gif", ".bmp", ".tiff", ".webp", ".heic"}
 
 # 처리 상태를 기록하기 위한 기본 템플릿
 DEFAULT_STATUS_TEMPLATE = {
@@ -80,45 +79,93 @@ DEFAULT_STATUS_TEMPLATE = {
     "images_deleted_as_duplicate":  {"value": 0, "msg": "중복으로 인해 삭제된 이미지 수 (이동 모드)"},
     "images_skipped_as_duplicate":  {"value": 0, "msg": "중복으로 인해 건너뛴 이미지 수 (복사 모드)"},
     "corrupted_images_skipped":     {"value": 0, "msg": "손상되어 건너뛴 이미지 수"},
+    "images_quarantined":           {"value": 0, "msg": "오류로 인해 격리된 파일 수"},
+    "quarantine_errors":            {"value": 0, "msg": "파일 격리 중 발생한 오류 수"},
     "move_errors":                  {"value": 0, "msg": "파일 처리 중 발생한 오류 수"},
     "subdirectories_created":       {"value": 0, "msg": "생성된 해시 하위 디렉토리 수"},
 }
 
-def _process_single_file(img_path: Path, status: dict) -> Optional[tuple]:
-    """
-    단일 이미지 파일의 유효성을 검사하고, 해시 및 EXIF 날짜를 추출합니다.
+def _quarantine_file(img_path: Path, quarantine_dir: Optional[Path], dry_run: bool, action: str, status: dict) -> bool:
+    """오류가 발생한 파일을 격리 디렉토리로 이동 또는 복사합니다."""
+    if not quarantine_dir:
+        return False
+    
+    try:
+        # 격리 폴더에 동일한 이름의 파일이 있을 경우 덮어쓰지 않고 버전 꼬리표를 답니다.
+        dest_path = get_unique_path(quarantine_dir, img_path.name)
+        log_prefix = "(Dry Run) " if dry_run else ""
+        action_verb = "이동" if action == 'move' else "복사"
+        logger.warning(f"{log_prefix}오류 파일을 격리 폴더로 {action_verb}: '{img_path}' -> '{dest_path}'")
+        if not dry_run:
+            if action == 'move':
+                safe_move(str(img_path), str(dest_path))
+            else: # action == 'copy'
+                safe_copy(str(img_path), str(dest_path))
+        return True
+    except (DiskFullError, OSError, Exception) as e:
+        logger.error(f"파일 격리 실패: '{img_path}'. 오류: {e}")
+        status["quarantine_errors"]["value"] += 1
+        return False
 
-    Args:
-        img_path (Path): 처리할 이미지 파일 경로.
-        status (dict): 통계 업데이트를 위한 상태 딕셔너리.
+def _process_single_file(img_path: Path, status: dict, quarantine_dir: Optional[Path], dry_run: bool, action: str) -> Optional[tuple]:
+    """
+    단일 이미지 파일의 유효성을 검사하고, 해시값 및 EXIF 날짜, 원본 파일명을 추출합니다.
+
+    Parameters:
+        img_path (Path): 처리할 이미지 파일의 경로
+        status (dict): 각종 통계 수치를 저장하는 상태 딕셔너리
+        quarantine_dir (Optional[Path]): 오류 발생 시 파일을 이동할 격리 디렉토리.
+        action (str): 'move' 또는 'copy'. 격리 작업 시 참고합니다.
+        dry_run (bool): 실제 파일 작업을 수행하지 않을지 여부.
 
     Returns:
-        Optional[tuple]: (file_hash, date_str, original_name) 튜플. 처리 실패 시 None.
+        Optional[tuple]:
+            성공 시 (file_hash, date_str, original_name) 튜플 반환
+            실패 시 None 반환 (이미지 손상, 해시 실패 등)
     """
-    # 이미지 무결성 검사 (Pillow 사용)
+    # 0. 파일 크기 확인 (0바이트 파일은 열 수 없음)
     try:
-        with Image.open(img_path) as img:
-            img.verify()  # 이미지 헤더 및 데이터 구조 검사
-    except (IOError, UnidentifiedImageError, SyntaxError) as e:
-        logger.warning(f"  손상된 이미지 파일: '{img_path}'. 오류: {e}. 건너뜁니다.")
-        status["corrupted_images_skipped"]["value"] += 1
-        return None
-    except DecompressionBombError as e:
-        logger.warning(f"  이미지 크기 초과 (Decompression Bomb): '{img_path}'. 오류: {e}. 건너뜁니다.")
-        status["corrupted_images_skipped"]["value"] += 1
+        if img_path.stat().st_size == 0:
+            logger.warning(f"크기가 0인 파일: '{img_path}'. 건너뜁니다.")
+            status["corrupted_images_skipped"]["value"] += 1
+            if _quarantine_file(img_path, quarantine_dir, dry_run, action, status):
+                status["images_quarantined"]["value"] += 1
+            return None
+    except FileNotFoundError:
+        logger.warning(f"파일을 찾을 수 없음: '{img_path}'. 건너뜁니다.")
+        # 파일이 없으므로 격리할 수 없음
         return None
 
+    # 1. 이미지 파일 무결성 검사 (Pillow 라이브러리 사용)
+    # is_image_valid_debug 함수는 이미지 전체를 로드하여 더 엄격하게 검사합니다.
+    if not is_image_valid_debug(img_path):
+        # is_image_valid_debug 내부에서 이미 상세한 경고/오류 로그를 남깁니다.
+        status["corrupted_images_skipped"]["value"] += 1
+        if _quarantine_file(img_path, quarantine_dir, dry_run, action, status):
+            status["images_quarantined"]["value"] += 1
+        return None
+
+    # 2. SHA-256 해시값 계산
     file_hash = calculate_sha256(img_path)
     if not file_hash:
-        logger.warning(f"  해시 계산 실패 (I/O 오류 가능성): {img_path}. 건너뜁니다.")
+        logger.warning(f"해시 계산 실패 (I/O 오류 가능성): '{img_path}'. 건너뜁니다.")
         status["move_errors"]["value"] += 1
+        if _quarantine_file(img_path, quarantine_dir, dry_run, action, status):
+            status["images_quarantined"]["value"] += 1
         return None
     status["hashes_calculated"]["value"] += 1
 
-    # EXIF 날짜 읽기 및 통계 업데이트
+    # 3. EXIF 촬영 날짜 추출
     raw_date_str = get_exif_date_taken(img_path)
     if raw_date_str == "ERROR":
+        logger.warning(f"EXIF 읽기 오류: '{img_path}'.")
         status["exif_read_errors"]["value"] += 1
+        # EXIF 읽기 오류가 발생한 파일도 격리 대상으로 고려할 수 있습니다.
+        if _quarantine_file(img_path, quarantine_dir, dry_run, action, status):
+            status["images_quarantined"]["value"] += 1
+            # 격리 후에는 더 이상 처리하지 않고 건너뜁니다.
+            return None
+        # 격리되지 않은 경우, 'exif_error' 폴더로 처리합니다.
         date_str = "exif_error"
     elif raw_date_str:
         status["exif_dates_found"]["value"] += 1
@@ -127,6 +174,7 @@ def _process_single_file(img_path: Path, status: dict) -> Optional[tuple]:
         status["exif_dates_missing"]["value"] += 1
         date_str = "unknown_date"
 
+    # 4. 원본 파일명 (보통은 파일명 자체지만 다른 기준이 있을 수 있음)
     original_name = get_original_filename(img_path)
     return file_hash, date_str, original_name
 
@@ -134,43 +182,58 @@ def _execute_file_action(img_path: Path, dest_file_path: Path, action: str, dry_
     """
     계산된 정보를 바탕으로 실제 파일 이동, 복사, 삭제 또는 건너뛰기 작업을 수행합니다.
     """
-    hash_subdir = dest_file_path.parent
-
     if dest_file_path.exists():
         if action == 'move':
             if dry_run:
                 logger.info(f"(Dry Run) 중복 파일 삭제 예정 (소스): '{img_path}'")
             else:
                 img_path.unlink()
-                logger.info(f"  중복 파일 삭제 (소스): '{img_path}'")
+                logger.info(f"중복 파일 삭제 (소스): '{img_path}'")
             status["images_deleted_as_duplicate"]["value"] += 1
         elif action == 'copy':
-            logger.info(f"  중복 파일 건너뛰기 (소스): '{img_path}'")
+            logger.info(f"중복 파일 건너뛰기 (소스): '{img_path}'")
             status["images_skipped_as_duplicate"]["value"] += 1
     else:
-        if not dry_run and not hash_subdir.exists():
-            hash_subdir.mkdir(parents=True, exist_ok=True)
-            created_dirs.add(hash_subdir)
-        elif dry_run and not hash_subdir.exists() and hash_subdir not in created_dirs:
-            # Dry-run 모드에서도 통계 예측을 위해 생성될 디렉토리를 세트에 추가합니다.
-            created_dirs.add(hash_subdir)
+        dest_parent_dir = dest_file_path.parent
+        is_new_dir = not dest_parent_dir.exists() and dest_parent_dir not in created_dirs
 
+        if is_new_dir:
+            created_dirs.add(dest_parent_dir)
+            if not dry_run:
+                dest_parent_dir.mkdir(parents=True, exist_ok=True)
+
+        # 로그 메시지 생성 및 출력
         log_prefix = "(Dry Run) " if dry_run else ""
         action_verb = "이동" if action == 'move' else "복사"
         log_msg = f"{log_prefix}{action_verb} 예정: '{img_path}' -> '{dest_file_path}'"
-
-        # Dry-run 모드에서 새 디렉토리 생성을 로그에 명시적으로 표시합니다.
-        if dry_run and not dest_file_path.parent.exists() and dest_file_path.parent in created_dirs:
-            log_msg += " (새 디렉토리 생성 예정)"
+        if is_new_dir and dry_run:
+            log_msg += f" (새 디렉토리 '{dest_parent_dir.name}' 생성 예정)"
         logger.info(log_msg)
 
         if not dry_run:
             (safe_move if action == 'move' else safe_copy)(str(img_path), str(dest_file_path))
         status["images_processed"]["value"] += 1
 
-def organize_photos_by_hash_logic(source_dir: Path, destination_dir: Path, dry_run: bool = False, action: str = 'move'):
+def organize_photos_by_hash_logic(
+    source_dir: Path,
+    destination_dir: Path,
+    allowed_extensions: Optional[set[str]] = None,
+    quarantine_dir: Optional[Path] = None,
+    dry_run: bool = False,
+    action: str = 'move'
+    ):
     """
-    소스 디렉토리의 사진을 해시값에 따라 대상 디렉토리로 정리하는 핵심 로직입니다.
+    해시값과 EXIF 날짜 정보를 기준으로 이미지 파일을 정리하는 핵심 로직 함수입니다.
+
+    Parameters:
+        source_dir (Path): 원본 이미지 파일들이 있는 디렉토리 경로
+        destination_dir (Path): 정리된 이미지들이 저장될 대상 디렉토리
+        quarantine_dir (Optional[Path]): 오류 파일을 이동할 격리 디렉토리.
+        dry_run (bool): 실제 파일을 이동/복사하지 않고 경로만 시뮬레이션할지 여부 (기본값: False)
+        action (str): 'move' 또는 'copy' 중 선택, 파일을 이동할지 복사할지 결정 (기본값: 'move')
+
+    Returns:
+        dict: 처리 상태를 담은 상태 딕셔너리 (스캔한 이미지 수, 오류 수, 생성된 하위 디렉토리 수 등)
     """
     # DecompressionBombError 방지를 위해 Pillow의 이미지 픽셀 수 제한을 해제합니다.
     Image.MAX_IMAGE_PIXELS = None
@@ -189,7 +252,7 @@ def organize_photos_by_hash_logic(source_dir: Path, destination_dir: Path, dry_r
 
     image_files, visual_width = get_display_width(
         source_dir = source_dir,
-        extensions = {".jpg", ".jpeg", ".png", ".bmp", ".tiff", ".gif", ".webp"},
+        extensions = allowed_extensions,
         buffer_ratio = 0.25,
         min_width = 20,
         max_width = 50
@@ -216,7 +279,7 @@ def organize_photos_by_hash_logic(source_dir: Path, destination_dir: Path, dry_r
         with tqdm(total=image_number, desc="사진 정리 중", unit="파일", file=sys.stdout, dynamic_ncols=True) as pbar:
             for idx, img_path in enumerate(image_files):
                 # 1. 파일 정보 처리 (유효성 검사, 해시, EXIF)
-                process_result = _process_single_file(img_path, status)
+                process_result = _process_single_file(img_path, status, quarantine_dir, dry_run, action)
                 if not process_result:
                     pbar.update(1)
                     continue
@@ -248,12 +311,14 @@ def organize_photos_by_hash_logic(source_dir: Path, destination_dir: Path, dry_r
     status["subdirectories_created"]["value"] = len(created_dirs_in_this_run)
     return status
 
-def run_main():
+
+if __name__ == "__main__":
     """
     스크립트의 메인 실행 함수입니다.
     """
-    parsed_args = get_argument()
-    
+    # -src와 -dst만 필수로 지정하고, -qrt(격리폴더) 등은 선택사항으로 변경합니다.
+    # -qrt를 지정하지 않으면 소스 디렉토리 하위에 'quarantine' 폴더가 자동으로 사용됩니다.
+    parsed_args = get_argument(required_args=['-src', '-dst'])
     script_name = Path(__file__).stem
     
     if hasattr(logger, "setup"):
@@ -271,20 +336,37 @@ def run_main():
     logger.info(f"애플리케이션 ({script_name}) 시작")
     logger.info(f"명령줄 인자: {vars(parsed_args)}")
 
+    try:
+        config_manager = configger(root_dir=parsed_args.root_dir, config_path=parsed_args.config_path)
+        logger.info("Configger 초기화 완료.")
+        # YAML에서 리스트를 가져와 소문자 set으로 변환
+        extensions_from_config = config_manager.get_value("processing.supported_image_extensions", default=[])
+        allowed_extensions = {ext.lower() for ext in extensions_from_config} if extensions_from_config else set()
+    except Exception as e:
+        logger.error(f"Configger 초기화 또는 설정 로드 중 오류 발생: {e}", exc_info=True)
+        allowed_extensions = set() # 오류 발생 시 빈 세트로 초기화
+
     # --source-dir 또는 --target-dir을 소스 디렉토리로 사용
     input_dir_path = parsed_args.source_dir or parsed_args.target_dir
-
-    if not input_dir_path:
-        logger.error("정리할 사진이 있는 소스 디렉토리(--source-dir 또는 --target-dir)가 제공되지 않았습니다. 스크립트를 종료합니다.")
-        sys.exit(1)
-    if not parsed_args.destination_dir:
-        logger.error("대상 디렉토리 (--destination-dir or -dst)가 제공되지 않았습니다. 스크립트를 종료합니다.")
-        sys.exit(1)
 
     source_dir = Path(input_dir_path).expanduser().resolve()
     destination_dir = Path(parsed_args.destination_dir).expanduser().resolve()
     dry_run_mode = getattr(parsed_args, 'dry_run', False)
     action_mode = getattr(parsed_args, 'action', 'move') # 새로운 action 인자 가져오기
+
+    # 격리 디렉토리 경로 결정
+    quarantine_dir: Path
+    if parsed_args.quarantine_dir:
+        # 사용자가 명시적으로 경로를 지정한 경우
+        quarantine_dir = Path(parsed_args.quarantine_dir).expanduser().resolve()
+        logger.info(f"사용자 지정 격리 디렉토리 사용: '{quarantine_dir}'")
+    else:
+        # 기본값: 소스 디렉토리 아래 'quarantine' 폴더
+        quarantine_dir = source_dir / 'quarantine'
+        logger.info(f"기본 격리 디렉토리 사용: '{quarantine_dir}'")
+
+    if not dry_run_mode: # 실제 실행 모드일 때만 디렉토리 생성
+        quarantine_dir.mkdir(parents=True, exist_ok=True)
 
     if source_dir == destination_dir:
         logger.error("소스 디렉토리와 대상 디렉토리는 같을 수 없습니다. 스크립트를 종료합니다.")
@@ -294,7 +376,9 @@ def run_main():
         # organize_photos_by_hash_logic 함수에 action_mode 전달
         final_status = organize_photos_by_hash_logic(
             source_dir=source_dir,
+            allowed_extensions=allowed_extensions,
             destination_dir=destination_dir,
+            quarantine_dir=quarantine_dir,
             dry_run=dry_run_mode,
             action=action_mode
         )
@@ -320,6 +404,3 @@ def run_main():
         logger.info(f"애플리케이션 ({script_name}) 종료{ ' (Dry Run 모드)' if dry_run_mode else ''}")
         if hasattr(logger, "shutdown"):
             logger.shutdown()
-
-if __name__ == "__main__":
-    run_main()

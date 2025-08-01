@@ -58,7 +58,22 @@ def get_display_width(
     min_width: int = 20,
     max_width: int = 50,
 ) -> Tuple[List[Path], int]:
-    """디렉토리에서 파일을 스캔하고 파일 이름에 대한 권장 표시 너비를 계산합니다."""
+    """
+    디렉토리에서 지정한 확장자를 가진 파일들을 검색하고,
+    해당 파일 이름의 평균 시각적 길이에 따라 권장 표시 너비를 계산합니다.
+
+    Parameters:
+        source_dir (Path): 검색할 기준 디렉토리 경로.
+        extensions (set): 대상 확장자들 (예: {'.py', '.txt'}).
+        buffer_ratio (float): 평균 길이에 곱해지는 여유 비율 (기본값: 0.15).
+        min_width (int): 표시 너비의 최소값 (기본값: 20).
+        max_width (int): 표시 너비의 최대값 (기본값: 50).
+
+    Returns:
+        Tuple[List[Path], int]: 
+            - 조건에 맞는 파일 목록 (Path 객체 리스트)
+            - 권장 표시 너비 (int)
+    """
     files = []
     name_lengths = []
 
