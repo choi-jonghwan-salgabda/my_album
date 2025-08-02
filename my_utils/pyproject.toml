@@ -23,6 +23,7 @@ opencv-python = "^4.11.0.86"
 torch = "^2.7.1"
 ultralytics = "^8.3.158"
 pillow = "^11.3.0"
+piexif = "^1.1.3"
 
 [build-system]
 requires = ["poetry-core>=1.0.0"]

@@ -5,9 +5,24 @@
 
 import math
 import unicodedata
-import statistics
 from pathlib import Path
-from typing import List, Tuple
+from typing import List, Tuple, Callable, Iterable, Any, Optional, TypeVar, Union
+from tqdm import tqdm
+import sys
+from concurrent.futures import ProcessPoolExecutor, as_completed
+
+# 프로젝트 공용 로거 임포트
+try:
+    from my_utils.config_utils.arg_utils import get_argument, visual_length
+    from my_utils.config_utils.SimpleLogger import logger
+except ImportError:
+    import logging
+    logger = logging.getLogger(__name__)
+
+# 제네릭 타입을 위한 TypeVar 정의
+T = TypeVar('T')
+R = TypeVar('R')
+
 
 def calc_digit_number(in_number: int) -> int:
     """주어진 정수의 자릿수를 계산합니다."""
@@ -15,18 +30,6 @@ def calc_digit_number(in_number: int) -> int:
         return 1
     in_number = abs(in_number)
     return math.floor(math.log10(in_number)) + 1
-
-def visual_length(text, space_width=1):
-    """전각 문자를 고려하여 문자열의 시각적 길이를 계산합니다."""
-    length = 0
-    for ch in text:
-        if ch == ' ':
-            length += space_width
-        elif unicodedata.east_asian_width(ch) in ('W', 'F'):
-            length += 2
-        else:
-            length += 1
-    return length
 
 def truncate_string(text: str, max_visual_width: int, ellipsis: str = '...') -> str:
     """문자열을 최대 시각적 길이에 맞춰 자르고, 필요한 경우 말줄임표를 추가합니다."""
@@ -44,12 +47,6 @@ def truncate_string(text: str, max_visual_width: int, ellipsis: str = '...') -> 
         else:
             break
     return "".join(truncated_text_chars) + ellipsis
-
-def calculate_median(data_list):
-    """숫자 리스트의 중앙값을 계산합니다."""
-    if not data_list:
-        return None
-    return statistics.median(data_list)
 
 def get_display_width(
     source_dir: Path,
@@ -90,3 +87,108 @@ def get_display_width(
         display_width = min_width
 
     return files, display_width
+
+
+def with_progress_bar(
+    items: Iterable,
+    task_func: Callable[[Any, int], None],
+    desc: str = "처리 중",
+    unit: str = "항목",
+    total: Optional[int] = None,
+    dynamic_ncols: bool = True,
+    description_func: Optional[Callable[[Any], str]] = None
+):
+    """
+    tqdm 진행 표시줄과 함께 항목들을 처리하는 범용 유틸리티 함수.
+    로거의 tqdm 호환 모드를 자동으로 관리하며, 예외 발생 시에도 로거 상태를 복원합니다.
+
+    Args:
+        items (Iterable): 처리할 항목 리스트 또는 제너레이터.
+                          total이 None이면, 메모리 사용량에 주의해야 합니다 (전체 항목이 리스트로 변환됨).
+        task_func (Callable): 각 항목에 대해 실행할 함수 (인자: item, index).
+        desc (str): tqdm 진행 표시줄의 기본 설명.
+        unit (str): 진행 단위 (예: "파일", "디렉토리").
+        total (int, optional): 전체 항목 수. 제공되지 않으면 items로부터 계산됩니다.
+        dynamic_ncols (bool): 터미널 폭 자동 조절 여부.
+        description_func (Callable, optional): 각 항목 처리 후 pbar의 설명을 동적으로 설정하는 함수.
+                                                이 함수는 현재 처리 중인 item을 인자로 받습니다.
+    """
+    # total이 제공되지 않은 경우, iterable의 길이를 계산합니다.
+    # len()이 불가능한 제너레이터의 경우, 리스트로 변환하며 이는 메모리 사용량에 영향을 줄 수 있습니다.
+    if total is None:
+        try:
+            total = len(items)
+        except TypeError:
+            logger.debug("Iterable에 len()을 사용할 수 없어 리스트로 변환합니다. 메모리 사용량에 주의하세요.")
+            items = list(items)
+            total = len(items)
+
+    if hasattr(logger, 'set_tqdm_aware'):
+        logger.set_tqdm_aware(True)
+    try:
+        with tqdm(total=total, desc=desc, unit=unit, file=sys.stdout, dynamic_ncols=dynamic_ncols) as pbar:
+            for idx, item in enumerate(items):
+                task_func(item, idx)
+                # description_func가 제공되면, 진행 표시줄의 설명을 동적으로 업데이트합니다.
+                if description_func:
+                    pbar.set_description(description_func(item))
+                pbar.update(1)
+    finally:
+        # 작업이 성공하든 실패하든, 로거 설정을 원래대로 복원합니다.
+        if hasattr(logger, 'set_tqdm_aware'):
+            logger.set_tqdm_aware(False)
+
+def _worker_init_tqdm():
+    """Initializer for ProcessPoolExecutor workers to make the global logger tqdm-aware."""
+    # 각 워커 프로세스는 자신만의 전역 로거 인스턴스를 가집니다.
+    # 여기서 해당 로거를 임포트하고 설정해야 합니다.
+    from my_utils.config_utils.SimpleLogger import logger
+    if hasattr(logger, 'set_tqdm_aware'):
+        logger.set_tqdm_aware(True)
+
+def with_parallel_progress_bar(
+    items: Iterable[T],
+    task_func: Callable[[T], R],
+    desc: str = "처리 중",
+    unit: str = "항목",
+    postfix_func: Optional[Callable[[Any], str]] = None,
+    preserve_order: bool = False,
+    max_workers: Optional[int] = None
+) -> List[Union[R, Exception]]:
+    """
+    ProcessPoolExecutor와 tqdm을 사용해 항목들을 병렬로 처리하고 결과를 반환합니다.
+    워커 프로세스의 로거를 자동으로 tqdm 호환 모드로 설정합니다.
+
+    Args:
+        items (Iterable[T]): 처리할 항목 리스트 또는 제너레이터.
+        task_func (Callable[[T], R]): 각 항목에 대해 실행할 함수. 결과를 반환해야 합니다.
+        desc (str): tqdm 진행 표시줄의 기본 설명.
+        unit (str): 진행 단위.
+        postfix_func (Callable, optional): 각 항목 처리 완료 후 pbar의 후행 텍스트(postfix)를 동적으로 설정하는 함수.
+                                            이 함수는 현재 처리 완료된 item을 인자로 받습니다.
+        preserve_order (bool): True이면 입력 순서와 동일한 순서로 결과를 반환합니다. 
+                               이 경우, 실패한 작업은 결과 리스트에 Exception 객체로 포함됩니다.
+                               False(기본값)이면 완료되는 순서대로 결과를 반환하며, 실패한 작업은 결과에서 제외됩니다.
+        max_workers (int, optional): 사용할 최대 워커 프로세스 수. None이면 기본값을 사용합니다.
+
+    Returns:
+    """
+    results = []
+    # len()을 사용할 수 없는 제너레이터 등을 위해 리스트로 변환
+    if not hasattr(items, '__len__'):
+        items = list(items)
+
+    with ProcessPoolExecutor() as executor:
+        future_to_item = {executor.submit(task_func, item): item for item in items}
+        with tqdm(total=len(items), desc=desc, unit=unit, dynamic_ncols=True) as pbar:
+            for future in as_completed(future_to_item):
+                item = future_to_item[future]
+                try:
+                    result = future.result()
+                    results.append(result)
+                    if description_func:
+                        pbar.set_postfix_str(description_func(item), refresh=True)
+                except Exception as e:
+                    logger.error(f"❗ 워커 오류 발생: {item} → {e}")
+                pbar.update(1)
+    return results

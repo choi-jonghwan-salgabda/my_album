@@ -88,6 +88,7 @@ def is_image_valid_debug(img_path: Path) -> bool:
         logger.error(f"❗ 예상치 못한 이미지 오류: {img_path} - {e}")
         return False
 
+
 def _get_string_key_from_config(config_dict: Optional[Dict[str, Any]], key_name: str, default_value: str, logger_instance) -> str:
     """
     설정 딕셔너리에서 문자열 값을 가져오며, 문자열이 아닐 경우 오류를 로깅하고 기본값을 반환합니다.
@@ -471,7 +472,7 @@ def load_photo_data_from_sources(
     logger_instance, # 로거 인스턴스
     raw_jsons_dir_path: Optional[str] = None,
     json_save_file_path: Optional[str] = None
-) -> List[Dict[str, Any]]:
+    ) -> List[Dict[str, Any]]:
     """
     지정된 소스에서 사진 메타데이터를 로드합니다.
     1. raw_jsons_dir_path 디렉토리 내의 모든 JSON 파일을 로드 시도.
@@ -536,7 +537,7 @@ def extract_face_features_from_face_crop(
     face_img: np.ndarray,
     shape_predictor_path: str,
     face_rec_model_path: str
-) -> Optional[np.ndarray]:
+    ) -> Optional[np.ndarray]:
     """
     잘린 얼굴 이미지에서 dlib을 사용해 얼굴 특징 벡터(128차원)를 추출합니다.
     

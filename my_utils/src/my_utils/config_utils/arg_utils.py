@@ -4,18 +4,22 @@ Provides a centralized function for parsing command-line arguments
 used by various tool scripts in the project.
 """
 
-import os
 import argparse
 import sys
 from pathlib import Path
+import unicodedata
 
-try:
-    from my_utils.config_utils.display_utils import visual_length
-except ImportError:
-    # Fallback for standalone execution or if display_utils is not found
-    def visual_length(text, space_width=1):
-        """A simple fallback for visual_length."""
-        return len(text)
+def visual_length(text, space_width=1):
+    """전각 문자를 고려하여 문자열의 시각적 길이를 계산합니다."""
+    length = 0
+    for ch in text:
+        if ch == ' ':
+            length += space_width
+        elif unicodedata.east_asian_width(ch) in ('W', 'F'):
+            length += 2
+        else:
+            length += 1
+    return length
 
 def get_argument(required_args: list[str] = None) -> argparse.Namespace:
     """
@@ -29,7 +33,7 @@ def get_argument(required_args: list[str] = None) -> argparse.Namespace:
     if required_args is None:
         required_args = []
 
-    curr_dir = os.getcwd()
+    curr_dir = Path.cwd()
 
     epilog_text = """
 사용 예시:
@@ -138,6 +142,12 @@ def get_argument(required_args: list[str] = None) -> argparse.Namespace:
         help="실제 파일 작업을 수행합니다. 이 플래그가 없으면 기본적으로 테스트 실행(Dry Run) 모드로 동작합니다."
     )
     parser.add_argument(
+        '--parallel',
+        action='store_true',
+        default=False,
+        help="병렬 처리를 사용하여 작업을 수행합니다 (지원하는 스크립트만 해당)."
+    )
+    parser.add_argument(
         # --delete-top-if-empty', '--delete_top_if_empty', → 하나의 인자 delete_top_if_empty로 매핑됨
         '--delete-top-if-empty', '--delete_top_if_empty',
         action="store_true",
@@ -199,20 +209,21 @@ def get_argument(required_args: list[str] = None) -> argparse.Namespace:
     Path(args.log_dir).mkdir(parents=True, exist_ok=True)
 
     # --- 파싱된 인자 출력 ---
-    print("+++++++++ 파싱된 인자 +++++++++++++++")
+    print("+++++++++ 파싱된 인자 +++++++++++++++++++++++++++++")
 
     # 출력할 인자와 레이블 매핑
     arg_display_map = {
         'root_dir': "루트 디렉토리 (--root-dir)",
         'log_dir': "로그 디렉토리 (--log-dir)",
         'log_level': "로그 레벨 (--log-level)",
-        'config_path': "설정 파일 경로 (--config-path)",
+        'config_path': "설정 파일경로 (--config-path)",
         'source_dir': "소스 디렉토리 (--source-dir)",
         'destination_dir': "대상 디렉토리 (--destination-dir)",
         'target_dir': "타겟 디렉토리 (--target-dir)",
         'quarantine_dir': "격리 디렉토리 (--quarantine-dir)",
-        'action': "파일 처리 방식 (--action)",
+        'action': "파일 처리방식 (--action)",
         # 'dry_run'은 특별 처리되므로 여기서 제외합니다.
+        'parallel': "병렬 처리 모드 (--parallel)",
         'delete_top_if_empty': "최상위 빈 디렉토리 삭제",
     }
 

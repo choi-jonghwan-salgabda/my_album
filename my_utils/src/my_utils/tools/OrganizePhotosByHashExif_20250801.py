@@ -49,6 +49,7 @@ from pathlib import Path
 import shutil
 import argparse
 from datetime import datetime
+import uuid
 import copy
 import hashlib
 from tqdm import tqdm # tqdm 임포트
@@ -296,24 +297,13 @@ def organize_photos_by_hash_logic(
         logger.error(f"대상 디렉토리를 생성할 수 없습니다 ({destination_dir}): {e}")
         return status
 
-    all_found_files, visual_width = get_display_width(
+    image_files, visual_width = get_display_width(
         source_dir = source_dir,
         extensions = allowed_extensions,
         buffer_ratio = 0.25,
         min_width = 20,
         max_width = 50
     )
-
-    # 격리 디렉토리가 소스 디렉토리 내부에 있을 경우, 해당 디렉토리의 파일은 처리 대상에서 제외합니다.
-    # 이는 격리된 파일을 다시 스캔하여 무한 루프에 빠지는 것을 방지합니다.
-    image_files = []
-    if quarantine_dir and source_dir in quarantine_dir.parents:
-        resolved_quarantine_dir = quarantine_dir.resolve()
-        for f in all_found_files:
-            if not str(f.resolve()).startswith(str(resolved_quarantine_dir)):
-                image_files.append(f)
-    else:
-        image_files = all_found_files
 
     image_number = len(image_files)
 
@@ -400,12 +390,12 @@ if __name__ == "__main__":
         allowed_extensions = set() # 오류 발생 시 빈 세트로 초기화
 
     # --source-dir 또는 --target-dir을 소스 디렉토리로 사용
-    input_dir_path = parsed_args.source_dir
+    input_dir_path = parsed_args.source_dir or parsed_args.target_dir
 
     source_dir = Path(input_dir_path).expanduser().resolve()
     destination_dir = Path(parsed_args.destination_dir).expanduser().resolve()
-    dry_run_mode = parsed_args.dry_run
-    action_mode = parsed_args.action # argparse에 정의된 기본값('copy')을 사용합니다.
+    dry_run_mode = getattr(parsed_args, 'dry_run', False)
+    action_mode = getattr(parsed_args, 'action', 'move') # 새로운 action 인자 가져오기
 
     # 격리 디렉토리 경로 결정
     quarantine_dir: Path
@@ -438,14 +428,13 @@ if __name__ == "__main__":
 
         logger.warning("--- 사진 해시 기반 정리 처리 통계 ---")
         max_visual_msg_len = max(visual_length(v["msg"]) for v in DEFAULT_STATUS_TEMPLATE.values()) if DEFAULT_STATUS_TEMPLATE else 20
-        all_values = [s_item["value"] for s_item in final_status.values()]
-        max_val_for_width = max(all_values) if all_values else 0
+        max_val_for_width = max(s_item["value"] for s_item in final_status.values()) if final_status and any(final_status.values()) else 0
         digit_width_stats = calc_digit_number(max_val_for_width)
         
         for key, data in final_status.items():
             msg = DEFAULT_STATUS_TEMPLATE.get(key, {}).get("msg", key.replace("_", " ").capitalize())
             value = data["value"]
-            padding_spaces = max(0, max_visual_msg_len - visual_length(msg))
+            padding_spaces = max(0, int(max_visual_msg_len - visual_length(msg)))
             logger.warning(f"{msg}{'-' * padding_spaces} : {value:>{digit_width_stats}}")
         logger.warning("------------------------------------")
 

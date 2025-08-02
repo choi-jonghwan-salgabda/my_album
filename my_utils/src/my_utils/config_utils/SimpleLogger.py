@@ -28,7 +28,6 @@ from pathlib import Path
 from datetime import datetime
 import traceback
 from tqdm import tqdm # tqdm 진행률 바와의 호환성을 위해 임포트
-from collections import deque
 from typing import List, Tuple, Optional
 
 try:
@@ -84,6 +83,7 @@ class SimpleLogger:
         self._log_queue_max_size = 10000         # 비동기 로그 큐의 최대 크기
         self._log_queue_full_warning_sent = False # 로그 큐가 가득 찼다는 경고를 보냈는지 여부
         self._max_log_line_width = 0             # 로그 메시지 최대 너비 (0은 비활성화)
+        self._shutdown_called = False            # shutdown이 이미 호출되었는지 확인하는 플래그
 
         # --- Log Rotation 기능 추가 ---
         self._log_rotation_max_bytes = 0  # 로그 회전 파일 최대 크기 (0은 비활성화)
@@ -392,8 +392,12 @@ class SimpleLogger:
         로거를 종료합니다. 실행 중인 비동기 파일 쓰기 스레드가 있다면 안전하게 종료시킵니다.
         애플리케이션 종료 시 호출하는 것이 좋습니다.
         """
+        if self._shutdown_called:
+            return # 이미 종료되었으면 아무것도 하지 않음
+
         self._stop_async_writer()
         print("로거 종료 완료.")
+        self._shutdown_called = True # 종료되었음을 표시
 
     def __del__(self):
         """

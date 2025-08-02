@@ -7,12 +7,9 @@ shared logger, including pre-emptive disk space checks.
 import os
 import shutil
 import errno
-import hashlib
 import re
 from pathlib import Path
 from typing import Generator, List, Tuple, Optional
-from PIL import Image
-from PIL.ExifTags import TAGS
 
 
 try:
@@ -26,6 +23,7 @@ except ImportError:
 class DiskFullError(OSError):
     """Exception raised when there is no space left on device."""
     pass
+
 
 def load_extensions_from_file(file_path: Path) -> set[str]:
     """
