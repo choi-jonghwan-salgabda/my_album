@@ -23,29 +23,51 @@ except ImportError as e:
 # 이 파일 내에서 직접적인 로깅은 최소화하고, 호출하는 쪽에서 로깅을 처리한다고 가정합니다.
 # 필요시 logger 객체를 함수 인자로 받거나 전역 로거를 사용할 수 있습니다.
 
-def calculate_sha256(file_path: Path) -> Optional[str]:
+class ExifReadError(Exception):
+    """EXIF 데이터를 읽는 중 오류가 발생했을 때 사용하는 사용자 정의 예외입니다."""
+    pass
+
+def calculate_sha256(file_path_or_stream: Union[Path, io.BytesIO]) -> Optional[str]:
     """
-    주어진 파일 경로에 대해 SHA256 해시 값을 계산하여 문자열로 반환합니다.
+    파일 경로 또는 메모리 스트림에 대해 SHA256 해시 값을 계산합니다.
+    스트림 객체가 입력되면, 다른 처리를 위해 스트림의 위치를 다시 처음으로 되돌립니다.
+
+    Args:
+        file_path_or_stream (Union[Path, io.BytesIO]): 파일 경로 또는 io.BytesIO와 같은 스트림 객체.
+
+    Returns:
+        Optional[str]: 계산된 SHA256 해시 문자열. 오류 발생 시 None.
     """
     sha256_hash = hashlib.sha256()
     try:
-        with open(file_path, "rb") as f:
-            for byte_block in iter(lambda: f.read(4096), b""):
+        if isinstance(file_path_or_stream, Path):
+            # 입력이 파일 경로인 경우
+            with open(file_path_or_stream, "rb") as f:
+                for byte_block in iter(lambda: f.read(4096), b""):
+                    sha256_hash.update(byte_block)
+        else:
+            # 입력이 스트림인 경우 (e.g., io.BytesIO)
+            # 다른 함수에서 스트림을 읽었을 수 있으므로, 시작 위치로 되돌립니다.
+            file_path_or_stream.seek(0)
+            for byte_block in iter(lambda: file_path_or_stream.read(4096), b""):
                 sha256_hash.update(byte_block)
+            # 다음 함수가 스트림을 다시 읽을 수 있도록 위치를 되돌려줍니다.
+            file_path_or_stream.seek(0)
         return sha256_hash.hexdigest()
-    except IOError as e:
-        logger.error(f"파일 읽기 오류 {file_path}: {e}")
+    except (IOError, OSError) as e:
+        # 경로 객체일 때만 파일 경로를 로그에 남깁니다.
+        path_info = f"'{file_path_or_stream}'" if isinstance(file_path_or_stream, Path) else "a stream object"
+        logger.error(f"해시 계산 중 파일/스트림 읽기 오류 ({path_info}): {e}")
         return None
 
 
-def get_exif_date_taken(image_path: Path) -> Optional[str]:
+def get_exif_date_taken(image_path_or_stream: Union[Path, io.BytesIO]) -> Optional[str]:
     """
-    이미지 파일에서 EXIF 'DateTimeOriginal' 태그를 읽어 촬영 날짜를 'YYYY-MM-DD' 형식으로 반환합니다.
+    이미지 파일 경로 또는 스트림에서 EXIF 'DateTimeOriginal' 태그를 읽어 촬영 날짜를 반환합니다.
     EXIF 데이터가 없거나 날짜 정보가 없으면 None을 반환합니다.
-    이 함수를 사용하려면 'Pillow' 라이브러리가 설치되어 있어야 합니다 (pip install Pillow).
     """
     try:
-        with Image.open(image_path) as img:
+        with Image.open(image_path_or_stream) as img:
             # exif 데이터가 없는 경우도 있으므로 _getexif() 사용
             exif_data = img._getexif()
             if not exif_data:
@@ -57,35 +79,35 @@ def get_exif_date_taken(image_path: Path) -> Optional[str]:
                 # 값은 'YYYY:MM:DD HH:MM:SS' 형식이므로, 날짜 부분만 추출하여 포맷 변경
                 return date_taken_str.split(' ')[0].replace(':', '-')
     except Exception as e:
-        # Pillow가 처리할 수 없는 파일이거나 다른 EXIF 관련 오류 발생 시
-        logger.debug(f"EXIF 날짜를 읽는 중 오류 발생 '{image_path.name}': {e}")
-        return "ERROR"
+        # Pillow가 처리할 수 없는 파일이거나 다른 EXIF 관련 오류 발생 시 예외를 발생시킵니다.
+        path_info = f"'{image_path_or_stream.name}'" if isinstance(image_path_or_stream, Path) else "a stream object"
+        raise ExifReadError(f"EXIF 날짜를 읽는 중 오류 발생 ({path_info}): {e}") from e
     return None
 
-def is_image_valid_debug(img_path: Path) -> bool:
+def is_image_valid_debug(img_path_or_stream: Union[Path, io.BytesIO]) -> bool:
     """
-    BMP 등의 이미지 파일의 유효성을 더 자세히 검사하고,
-    구체적인 에러 메시지를 통해 디버깅 가능하도록 로그 출력.
+    이미지 파일 경로 또는 스트림의 유효성을 검사하고, 구체적인 에러 메시지를 로그로 남깁니다.
 
     Args:
-        img_path (Path): 이미지 경로
+        img_path_or_stream (Union[Path, io.BytesIO]): 이미지 경로 또는 스트림.
 
     Returns:
         bool: 유효하면 True, 오류 발생 시 False
     """
+    path_info = f"'{img_path_or_stream.name}'" if isinstance(img_path_or_stream, Path) else "a stream object"
     try:
-        with Image.open(img_path) as img:
+        with Image.open(img_path_or_stream) as img:
             img.load()  # 이미지 전체 디코딩 시도
-        logger.debug(f"✅ 유효한 이미지: {img_path}")
+        logger.debug(f"✅ 유효한 이미지: {path_info}")
         return True
     except UnidentifiedImageError:
-        logger.warning(f"❌ 이미지 형식 인식 실패: {img_path}")
+        logger.warning(f"❌ 이미지 형식 인식 실패: {path_info}")
         return False
     except OSError as e:
-        logger.warning(f"❌ 이미지 디코딩 실패: {img_path} - {e}")
+        logger.warning(f"❌ 이미지 디코딩 실패: {path_info} - {e}")
         return False
     except Exception as e:
-        logger.error(f"❗ 예상치 못한 이미지 오류: {img_path} - {e}")
+        logger.error(f"❗ 예상치 못한 이미지 오류: {path_info} - {e}")
         return False
 
 
