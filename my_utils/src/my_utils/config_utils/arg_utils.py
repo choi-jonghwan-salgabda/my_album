@@ -21,7 +21,7 @@ def visual_length(text, space_width=1):
             length += 1
     return length
 
-def get_argument(required_args: list[str] = None) -> argparse.Namespace:
+def get_argument(required_args: list[str] = None, supported_args: list[str] = None) -> argparse.Namespace:
     """
     인자를 파싱하며, required_args로 지정된 필수 인자가 명시되지 않은 경우,
     위치 인자(positional arguments)를 순서대로 매핑하여 자동 보완합니다.
@@ -29,6 +29,8 @@ def get_argument(required_args: list[str] = None) -> argparse.Namespace:
     Args:
         required_args (list[str], optional): '--source-dir'와 같이 필수로 지정할 인자 목록.
                                              이 목록의 순서에 따라 위치 인자가 매핑됩니다.
+        supported_args (list[str], optional): 이 스크립트에서 지원하는 인자(dest) 목록.
+                                             이 목록에 포함된 인자만 파싱 결과에 표시됩니다.
     """
     if required_args is None:
         required_args = []
@@ -148,6 +150,12 @@ def get_argument(required_args: list[str] = None) -> argparse.Namespace:
         help="병렬 처리를 사용하여 작업을 수행합니다 (지원하는 스크립트만 해당)."
     )
     parser.add_argument(
+        '--max-workers',
+        type=int,
+        default=None,
+        help="병렬 처리 시 사용할 최대 워커(프로세스) 수를 지정합니다. (기본값: 시스템의 CPU 코어 수)"
+    )
+    parser.add_argument(
         # --delete-top-if-empty', '--delete_top_if_empty', → 하나의 인자 delete_top_if_empty로 매핑됨
         '--delete-top-if-empty', '--delete_top_if_empty',
         action="store_true",
@@ -224,8 +232,13 @@ def get_argument(required_args: list[str] = None) -> argparse.Namespace:
         'action': "파일 처리방식 (--action)",
         # 'dry_run'은 특별 처리되므로 여기서 제외합니다.
         'parallel': "병렬 처리 모드 (--parallel)",
+        'max_workers': "최대 워커 수 (--max-workers)",
         'delete_top_if_empty': "최상위 빈 디렉토리 삭제",
     }
+
+    # 기본적으로 항상 표시되는 인자들
+    base_display_args = ['root_dir', 'log_dir', 'log_level', 'config_path']
+
 
     # 사용자가 명시적으로 지정했거나, 필수 인자로 지정된 값만 출력하기 위해 필터링
     items_to_print = []
@@ -237,22 +250,28 @@ def get_argument(required_args: list[str] = None) -> argparse.Namespace:
     else: # 기본값인 Dry Run 모드인 경우
         items_to_print.append(("실행 모드", "테스트 실행 (Dry Run)"))
 
+    # supported_args가 제공되지 않으면 모든 인자를 표시 대상으로 간주합니다.
+    if supported_args is None:
+        supported_args = list(arg_display_map.keys())
+
+    # supported_args에 기본 표시 인자들을 추가합니다.
+    display_arg_set = set(supported_args)
+    display_arg_set.update(base_display_args)
+
     for arg_name, current_value in vars(args).items():
-        # arg_display_map에 있는 모든 유효한 인자를 출력하도록 수정합니다.
-        # 이전 로직은 사용자가 명시적으로 값을 변경했거나 필수 인자인 경우에만 출력했습니다.
-        if arg_name in arg_display_map:
+        # 표시해야 할 인자 목록(display_arg_set)에 포함된 경우에만 처리
+        if arg_name in display_arg_set and arg_name in arg_display_map:
             # '--action' 인자는 사용자가 명시적으로 입력했을 때만 표시합니다.
             if arg_name == 'action':
-                # sys.argv를 직접 확인하여 사용자가 '--action' 또는 '-act'를 사용했는지 검사합니다.
-                action_arg_provided = any(arg == '--action' or arg.startswith('--action=') or arg == '-act' for arg in sys.argv)
+                action_arg_provided = any(arg in ['--action', '-act'] or arg.startswith('--action=') for arg in sys.argv)
                 if not action_arg_provided:
                     continue # 사용자가 입력하지 않았으면 건너뜁니다.
 
             label = arg_display_map[arg_name]
-            # 부울 값이고 True일 때만 표시 (예: --delete-top-if-empty)
+            # 부울 값이고 True일 때만 표시
             if isinstance(current_value, bool) and current_value:
                 items_to_print.append((label, "활성화"))
-            # 부울이 아니고 값이 None이 아닐 때 표시
+            # 부울이 아니고 값이 None이 아닐 때
             elif not isinstance(current_value, bool) and current_value is not None:
                 items_to_print.append((label, current_value))
 
@@ -260,47 +279,14 @@ def get_argument(required_args: list[str] = None) -> argparse.Namespace:
         max_label_vl = 0
     else:
         max_label_vl = max(visual_length(label) for label, _ in items_to_print)
+    for label_text, value in items_to_print:
+        # 들여쓰기 및 레이블
+        prefix = f"  {label_text}"
+        # 시각적 길이를 기준으로 공백과 하이픈 계산
+        padding_needed = max_label_vl - visual_length(label_text)
+        # 최종 출력 문자열 생성
+        print(f"{prefix}{' ' * padding_needed} : {value}")
 
-    target_value_start_column_vl = visual_length("  ") + max_label_vl + 3
-
-    # 특수 병합 대상: log_dir + log_level
-    merged = False
-
-    i = 0
-    while i < len(items_to_print):
-        label_text, value = items_to_print[i]
-
-        if label_text == arg_display_map['log_dir']:
-            # log_dir 라인일 경우 → log_level과 함께 출력할지 확인
-            line = ""
-            prefix1 = f"  {label_text}"
-            hyphens1 = "-" * (target_value_start_column_vl - visual_length(prefix1))
-            text1 = f"{prefix1}{hyphens1}{value}"
-
-            # 다음 항목이 log_level이면 병합 출력
-            if i + 1 < len(items_to_print):
-                next_label, next_value = items_to_print[i + 1]
-                if next_label == arg_display_map['log_level']:
-                    prefix2 = f"{next_label}"
-                    hyphens2 = "-" * (target_value_start_column_vl - visual_length(prefix2))
-                    text2 = f"{prefix2}{hyphens2}{next_value}"
-                    line = f"{text1}   {text2}"
-                    merged = True
-                    i += 2
-                    print(line)
-                    continue
-
-            # 병합 안 된 경우 단독 출력
-            print(text1)
-            i += 1
-        elif merged and label_text == arg_display_map['log_level']:
-            # 이미 위에서 log_level 출력했으면 생략
-            i += 1
-        else:
-            prefix = f"  {label_text}"
-            hyphens = "-" * (target_value_start_column_vl - visual_length(prefix))
-            print(f"{prefix}{hyphens}{value}")
-            i += 1
-    print("++++++++++++++++++++++++++++++++++++++++++++++++++")
+    print("+++++++++++++++++++++++++++++++++++++++++++++++++++")
 
     return args

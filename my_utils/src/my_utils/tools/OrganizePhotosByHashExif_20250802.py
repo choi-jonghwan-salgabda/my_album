@@ -62,7 +62,7 @@ try:
     from my_utils.config_utils.SimpleLogger import logger
     from my_utils.config_utils.configger import configger
     from my_utils.config_utils.file_utils import safe_move, safe_copy, DiskFullError, get_original_filename, get_unique_path
-    from my_utils.config_utils.display_utils import calc_digit_number, get_display_width, truncate_string, visual_length, with_progress_bar
+    from my_utils.config_utils.display_utils import calc_digit_number, scan_files_and_get_display_width, truncate_string, visual_length, with_progress_bar
     from my_utils.object_utils.photo_utils import calculate_sha256, get_exif_date_taken, is_image_valid_debug, ExifReadError
 except ImportError as e:
     print(f"치명적 오류: my_utils를 임포트할 수 없습니다. PYTHONPATH 및 의존성을 확인해주세요: {e}")
@@ -310,7 +310,7 @@ def organize_photos_by_hash_logic(
         logger.error(f"대상 디렉토리를 생성할 수 없습니다 ({destination_dir}): {e}")
         return status
 
-    all_found_files, visual_width = get_display_width(
+    all_found_files, visual_width = scan_files_and_get_display_width(
         source_dir = source_dir,
         extensions = allowed_extensions,
         buffer_ratio = 0.25,

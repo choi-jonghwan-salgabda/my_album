@@ -48,13 +48,15 @@ from pathlib import Path
 from datetime import datetime
 from typing import Optional
 
+from tqdm import tqdm
+
 # 프로젝트 공용 유틸리티 임포트
 try:
     from my_utils.config_utils.arg_utils import get_argument
     from my_utils.config_utils.SimpleLogger import logger
     from my_utils.config_utils.configger import configger
     from my_utils.config_utils.file_utils import safe_move, safe_copy, DiskFullError, get_original_filename, get_unique_path
-    from my_utils.config_utils.display_utils import calc_digit_number, visual_length, truncate_string, with_progress_bar
+    from my_utils.config_utils.display_utils import calc_digit_number, visual_length, truncate_string
 except ImportError as e:
     # logger가 설정되기 전이므로 print 사용
     print(f"치명적 오류: my_utils를 임포트할 수 없습니다. PYTHONPATH 및 의존성을 확인해주세요: {e}")
@@ -69,14 +71,7 @@ DEFAULT_STATUS_TEMPLATE = {
     "file_op_errors":         {"value": 0, "msg": "파일 처리 중 발생한 오류 수"},
 }
 
-def select_and_process_originals_logic(
-    source_dir: Path, 
-    destination_dir: Path, 
-    archive_dir: Optional[Path], 
-    allowed_extensions: set[str], 
-    action: str = 'move', 
-    dry_run: bool = False
-    ):
+def select_and_process_originals_logic(source_dir: Path, destination_dir: Path, archive_dir: Optional[Path], allowed_extensions: set[str], action: str = 'move', dry_run: bool = False):
     """
     소스 디렉토리의 각 해시 하위 디렉토리에서 대표 원본 파일을 선택하여
     대상 디렉토리로 이동/복사하는 핵심 로직.
@@ -95,87 +90,114 @@ def select_and_process_originals_logic(
     status = copy.deepcopy(DEFAULT_STATUS_TEMPLATE)
     hash_dirs = [d for d in source_dir.iterdir() if d.is_dir()]
     status["hash_dirs_scanned"]["value"] = len(hash_dirs)
-    
+
     if not hash_dirs:
         logger.info("처리할 해시 디렉토리가 없습니다.")
         return status
-    
-    # 파일 처리 함수와 로그용 동사를 루프 전에 한 번만 결정
-    action_func = safe_move if action == 'move' else safe_copy
-    action_verb = "이동" if action == 'move' else "복사"
-    log_prefix = "(Dry Run) " if dry_run else ""
-    
+
+    if hasattr(logger, 'set_tqdm_aware'):
+        logger.set_tqdm_aware(True)
+
     # 진행률 표시줄의 디렉토리명 길이를 동적으로 계산합니다.
     # 평균 이름 길이를 계산하여 너무 길거나 짧지 않게 조절합니다.
     dir_name_lengths = [visual_length(d.name) for d in hash_dirs]
     avg_name_len = sum(dir_name_lengths) / len(dir_name_lengths) if dir_name_lengths else 30
     desc_width = max(20, min(int(avg_name_len * 1.2), 40))
-    
-    def process_one_hash_dir(hash_dir: Path, idx: int):
-        nonlocal status
-        
-        image_files = [
-            f for f in hash_dir.rglob("*")
-            if f.is_file() and f.suffix.lower() in allowed_extensions
-        ]
-        if not image_files:
-            logger.debug(f"'{hash_dir.name}' 디렉토리에 이미지 파일이 없어 건너뜁니다.")
-            status["empty_hash_dirs_skipped"]["value"] += 1
-            return
-        
-        def get_file_score(p: Path):
-            is_priority_file = 1 if p.name.startswith('$') else 0
-            cleaned_name = get_original_filename(p)
-            cleaned_stem = Path(cleaned_name).stem
-            cleaned_name_lower = cleaned_name.lower()
-            return (
-                is_priority_file,
-                p.stat().st_ctime,
-                sum(c in ('_', '-') for c in cleaned_name_lower),
-                sum(c.isdigit() for c in cleaned_stem),
-                len(cleaned_name),
-            )
-        
-        best_file = min(image_files, key=get_file_score)
-        logger.debug(f"'{hash_dir.name}' 그룹의 대표 파일로 '{best_file.name}' 선택됨.")
-        
-        dest_subdir = destination_dir / hash_dir.name
-        dest_file_path = dest_subdir / best_file.name
-        if not dry_run:
-            dest_subdir.mkdir(parents=True, exist_ok=True)
-        
-        try:
-            if not dest_file_path.exists():
-                logger.info(f"{log_prefix}{action_verb} 예정: '{best_file}' → '{dest_file_path}'")
+
+    # 파일 처리 함수와 로그용 동사를 루프 전에 한 번만 결정
+    action_func = safe_move if action == 'move' else safe_copy
+    action_verb = "이동" if action == 'move' else "복사"
+    log_prefix = "(Dry Run) " if dry_run else ""
+    try:
+        # file=sys.stdout 제거, 터미널 크기 변경에 대응하는 dynamic_ncols=True 추가
+        with tqdm(total=len(hash_dirs), desc="대표 원본 정리 중", unit="폴더", dynamic_ncols=True) as pbar:
+            for hash_dir in hash_dirs:
+                pbar.set_description_str(f"처리 중: {truncate_string(hash_dir.name, desc_width):<{desc_width}}")
+
+                # 1. 각 해시 디렉토리 내의 모든 이미지 파일 수집
+                image_files = [
+                    f for f in hash_dir.rglob("*")
+                    if f.is_file() and f.suffix.lower() in allowed_extensions
+                ]
+
+                if not image_files:
+                    logger.debug(f"'{hash_dir.name}' 디렉토리에 이미지 파일이 없어 건너뜁니다.")
+                    status["empty_hash_dirs_skipped"]["value"] += 1
+                    pbar.update(1)
+                    continue
+
+                # 2. '가장 원본'일 가능성이 높은 파일 선택
+                def get_file_score(p: Path):
+                    # 점수가 낮을수록 좋음 (낮은 점수가 높은 우선순위)
+
+                    # 0순위: 파일명이 '$'로 시작하는지 여부. 시작하면 가장 낮은 우선순위 (높은 점수).
+                    is_priority_file = 1 if p.name.startswith('$') else 0
+
+                    # 1. get_original_filename을 적용하여 정리된 파일명 생성
+                    cleaned_name = get_original_filename(p)
+                    cleaned_stem = Path(cleaned_name).stem
+                    cleaned_name_lower = cleaned_name.lower()
+
+                    # 2. 우선순위에 따라 점수 튜플 반환
+                    return (
+                        is_priority_file,  # 0순위: '$'로 시작하지 않는 파일이 우선
+                        p.stat().st_ctime,  # 1순위: 생성 시간이 오래될수록 좋음 (오름차순 정렬)
+                        sum(c in ('_', '-') for c in cleaned_name_lower), # 2순위: '_' 또는 '-' 문자가 적을수록 좋음
+                        sum(c.isdigit() for c in cleaned_stem),  # 3순위: 숫자가 적을수록 좋음
+                        len(cleaned_name),  # 4순위: 정리된 이름이 짧을수록 좋음
+                    )
+
+                best_file = min(image_files, key=get_file_score)
+                logger.debug(f"'{hash_dir.name}' 그룹의 대표 파일로 '{best_file.name}' 선택됨.")
+
+                # 3. 대상 경로 생성 및 파일 작업 수행
+                dest_subdir = destination_dir / hash_dir.name
+                dest_file_path = dest_subdir / best_file.name
+
                 if not dry_run:
-                    action_func(str(best_file), str(dest_file_path))
-                status["files_processed"]["value"] += 1
-            else:
-                logger.info(f"건너뜀: 대상 파일 이미 존재 → '{dest_file_path}'")
-        except (DiskFullError, OSError, Exception) as e:
-            logger.error(f"파일 {action_verb} 실패: '{best_file}' → '{dest_file_path}'. 오류: {e}")
-            status["file_op_errors"]["value"] += 1
-        
-        if archive_dir:
-            for other_file in [f for f in image_files if f != best_file]:
+                    dest_subdir.mkdir(parents=True, exist_ok=True)
+
                 try:
-                    archive_path = get_unique_path(archive_dir, other_file.name)
-                    logger.info(f"{log_prefix}보관({action_verb}) 예정: '{other_file}' → '{archive_path}'")
-                    if not dry_run:
-                        action_func(str(other_file), str(archive_path))
-                    status["files_archived"]["value"] += 1
+                    if not dest_file_path.exists():
+                        logger.info(f"{log_prefix}{action_verb} 예정: '{best_file}' -> '{dest_file_path}'")
+                        if not dry_run:
+                            action_func(str(best_file), str(dest_file_path))
+                        status["files_processed"]["value"] += 1
+                    else:
+                        logger.info(f"건너뛰기: 대상 파일이 이미 존재합니다. '{dest_file_path}'")
+                        # 이미 존재하는 경우도 처리된 것으로 간주할 수 있으나, 여기서는 명확히 구분
                 except (DiskFullError, OSError, Exception) as e:
-                    logger.error(f"보관 실패: '{other_file}' → '{archive_dir}'. 오류: {e}")
+                    logger.error(f"파일 {action_verb} 실패: '{best_file}' -> '{dest_file_path}'. 오류: {e}")
                     status["file_op_errors"]["value"] += 1
-    
-    with_progress_bar(
-        items=hash_dirs,
-        task_func=process_one_hash_dir,
-        desc="대표 원본 정리 중",
-        unit="폴더",
-        description_func=lambda d: f"처리 중: {truncate_string(d.name, desc_width):<{desc_width}}"
-    )
-    
+
+                # 4. 나머지 파일들을 보관 디렉토리로 이동/복사 (archive_dir가 지정된 경우에만)
+                if archive_dir:
+                    remaining_files = [f for f in image_files if f != best_file]
+                    for file_to_quarantine in remaining_files:
+                        try:
+                            # 보관 폴더에 동일한 이름의 파일이 있을 경우 덮어쓰지 않고 버전 꼬리표를 답니다.
+                            archive_path = get_unique_path(archive_dir, file_to_quarantine.name)
+                            
+                            logger.info(f"{log_prefix}나머지 파일 보관({action_verb}) 예정: '{file_to_quarantine}' -> '{archive_path}'")
+                            
+                            if not dry_run:
+                                action_func(str(file_to_quarantine), str(archive_path))
+                            status["files_archived"]["value"] += 1
+                        except (DiskFullError, OSError, Exception) as e:
+                            logger.error(f"파일 보관 실패: '{file_to_quarantine}' -> '{archive_dir}'. 오류: {e}")
+                            status["file_op_errors"]["value"] += 1
+                pbar.update(1)
+
+    except (KeyboardInterrupt, Exception) as e:
+        # tqdm 루프 밖에서 발생하는 예외 처리
+        if isinstance(e, KeyboardInterrupt):
+            logger.warning("\n사용자에 의해 작업이 중단되었습니다.")
+        else:
+            logger.error(f"처리 중 예기치 않은 오류 발생: {e}", exc_info=True)
+    finally:
+        if hasattr(logger, 'set_tqdm_aware'):
+            logger.set_tqdm_aware(False)
+
     return status
 
 if __name__ == "__main__":

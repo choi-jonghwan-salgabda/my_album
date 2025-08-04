@@ -49,7 +49,7 @@ from pathlib import Path
 import shutil
 import argparse
 from datetime import datetime
-import uuid
+import io
 import copy
 import hashlib
 from tqdm import tqdm # tqdm 임포트
@@ -61,9 +61,9 @@ try:
     from my_utils.config_utils.arg_utils import get_argument
     from my_utils.config_utils.SimpleLogger import logger
     from my_utils.config_utils.configger import configger
-    from my_utils.config_utils.file_utils import safe_move, safe_copy, DiskFullError, get_original_filename, get_unique_path
-    from my_utils.config_utils.display_utils import calc_digit_number, scan_files_and_get_display_width, truncate_string, visual_length, with_progress_bar
-    from my_utils.object_utils.photo_utils import calculate_sha256, get_exif_date_taken, is_image_valid_debug
+    from my_utils.config_utils.file_utils import safe_move, safe_copy, DiskFullError, get_original_filename, get_unique_path    
+    from my_utils.config_utils.display_utils import calc_digit_number, scan_files_and_get_display_width, truncate_string, visual_length, with_progress_bar, create_dynamic_description_func
+    from my_utils.object_utils.photo_utils import calculate_sha256, get_exif_date_taken, is_image_valid_debug, ExifReadError
 except ImportError as e:
     print(f"치명적 오류: my_utils를 임포트할 수 없습니다. PYTHONPATH 및 의존성을 확인해주세요: {e}")
     sys.exit(1)
@@ -129,42 +129,66 @@ def _process_single_file(
             성공 시 (file_hash, date_str, original_name) 튜플 반환
             실패 시 None 반환 (이미지 손상, 해시 실패 등)
     """
-    # 0. 파일 크기 확인 (0바이트 파일은 열 수 없음)
+    # --- I/O 최적화: 파일을 한 번만 읽어 메모리에서 처리 ---
     try:
-        if img_path.stat().st_size == 0:
-            logger.warning(f"크기가 0인 파일: '{img_path}'. 건너뜁니다.")
+        file_content = img_path.read_bytes()
+        if not file_content: # 파일 크기 0 검사
+            logger.warning(f"크기가 0인 파일: '{img_path}'.")
             status["corrupted_images_skipped"]["value"] += 1
             if _quarantine_file(img_path, quarantine_dir, dry_run, action, status):
                 status["images_quarantined"]["value"] += 1
+            else:
+                # 격리 디렉토리가 없어 격리하지 못하는 경우, 로그를 남김
+                logger.warning(f"  ㄴ 파일을 격리할 수 없습니다 (격리 디렉토리 미지정).")
             return None
+        
+        # 메모리에 로드된 파일 내용을 스트림처럼 사용하기 위해 BytesIO 객체 생성
+        file_stream = io.BytesIO(file_content)
+
     except FileNotFoundError:
         logger.warning(f"파일을 찾을 수 없음: '{img_path}'. 건너뜁니다.")
         # 파일이 없으므로 격리할 수 없음
         return None
+    except (IOError, OSError) as e:
+        logger.error(f"파일 읽기 오류: '{img_path}'. 오류: {e}")
+        status["move_errors"]["value"] += 1 # 파일 처리 오류로 집계
+        if _quarantine_file(img_path, quarantine_dir, dry_run, action, status):
+            status["images_quarantined"]["value"] += 1
+        return None
+    # --- I/O 최적화 완료 ---
 
-    # 1. 이미지 파일 무결성 검사 (Pillow 라이브러리 사용)
+    # 1. 이미지 파일 무결성 검사 (메모리 스트림 사용)
     # is_image_valid_debug 함수는 이미지 전체를 로드하여 더 엄격하게 검사합니다.
-    if not is_image_valid_debug(img_path):
+    if not is_image_valid_debug(file_stream):
         # is_image_valid_debug 내부에서 이미 상세한 경고/오류 로그를 남깁니다.
         status["corrupted_images_skipped"]["value"] += 1
         if _quarantine_file(img_path, quarantine_dir, dry_run, action, status):
             status["images_quarantined"]["value"] += 1
         return None
 
-    # 2. SHA-256 해시값 계산
-    file_hash = calculate_sha256(img_path)
+    # 2. SHA-256 해시값 계산 (메모리 스트림 사용)
+    file_hash = calculate_sha256(file_stream)
     if not file_hash:
-        logger.warning(f"해시 계산 실패 (I/O 오류 가능성): '{img_path}'. 건너뜁니다.")
+        logger.warning(f"해시 계산 실패 (I/O 오류 가능성): '{img_path}'.")
         status["move_errors"]["value"] += 1
         if _quarantine_file(img_path, quarantine_dir, dry_run, action, status):
             status["images_quarantined"]["value"] += 1
+        else:
+            logger.warning(f"  ㄴ 파일을 격리할 수 없습니다 (격리 디렉토리 미지정).")
         return None
     status["hashes_calculated"]["value"] += 1
 
-    # 3. EXIF 촬영 날짜 추출
-    raw_date_str = get_exif_date_taken(img_path)
-    if raw_date_str == "ERROR":
-        logger.warning(f"EXIF 읽기 오류: '{img_path}'.")
+    # 3. EXIF 촬영 날짜 추출 (메모리 스트림 사용)
+    try:
+        raw_date_str = get_exif_date_taken(file_stream)
+        if raw_date_str:
+            status["exif_dates_found"]["value"] += 1
+            date_str = raw_date_str
+        else:
+            status["exif_dates_missing"]["value"] += 1
+            date_str = "unknown_date"
+    except ExifReadError as e:
+        logger.warning(f"EXIF 읽기 오류: '{img_path}'. ({e})")
         status["exif_read_errors"]["value"] += 1
         # EXIF 읽기 오류가 발생한 파일도 격리 대상으로 고려할 수 있습니다.
         if _quarantine_file(img_path, quarantine_dir, dry_run, action, status):
@@ -173,12 +197,6 @@ def _process_single_file(
             return None
         # 격리되지 않은 경우, 'exif_error' 폴더로 처리합니다.
         date_str = "exif_error"
-    elif raw_date_str:
-        status["exif_dates_found"]["value"] += 1
-        date_str = raw_date_str
-    else:
-        status["exif_dates_missing"]["value"] += 1
-        date_str = "unknown_date"
 
     # 4. 원본 파일명 (보통은 파일명 자체지만 다른 기준이 있을 수 있음)
     original_name = get_original_filename(img_path)
@@ -297,13 +315,25 @@ def organize_photos_by_hash_logic(
         logger.error(f"대상 디렉토리를 생성할 수 없습니다 ({destination_dir}): {e}")
         return status
 
-    image_files, visual_width = get_dispscan_files_and_get_display_widthlay_width(
+    logger.info(f"'{source_dir}' 에서 처리할 이미지 파일 목록을 스캔합니다. 파일 수에 따라 시간이 걸릴 수 있습니다...")
+    all_found_files, visual_width = scan_files_and_get_display_width(
         source_dir = source_dir,
         extensions = allowed_extensions,
         buffer_ratio = 0.25,
         min_width = 20,
         max_width = 50
     )
+
+    # 격리 디렉토리가 소스 디렉토리 내부에 있을 경우, 해당 디렉토리의 파일은 처리 대상에서 제외합니다.
+    # 이는 격리된 파일을 다시 스캔하여 무한 루프에 빠지는 것을 방지합니다.
+    image_files = []
+    if quarantine_dir and source_dir in quarantine_dir.parents:
+        resolved_quarantine_dir = quarantine_dir.resolve()
+        for f in all_found_files:
+            if not str(f.resolve()).startswith(str(resolved_quarantine_dir)):
+                image_files.append(f)
+    else:
+        image_files = all_found_files
 
     image_number = len(image_files)
 
@@ -329,14 +359,11 @@ def organize_photos_by_hash_logic(
             created_dirs=created_dirs_in_this_run
         )
 
-    # 진행률 표시줄의 설명을 동적으로 업데이트하는 함수를 정의합니다.
-    def description_function(img_path: Path) -> str:
-        # 터미널에 안전하게 표시할 수 있도록 파일 이름을 인코딩/디코딩합니다.
-        safe_img_name = img_path.name.encode(sys.stdout.encoding or 'utf-8', errors='replace').decode(sys.stdout.encoding or 'utf-8')
-        # 계산된 너비에 맞게 파일 이름을 자릅니다.
-        display_name = truncate_string(safe_img_name, visual_width)
-        # 왼쪽 정렬하여 일관된 너비를 유지합니다.
-        return f"처리 중: {display_name:<{visual_width}}"
+    # 재사용 가능한 팩토리 함수를 사용하여 진행률 표시줄의 설명을 동적으로 업데이트하는 함수를 생성합니다.
+    description_func = create_dynamic_description_func(
+        prefix="처리 중: ",
+        width=visual_width
+    )
 
     try:
         # with_progress_bar 유틸리티를 사용하여 파일 처리 루프를 실행합니다.
@@ -346,7 +373,7 @@ def organize_photos_by_hash_logic(
             desc="사진 정리 중",
             unit="파일",
             total=image_number,
-            description_func=description_function
+            description_func=description_func
         )
     except DiskFullError as e:
         logger.critical(f"디스크 공간 부족으로 작업을 중단합니다. 오류: {e}")
@@ -370,7 +397,7 @@ if __name__ == "__main__":
         full_log_path = Path(parsed_args.log_dir) / log_file_name
         logger.setup(
             logger_path=full_log_path,
-            console_min_level = "warning",
+            console_min_level = "info",
             file_min_level=parsed_args.log_level.upper(),
             include_function_name=True,
             pretty_print=True
@@ -390,12 +417,12 @@ if __name__ == "__main__":
         allowed_extensions = set() # 오류 발생 시 빈 세트로 초기화
 
     # --source-dir 또는 --target-dir을 소스 디렉토리로 사용
-    input_dir_path = parsed_args.source_dir or parsed_args.target_dir
+    input_dir_path = parsed_args.source_dir
 
     source_dir = Path(input_dir_path).expanduser().resolve()
     destination_dir = Path(parsed_args.destination_dir).expanduser().resolve()
-    dry_run_mode = getattr(parsed_args, 'dry_run', False)
-    action_mode = getattr(parsed_args, 'action', 'move') # 새로운 action 인자 가져오기
+    dry_run_mode = parsed_args.dry_run
+    action_mode = parsed_args.action # argparse에 정의된 기본값('copy')을 사용합니다.
 
     # 격리 디렉토리 경로 결정
     quarantine_dir: Path
@@ -428,13 +455,14 @@ if __name__ == "__main__":
 
         logger.warning("--- 사진 해시 기반 정리 처리 통계 ---")
         max_visual_msg_len = max(visual_length(v["msg"]) for v in DEFAULT_STATUS_TEMPLATE.values()) if DEFAULT_STATUS_TEMPLATE else 20
-        max_val_for_width = max(s_item["value"] for s_item in final_status.values()) if final_status and any(final_status.values()) else 0
+        all_values = [s_item["value"] for s_item in final_status.values()]
+        max_val_for_width = max(all_values) if all_values else 0
         digit_width_stats = calc_digit_number(max_val_for_width)
         
         for key, data in final_status.items():
             msg = DEFAULT_STATUS_TEMPLATE.get(key, {}).get("msg", key.replace("_", " ").capitalize())
             value = data["value"]
-            padding_spaces = max(0, int(max_visual_msg_len - visual_length(msg)))
+            padding_spaces = max(0, max_visual_msg_len - visual_length(msg))
             logger.warning(f"{msg}{'-' * padding_spaces} : {value:>{digit_width_stats}}")
         logger.warning("------------------------------------")
 

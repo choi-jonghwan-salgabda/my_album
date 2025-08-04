@@ -354,10 +354,16 @@ if __name__ == "__main__":
                 logger.error(f"임시 디렉토리 삭제 중 오류 발생 {temp_dir}: {e}")
 
 def get_all_dirs(path: Path) -> list[Path]:
-    """깊이 우선 후위 순회 방식으로 하위 디렉토리 경로 수집"""
-    result = []
-    for sub in path.rglob("*"):
-        if sub.is_dir():
-            result.append(sub)
-    result.sort(reverse=True, key=lambda p: len(p.parts))  # 깊은 경로 우선
-    return result
+    """
+    os.walk를 사용하여 깊이 우선 후위 순회 방식으로 하위 디렉토리 경로를 효율적으로 수집합니다.
+    이 방식은 pathlib.rglob을 사용하는 것보다 일반적으로 더 빠릅니다.
+    """
+    # os.walk는 제너레이터를 반환하므로, 리스트로 변환합니다.
+    # topdown=False는 가장 깊은 디렉토리부터 순회하도록 보장하므로, 별도의 정렬이 필요 없습니다.
+    # 최상위 디렉토리(path)는 결과에서 제외합니다.
+    all_subdirs = []
+    for dirpath, _, _ in os.walk(path, topdown=False):
+        current_path = Path(dirpath)
+        if current_path != path:
+            all_subdirs.append(current_path)
+    return all_subdirs

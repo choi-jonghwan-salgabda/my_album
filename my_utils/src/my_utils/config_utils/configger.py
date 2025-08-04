@@ -40,8 +40,8 @@ class configger:
         else:
             self.config_path = (self.root_dir / config_path).resolve()
             logger.debug(f"config_path는 상대 경로이므로 root_dir과 결합하여 절대 경로를 만듭니다: {self.config_path}")
-        logger.info(f"(self.root_dir):   {self.root_dir} ")
-        logger.info(f"(self.config_path):{self.config_path} ")
+        logger.debug(f"(self.root_dir):   {self.root_dir} ")
+        logger.debug(f"(self.config_path):{self.config_path} ")
 
         logger.debug(f"YAML 읽기 앞")
         # YAML 파일 로드
@@ -100,9 +100,9 @@ class configger:
         self.current_cfg = self.cfg
         self.next_cfg = self.current_cfg # 현재는 동일하게 설정
 
-        logger.info(f"++++++++++++++++++++++++++++++++++") # 최종 치환 결과 로깅
-        logger.info(f"{str(self.cfg)}")
-        logger.info(f"++++++++++++++++++++++++++++++++++") # 최종 치환 결과 로깅
+        logger.debug(f"++++++++++++++++++++++++++++++++++") # 최종 치환 결과 로깅
+        logger.debug(f"{str(self.cfg)}")
+        logger.debug(f"++++++++++++++++++++++++++++++++++") # 최종 치환 결과 로깅
 
     def _contains_placeholders(self, data: Any) -> bool:
         """
@@ -480,7 +480,7 @@ class configger:
 
         # logger.error(f"values:{self.cfg}, keys:{keys}") # 이 로그는 except 블록 안에서 찍혔으므로 제거 또는 이동
 
-        logger.info(f"get_value called for key: '{key}', split keys: {keys}")
+        logger.debug(f"get_value called for key: '{key}', split keys: {keys}")
 
         try:
             # 마지막 딕셔너리를 찾는다.
@@ -548,7 +548,7 @@ class configger:
         # return last_cfg.get(last_key, None)
 
         logger.debug(f"Configger 'get_path' 호출")
-        logger.info(f"get_path called for key: '{key}'")
+        logger.debug(f"get_path called for key: '{key}'")
 
         raw_value = None
         try:
@@ -761,7 +761,7 @@ class configger:
         logger.debug(f"Configger 'get_config' 호출")
         keys = key.split(".")
         cur_cfg = self.cfg
-        logger.info(f"시작: key='{key}', split keys: {keys}")
+        logger.debug(f"시작: key='{key}', split keys: {keys}")
 
         try:
             for i, key_name in enumerate(keys):
@@ -822,22 +822,22 @@ if __name__ == "__main__":
         include_function_name=True, # 테스트 실행 시 함수 이름 포함이 유용합니다.
         pretty_print=True
     )
-    logger.info(f"--- configger.py standalone test execution ---")
-    logger.info(f"파싱된 인자: root_dir='{args.root_dir}', config_path='{args.config_path}', log_dir='{args.log_dir}', log_level='{args.log_level}'")
-    logger.info(f"로그 파일 경로: {log_file_path}")
+    logger.debug(f"--- configger.py standalone test execution ---")
+    logger.debug(f"파싱된 인자: root_dir='{args.root_dir}', config_path='{args.config_path}', log_dir='{args.log_dir}', log_level='{args.log_level}'")
+    logger.debug(f"로그 파일 경로: {log_file_path}")
     logger.show_config()
 
 
     # 3. configger 인스턴스 생성
     try:
         # 파싱된 명령줄 인자(args.root_dir, args.config_path)를 사용합니다.
-        logger.info(f"configger 인스턴스 생성 시도: root_dir='{args.root_dir}', config_path='{args.config_path}'")
+        logger.debug(f"configger 인스턴스 생성 시도: root_dir='{args.root_dir}', config_path='{args.config_path}'")
         config_manager = configger(root_dir=args.root_dir, config_path=args.config_path)
-        logger.info(f"configger 인스턴스 생성 완료.")
+        logger.debug(f"configger 인스턴스 생성 완료.")
 
         # 4. 설정 값 사용 예시 (테스트용)
         project_name = config_manager.get_value("project.name", default="N/A")
-        logger.info(f"설정 파일 ('project.project_name') 값: {project_name}")
+        logger.debug(f"설정 파일 ('project.project_name') 값: {project_name}")
 
         # --- Prepare config_manager.cfg for specific tests ---
         # Ensure 'project' key exists and is a dictionary
@@ -872,24 +872,24 @@ if __name__ == "__main__":
 
     # 4. get_key_list 테스트
     try:
-        logger.info(f"--- get_key_list 테스트 시작 ---")
+        logger.debug(f"--- get_key_list 테스트 시작 ---")
         project_keys = config_manager.get_key_list("json_keys")
-        logger.info(f"'json_keys' 하위 키: {project_keys} (예상: 실제 YAML의 json_keys 내용 또는 ['sample_json_key'])")
+        logger.debug(f"'json_keys' 하위 키: {project_keys} (예상: 실제 YAML의 json_keys 내용 또는 ['sample_json_key'])")
 
         path_keys = config_manager.get_key_list("project.paths")
-        logger.info(f"'project.paths' 하위 키: {path_keys} (예상: 실제 YAML의 project.paths 내용 또는 테스트로 추가된 키)")
+        logger.debug(f"'project.paths' 하위 키: {path_keys} (예상: 실제 YAML의 project.paths 내용 또는 테스트로 추가된 키)")
 
         non_dict_keys = config_manager.get_key_list("project.name", default=["name_is_not_dict"])
-        logger.info(f"'project.name' (문자열) 하위 키: {non_dict_keys} (예상: ['name_is_not_dict'])")
+        logger.debug(f"'project.name' (문자열) 하위 키: {non_dict_keys} (예상: ['name_is_not_dict'])")
 
         empty_dict_subkeys = config_manager.get_key_list("project.empty_dict_key")
-        logger.info(f"'project.empty_dict_key' 하위 키: {empty_dict_subkeys} (예상: [])")
+        logger.debug(f"'project.empty_dict_key' 하위 키: {empty_dict_subkeys} (예상: [])")
 
         list_val_keys = config_manager.get_key_list("project.list_key", default=["list_is_not_dict"])
-        logger.info(f"'project.list_key' (리스트 값) 하위 키: {list_val_keys} (예상: ['list_is_not_dict'])")
+        logger.debug(f"'project.list_key' (리스트 값) 하위 키: {list_val_keys} (예상: ['list_is_not_dict'])")
 
         non_existent_keys = config_manager.get_key_list("project.non_existent_section", default=["default_keys"])
-        logger.info(f"'project.non_existent_section' 하위 키: {non_existent_keys} (예상: ['default_keys'])")
+        logger.debug(f"'project.non_existent_section' 하위 키: {non_existent_keys} (예상: ['default_keys'])")
 
         # 5. get_path_list 테스트용 임시 디렉토리 및 파일 생성
         test_root_dir_str = config_manager.get_value("project.root_dir", default="test_temp_config_root")
@@ -914,7 +914,7 @@ if __name__ == "__main__":
         some_file = test_root_dir / "some_file.txt"
         some_file.touch()
 
-        logger.info(f"테스트용 디렉토리 구조 생성 완료: {test_root_dir}")
+        logger.debug(f"테스트용 디렉토리 구조 생성 완료: {test_root_dir}")
 
     except (KeyError, TypeError, AttributeError) as e:
         logger.error(f"모델 변수값 가저오기 오류 발생: {e}")
@@ -924,7 +924,7 @@ if __name__ == "__main__":
 
     # 5. get_path_list 테스트
     try:
-        logger.info(f"--- get_path_list 테스트 시작 ---")
+        logger.debug(f"--- get_path_list 테스트 시작 ---")
         # 실제 YAML에 project.paths.data_dir 등이 정의되어 있다고 가정하고 테스트
         # 이 예제에서는 config_manager.cfg에 직접 값을 넣어 테스트하거나,
         # 테스트용 YAML을 사용해야 합니다. 여기서는 get_value로 가져온 경로를 사용합니다.
@@ -934,21 +934,21 @@ if __name__ == "__main__":
         # 여기서는 직접 경로를 만들어 테스트합니다. config_manager.cfg['project']['paths']['data_dir_for_test'] = str(data_dir)
         config_manager.cfg["project"]["paths"]["data_dir_for_test"] = str(data_dir)
         sub_dirs = config_manager.get_path_list("project.paths.data_dir_for_test")
-        logger.info(f"project.paths.data_dir_for_test 하위 디렉토리: {sub_dirs} (예상: ['sub_dir1', 'sub_dir2'] 또는 순서 다름)")
+        logger.debug(f"project.paths.data_dir_for_test 하위 디렉토리: {sub_dirs} (예상: ['sub_dir1', 'sub_dir2'] 또는 순서 다름)")
 
         # 테스트 2: 하위 디렉토리가 없는 경우
         config_manager.cfg["project"]["paths"]["empty_dir_for_test"] = str(empty_dir)
         empty_sub_dirs = config_manager.get_path_list("project.paths.empty_dir_for_test")
-        logger.info(f"project.paths.empty_dir_for_test 하위 디렉토리: {empty_sub_dirs} (예상: [])")
+        logger.debug(f"project.paths.empty_dir_for_test 하위 디렉토리: {empty_sub_dirs} (예상: [])")
 
         # 테스트 3: 경로가 파일인 경우
         config_manager.cfg["project"]["paths"]["file_path_for_test"] = str(some_file)
         file_path_subs = config_manager.get_path_list("project.paths.file_path_for_test")
-        logger.info(f"project.paths.file_path_for_test (파일 경로) 하위 디렉토리: {file_path_subs} (예상: [])")
+        logger.debug(f"project.paths.file_path_for_test (파일 경로) 하위 디렉토리: {file_path_subs} (예상: [])")
 
         # 테스트 4: 존재하지 않는 키
         non_existent_subs = config_manager.get_path_list("project.paths.no_such_key_for_test", default=["default_val"])
-        logger.info(f"project.paths.no_such_key_for_test 하위 디렉토리: {non_existent_subs} (예상: ['default_val'])")
+        logger.debug(f"project.paths.no_such_key_for_test 하위 디렉토리: {non_existent_subs} (예상: ['default_val'])")
 
         # # 테스트 종료 후 임시 디렉토리 삭제
         # if test_root_dir.exists() and "test_temp_config_root" in str(test_root_dir): # 안전장치 추가
@@ -963,31 +963,31 @@ if __name__ == "__main__":
 
     # 6. get_value_list 테스트
     try:
-        logger.info(f"--- get_value_list 테스트 시작 ---")
+        logger.debug(f"--- get_value_list 테스트 시작 ---")
 
         # 'project.active_plugins' (문자열 리스트) 가져오기
         plugins = config_manager.get_value_list("project.active_plugins")
-        logger.info(f"Active plugins: {plugins} (예상: ['plugin_a', 'plugin_b', 'plugin_c'])")
+        logger.debug(f"Active plugins: {plugins} (예상: ['plugin_a', 'plugin_b', 'plugin_c'])")
 
         # 'project.thresholds' (숫자 리스트) 가져오기
         threshold_values = config_manager.get_value_list("project.thresholds")
-        logger.info(f"Thresholds: {threshold_values} (예상: [0.1, 0.5, 0.95])")
+        logger.debug(f"Thresholds: {threshold_values} (예상: [0.1, 0.5, 0.95])")
 
         # 'project.empty_list_example' (빈 리스트) 가져오기
         empty_list = config_manager.get_value_list("project.empty_list_example")
-        logger.info(f"Empty list example: {empty_list} (예상: [])")
+        logger.debug(f"Empty list example: {empty_list} (예상: [])")
 
         # 값이 리스트가 아닌 경우 (기본값 사용)
         attempts_list = config_manager.get_value_list("project.max_attempts", default=[])
-        logger.info(f"Max attempts (as list, project.max_attempts is int): {attempts_list} (예상: [])")
+        logger.debug(f"Max attempts (as list, project.max_attempts is int): {attempts_list} (예상: [])")
 
         # 존재하지 않는 키 (기본값 사용)
         unknown_list = config_manager.get_value_list("project.unknown_values", default=["default_item"])
-        logger.info(f"Unknown values list: {unknown_list} (예상: ['default_item'])")
+        logger.debug(f"Unknown values list: {unknown_list} (예상: ['default_item'])")
 
         # 존재하지 않는 키 (기본값 None, 빈 리스트 반환 예상)
         unknown_list_no_default = config_manager.get_value_list("project.unknown_values_no_default")
-        logger.info(f"Unknown values list (no default): {unknown_list_no_default} (예상: [])")
+        logger.debug(f"Unknown values list (no default): {unknown_list_no_default} (예상: [])")
 
     except Exception as e:
         logger.error(f"Error getting value list: {e}")

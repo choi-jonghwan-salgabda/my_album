@@ -48,7 +48,7 @@ def truncate_string(text: str, max_visual_width: int, ellipsis: str = '...') -> 
             break
     return "".join(truncated_text_chars) + ellipsis
 
-def get_display_width(
+def scan_files_and_get_display_width(
     source_dir: Path,
     extensions: set,
     buffer_ratio: float = 0.15,
@@ -87,6 +87,38 @@ def get_display_width(
         display_width = min_width
 
     return files, display_width
+
+
+def create_dynamic_description_func(
+    prefix: str,
+    width: int,
+    item_to_name_func: Callable[[Any], str] = lambda item: getattr(item, 'name', str(item))
+) -> Callable[[Any], str]:
+    """
+    tqdm 진행 표시줄의 설명을 동적으로 생성하는 함수를 반환하는 팩토리 함수입니다.
+
+    반환된 함수는 각 항목을 처리할 때마다 호출되어 진행 표시줄의 설명을 업데이트합니다.
+
+    Args:
+        prefix (str): 설명 앞에 붙일 고정 접두사 (예: "처리 중: ").
+        width (int): 이름이 표시될 최대 시각적 너비.
+        item_to_name_func (Callable[[Any], str], optional):
+            처리 항목에서 표시할 이름을 추출하는 함수.
+            기본값은 항목의 'name' 속성을 사용하거나, 없으면 문자열로 변환합니다.
+
+    Returns:
+        Callable[[Any], str]: tqdm의 `description_func` 인자로 사용할 수 있는 함수.
+    """
+    def description_function(item: Any) -> str:
+        """tqdm 설명을 동적으로 생성하는 실제 함수."""
+        name_str = item_to_name_func(item)
+        # 터미널에 안전하게 표시할 수 있도록 인코딩/디코딩
+        safe_name = name_str.encode(sys.stdout.encoding or 'utf-8', errors='replace').decode(sys.stdout.encoding or 'utf-8')
+        # 계산된 너비에 맞게 이름 자르기
+        display_name = truncate_string(safe_name, width)
+        # 왼쪽 정렬하여 일관된 너비 유지
+        return f"{prefix}{display_name:<{width}}"
+    return description_function
 
 
 def with_progress_bar(
