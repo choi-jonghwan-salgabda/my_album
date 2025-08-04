@@ -178,6 +178,13 @@ def get_argument(required_args: list[str] = None, supported_args: list[str] = No
             for option in action.option_strings:
                 option_string_to_dest[option] = action.dest
 
+    # --- required_args 유효성 검증 ---
+    # 스크립트 개발자가 get_argument()에 전달한 required_args 리스트가 유효한지 확인합니다.
+    # 이 검증은 사용자 입력 파싱 전에 수행되어, 스크립트 자체의 오류를 조기에 발견합니다.
+    for req_arg_option in required_args:
+        if req_arg_option not in option_string_to_dest:
+            parser.error(f"스크립트 내부 설정 오류: 'required_args'에 지정된 '{req_arg_option}'는 유효한 인자가 아닙니다. 스크립트 코드를 확인하세요.")
+
     # 실제 명령줄 인자를 파싱합니다.
     args = parser.parse_args()
 
@@ -199,9 +206,10 @@ def get_argument(required_args: list[str] = None, supported_args: list[str] = No
                 
                 # 위치 인자 값을 해당 속성에 할당
                 setattr(args, dest_name, pos_arg_value)
-            else:
-                # 이 경우는 required_args에 잘못된 값이 들어왔을 때 발생
-                print(f"경고: 'required_args'에 지정된 '{required_arg_option}'는 유효한 인자가 아닙니다.")
+
+    # 위치 인자 처리가 끝났으므로, 더 이상 필요 없는 pos_args 속성을 삭제하여
+    # 최종 출력에서 혼동을 줄입니다.
+    del args.pos_args
 
     # --- 최종 필수 인자 검증 ---
     missing_args = []
@@ -221,71 +229,84 @@ def get_argument(required_args: list[str] = None, supported_args: list[str] = No
 
     # 출력할 인자와 레이블 매핑
     arg_display_map = {
+        'dry_run': "실행 모드 (--execute)",
         'root_dir': "루트 디렉토리 (--root-dir)",
         'log_dir': "로그 디렉토리 (--log-dir)",
         'log_level': "로그 레벨 (--log-level)",
         'config_path': "설정 파일경로 (--config-path)",
+        'action': "파일 처리방식 (--action)",
         'source_dir': "소스 디렉토리 (--source-dir)",
         'destination_dir': "대상 디렉토리 (--destination-dir)",
         'target_dir': "타겟 디렉토리 (--target-dir)",
         'quarantine_dir': "격리 디렉토리 (--quarantine-dir)",
-        'action': "파일 처리방식 (--action)",
-        # 'dry_run'은 특별 처리되므로 여기서 제외합니다.
         'parallel': "병렬 처리 모드 (--parallel)",
         'max_workers': "최대 워커 수 (--max-workers)",
-        'delete_top_if_empty': "최상위 빈 디렉토리 삭제",
+        'delete_top_if_empty': "최상위 빈 디렉토리 삭제 (--delete-top-if-empty)",
     }
 
-    # 기본적으로 항상 표시되는 인자들
-    base_display_args = ['root_dir', 'log_dir', 'log_level', 'config_path']
+    # 요청된 순서(기본 -> 필수 -> 지원 -> 기타)에 따라 출력할 키 목록을 구성합니다.
+    # 1. 기본 인자 그룹
+    base_args = ['root_dir', 'log_dir', 'log_level', 'config_path']
+    # 2. 필수 인자 그룹 (dest 이름으로 변환) - 순서 유지를 위해 리스트 사용
+    required_arg_dests = [option_string_to_dest.get(opt) for opt in required_args if option_string_to_dest.get(opt)]
+    # 3. 지원 인자 그룹
+    supported_arg_dests = set(supported_args) if supported_args else set()
 
+    # 모든 인자를 순서대로 담을 리스트
+    ordered_keys_to_print = []
+    processed_keys = set()
 
-    # 사용자가 명시적으로 지정했거나, 필수 인자로 지정된 값만 출력하기 위해 필터링
+    # dry_run은 항상 먼저 추가
+    ordered_keys_to_print.append('dry_run')
+    processed_keys.add('dry_run')
+
+    # 기본 인자 추가
+    for key in base_args:
+        if key not in processed_keys:
+            ordered_keys_to_print.append(key)
+            processed_keys.add(key)
+
+    # 필수 인자 추가 (required_args에 지정된 순서 유지)
+    for key in required_arg_dests:
+        if key not in processed_keys:
+            ordered_keys_to_print.append(key)
+            processed_keys.add(key)
+
+    # 지원 인자 추가 (일관된 순서를 위해 정렬)
+    for key in sorted(list(supported_arg_dests)):
+        if key not in processed_keys:
+            ordered_keys_to_print.append(key)
+            processed_keys.add(key)
+    
+    # 기타 나머지 인자 추가 (arg_display_map에 있는 모든 인자 대상)
+    for key in arg_display_map:
+        if key not in processed_keys:
+            ordered_keys_to_print.append(key)
+            processed_keys.add(key)
+
+    # 최종적으로 화면에 표시할 (레이블, 값) 튜플 리스트 생성
     items_to_print = []
+    for key in ordered_keys_to_print:
+        if hasattr(args, key):
+            value = getattr(args, key)
+            label = arg_display_map.get(key, key)
 
-    # --execute 플래그가 사용되었는지 (dry_run == False) 먼저 확인합니다.
-    # 기본값(dry_run=True)일 때는 아무것도 출력하지 않아 혼동을 줄입니다.
-    if not args.dry_run: # --execute가 사용된 경우
-        items_to_print.append(("실행 모드", "실제 파일 작업 수행 (--execute 사용됨)"))
-    else: # 기본값인 Dry Run 모드인 경우
-        items_to_print.append(("실행 모드", "테스트 실행 (Dry Run)"))
-
-    # supported_args가 제공되지 않으면 모든 인자를 표시 대상으로 간주합니다.
-    if supported_args is None:
-        supported_args = list(arg_display_map.keys())
-
-    # supported_args에 기본 표시 인자들을 추가합니다.
-    display_arg_set = set(supported_args)
-    display_arg_set.update(base_display_args)
-
-    for arg_name, current_value in vars(args).items():
-        # 표시해야 할 인자 목록(display_arg_set)에 포함된 경우에만 처리
-        if arg_name in display_arg_set and arg_name in arg_display_map:
-            # '--action' 인자는 사용자가 명시적으로 입력했을 때만 표시합니다.
-            if arg_name == 'action':
-                action_arg_provided = any(arg in ['--action', '-act'] or arg.startswith('--action=') for arg in sys.argv)
-                if not action_arg_provided:
-                    continue # 사용자가 입력하지 않았으면 건너뜁니다.
-
-            label = arg_display_map[arg_name]
-            # 부울 값이고 True일 때만 표시
-            if isinstance(current_value, bool) and current_value:
+            if key == 'dry_run':
+                display_value = "테스트 실행 (Dry Run)" if value else "실제 파일 작업 수행"
+                items_to_print.append((label, display_value))
+            elif isinstance(value, bool) and value:
                 items_to_print.append((label, "활성화"))
-            # 부울이 아니고 값이 None이 아닐 때
-            elif not isinstance(current_value, bool) and current_value is not None:
-                items_to_print.append((label, current_value))
+            elif not isinstance(value, bool):
+                if value is not None or key in supported_arg_dests:
+                    items_to_print.append((label, value))
 
-    if not items_to_print:
-        max_label_vl = 0
-    else:
+    # 최대 레이블 길이를 계산하여 정렬된 형식으로 출력
+    if items_to_print:
         max_label_vl = max(visual_length(label) for label, _ in items_to_print)
-    for label_text, value in items_to_print:
-        # 들여쓰기 및 레이블
-        prefix = f"  {label_text}"
-        # 시각적 길이를 기준으로 공백과 하이픈 계산
-        padding_needed = max_label_vl - visual_length(label_text)
-        # 최종 출력 문자열 생성
-        print(f"{prefix}{' ' * padding_needed} : {value}")
+        for label_text, value in items_to_print:
+            prefix = f"  {label_text}"
+            padding_needed = max_label_vl - visual_length(label_text)
+            print(f"{prefix}{' ' * padding_needed} : {value}")
 
     print("+++++++++++++++++++++++++++++++++++++++++++++++++++")
 
