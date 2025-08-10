@@ -29,6 +29,7 @@ from datetime import datetime
 import traceback
 from tqdm import tqdm # tqdm 진행률 바와의 호환성을 위해 임포트
 from typing import List, Tuple, Optional
+import multiprocessing 
 
 try:
     from my_utils.config_utils.arg_utils import get_argument
@@ -42,6 +43,7 @@ LOG_LEVELS = {
     "DEBUG": 10,    # 디버깅 목적으로 사용되는 상세 정보
     "INFO": 20,     # 일반 정보성 메시지
     "WARNING": 30,  # 경고 메시지 (잠재적 문제)
+    "CRT_VIEW": 35,  # 경고 메시지 (잠재적 문제)
     "ERROR": 40,    # 오류 메시지 (기능 수행 불가)
     "CRITICAL": 50  # 심각한 오류 메시지 (애플리케이션 중단 가능)
 }
@@ -52,7 +54,7 @@ _SENTINEL = object()
 # setup 메서드에서 인자가 전달되었는지 여부를 확인하기 위한 Sentinel 객체입니다.
 _SETUP_SENTINEL = object()
 
-class SimpleLogger:
+class SimpleLogger: # pragma: no cover
     """
     콘솔 출력 및 파일 기록(동기/비동기)을 지원하는 간단한 로깅 클래스입니다.
     로그 레벨, 호출 함수 이름 포함 여부, 딕셔너리/리스트의 보기 좋은 출력(pretty print) 등을 설정할 수 있습니다.
@@ -76,6 +78,7 @@ class SimpleLogger:
         self._log_queue: Optional[queue.Queue] = None # 비동기 로깅 시 사용할 메시지 큐
         self._stop_event = threading.Event()     # 비동기 쓰기 스레드 종료 이벤트
         self._writing_thread = None
+        self._mp_log_queue = None                # 멀티프로세싱용 로그 큐
         self._writer_thread = None               # 비동기 쓰기 스레드 객체
         self._file_handle = None                 # 파일 핸들 (비동기 쓰기 스레드에서 사용)
         self._initialized = False                # 로거가 독립 실행 모드로 초기화되었는지 여부
@@ -187,7 +190,8 @@ class SimpleLogger:
             log_queue_max_size: Optional[int] = None,
             log_rotation_max_bytes: Optional[int] = None,
             log_rotation_backup_count: Optional[int] = None,
-            log_line_max_width: Optional[int] = None
+            log_line_max_width: Optional[int] = None,
+            mp_log_queue: Optional[multiprocessing.Queue] = None
         ):
         """
         로거 설정을 변경합니다. 각 인자는 None이 아닌 경우에만 해당 설정을 업데이트합니다.
@@ -205,10 +209,15 @@ class SimpleLogger:
             log_rotation_max_bytes (int, optional): 로그 파일을 회전시킬 최대 크기(바이트). 0이면 비활성화.
             log_rotation_backup_count (int, optional): 유지할 백업 로그 파일의 수.
             log_line_max_width (int, optional): 로그 메시지의 최대 너비. 초과 시 자동 줄바꿈. 0은 비활성화.
+            mp_log_queue (multiprocessing.Queue, optional): 멀티프로세싱 환경에서 로그를 전달할 큐.
 
         Returns:
             None
         """
+        if mp_log_queue:
+            self._mp_log_queue = mp_log_queue
+            return # 멀티프로세싱 큐가 설정되면 다른 설정은 무시하고 즉시 반환
+
         old_logger_path = self._logger_path
         old_async_state = self._async_file_writing_enabled
 
@@ -629,6 +638,16 @@ class SimpleLogger:
             self._write_to_file_sync(formatted_message)
 
     def log(self, message, level="INFO"):
+        # 멀티프로세싱 큐가 설정되어 있으면, 모든 로그를 해당 큐로 보냅니다.
+        if self._mp_log_queue:
+            try:
+                # 로그 레벨과 메시지를 튜플로 묶어 큐에 넣습니다.
+                self._mp_log_queue.put((level, message))
+            except Exception as e:
+                # 큐에 넣는 중 오류 발생 시 (예: 큐가 닫힌 경우) 콘솔에 직접 출력
+                print(f"CRITICAL: 멀티프로세싱 로그 큐에 메시지를 넣는 데 실패했습니다: {e}", file=sys.stderr)
+            return # 큐로 보낸 후에는 더 이상 진행하지 않습니다.
+
         level_str = self._validate_level(level)
         level_int = self.LOG_LEVELS[level_str]
 
@@ -680,6 +699,10 @@ class SimpleLogger:
     def warning(self, message):
         """WARNING 레벨의 로그를 기록합니다."""
         self.log(message, level="WARNING")
+
+    def crt_view(self, message):
+        """CRT_VIEW 레벨의 로그를 기록합니다."""
+        self.log(message, level="CRT_VIEW")
 
     def critical(self, message):
         """CRITICAL 레벨의 로그를 기록합니다."""
@@ -812,7 +835,8 @@ if __name__ == "__main__":
         console_min_level='WARNING',  # 콘솔엔 WARNING 이상만
         file_min_level=args.log_level,
         include_function_name=True, # 테스트 실행 시 함수 이름 포함이 유용합니다.
-        pretty_print=True
+        pretty_print=True,
+        async_file_writing=(args.log_mode == 'async')
     )
 
     # --- 로거 기능 테스트 함수 정의 ---

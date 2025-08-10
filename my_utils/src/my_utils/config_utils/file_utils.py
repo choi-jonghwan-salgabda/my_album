@@ -24,6 +24,48 @@ class DiskFullError(OSError):
     """Exception raised when there is no space left on device."""
     pass
 
+def get_dir_and_file_entries(
+    directory_path: str
+    ) -> Tuple[Optional[List[str]], Optional[List[str]], Optional[str]]:
+    """
+    지정된 디렉토리 내의 서브디렉토리와 파일 목록을 가져옵니다.
+
+    Args:
+        directory_path (str): 목록을 가져올 디렉토리의 경로.
+
+    Returns:
+        Tuple[Optional[List[str]], Optional[List[str]], Optional[str]]:
+        - 첫 번째 요소: 서브디렉토리 이름 목록 (오류 발생 시 None)
+        - 두 번째 요소: 파일 이름 목록 (오류 발생 시 None)
+        - 세 번째 요소: 오류 메시지 문자열 (성공 시 None)
+    """
+    dir_entries = []
+    file_entries = []
+    error_message = None
+
+    try:
+        # os.scandir을 사용하여 디렉토리의 모든 항목을 효율적으로 순회합니다.
+        # with 문을 사용하여 자동으로 리소스를 해제합니다.
+        with os.scandir(directory_path) as entries:
+            for entry in entries:
+                if entry.is_dir():
+                    dir_entries.append(entry.name)
+                elif entry.is_file():
+                    file_entries.append(entry.name)
+        
+    except FileNotFoundError:
+        error_message = f"오류: 지정된 경로 '{directory_path}'를 찾을 수 없습니다."
+    except NotADirectoryError:
+        error_message = f"오류: 지정된 경로 '{directory_path}'는 디렉토리가 아닙니다."
+    except PermissionError:
+        error_message = f"오류: 지정된 경로 '{directory_path}'에 접근할 권한이 없습니다."
+    except Exception as e:
+        error_message = f"예상치 못한 오류가 발생했습니다: {e}"
+
+    if error_message:
+        return None, None, error_message
+    else:
+        return dir_entries, file_entries, None
 
 def load_extensions_from_file(file_path: Path) -> set[str]:
     """
@@ -98,8 +140,11 @@ def get_original_filename(path: Path) -> str:
     Returns:
         str: 정제된 원본 파일명
     """
-    stem = path.stem
-    suffix = path.suffix
+    # 파일명에 포함될 수 있는 NULL 바이트(\0)나 기타 제어 문자를 제거하여
+    # "ValueError: embedded null byte" 오류를 방지합니다.
+    # path.stem과 path.suffix가 이러한 문자를 포함할 수 있습니다.
+    stem = path.stem.replace('\0', '')
+    suffix = path.suffix.replace('\0', '')
 
     stem = re.sub(r'\s*\(\d+\)$', '', stem)
     # 2. '-숫자' 또는 '_숫자' 형태 제거: 예) 'image-1', 'file_3' → 'image', 'file'
@@ -155,6 +200,9 @@ def safe_move(src: str, dst: str):
     Raises DiskFullError if there's not enough space.
     """
     try:
+        src = src.replace('\0', '')        # 경로명에서 \0(null) 없애기
+        dst = dst.replace('\0', '')        # 경로명에서 \0(null) 없애기
+        
         src_path = Path(src)
         dst_path = Path(dst)
 
@@ -186,6 +234,9 @@ def safe_copy(src: str, dst: str):
     Raises DiskFullError if there's not enough space.
     """
     try:
+        src = src.replace('\0', '')        # 경로명에서 \0(null) 없애기
+        dst = dst.replace('\0', '')        # 경로명에서 \0(null) 없애기
+
         src_path = Path(src)
         dst_path = Path(dst)
 

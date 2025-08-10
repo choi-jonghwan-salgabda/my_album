@@ -83,7 +83,7 @@ def get_argument(required_args: list[str] = None, supported_args: list[str] = No
         # default: 사용자 입력이 없을 때 사용할 기본값 지정
         '--log-level', '--log_level', '-lvl',
         type=str,
-        default='warning',
+        default='debug',
         choices=["debug", "info", "warning", "error", "critical"],
         help='로깅 레벨. (기본값: warning)'
     )
@@ -96,8 +96,13 @@ def get_argument(required_args: list[str] = None, supported_args: list[str] = No
         help='설정 파일(YAML)의 경로.'
     )
     parser.add_argument(
-        # --action, -act → 하나의 인자 action로 매핑됨
-        # default: 사용자 입력이 없을 때 사용할 기본값 지정
+        '--log-mode', '--log_mode', '-lmod',
+        type=str,
+        default='sync',
+        choices=['sync', 'async'],
+        help='로깅 파일 쓰기 방식: "sync"(동기) 또는 "async"(비동기). (기본값: sync)'
+    )
+    parser.add_argument(
         '--action', '-act',
         type=str,
         default='copy',
@@ -150,7 +155,7 @@ def get_argument(required_args: list[str] = None, supported_args: list[str] = No
         help="병렬 처리를 사용하여 작업을 수행합니다 (지원하는 스크립트만 해당)."
     )
     parser.add_argument(
-        '--max-workers',
+        '--max-workers', '--max_workers',
         type=int,
         default=None,
         help="병렬 처리 시 사용할 최대 워커(프로세스) 수를 지정합니다. (기본값: 시스템의 CPU 코어 수)"
@@ -233,6 +238,7 @@ def get_argument(required_args: list[str] = None, supported_args: list[str] = No
         'root_dir': "루트 디렉토리 (--root-dir)",
         'log_dir': "로그 디렉토리 (--log-dir)",
         'log_level': "로그 레벨 (--log-level)",
+        'log_mode': "로깅 모드 (--log-mode)",
         'config_path': "설정 파일경로 (--config-path)",
         'action': "파일 처리방식 (--action)",
         'source_dir': "소스 디렉토리 (--source-dir)",
@@ -246,7 +252,7 @@ def get_argument(required_args: list[str] = None, supported_args: list[str] = No
 
     # 요청된 순서(기본 -> 필수 -> 지원 -> 기타)에 따라 출력할 키 목록을 구성합니다.
     # 1. 기본 인자 그룹
-    base_args = ['root_dir', 'log_dir', 'log_level', 'config_path']
+    base_args = ['root_dir', 'log_dir', 'log_level', 'log_mode', 'config_path']
     # 2. 필수 인자 그룹 (dest 이름으로 변환) - 순서 유지를 위해 리스트 사용
     required_arg_dests = [option_string_to_dest.get(opt) for opt in required_args if option_string_to_dest.get(opt)]
     # 3. 지원 인자 그룹

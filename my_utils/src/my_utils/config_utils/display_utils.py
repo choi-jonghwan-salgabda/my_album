@@ -5,8 +5,10 @@
 
 import math
 import unicodedata
+import os
 from pathlib import Path
-from typing import List, Tuple, Callable, Iterable, Any, Optional, TypeVar, Union
+from typing import List, Tuple, Callable, Iterable, Set
+from typing import Any, Optional, TypeVar, Union, Dict
 from tqdm import tqdm
 import sys
 from concurrent.futures import ProcessPoolExecutor, as_completed
@@ -22,7 +24,6 @@ except ImportError:
 # 제네릭 타입을 위한 TypeVar 정의
 T = TypeVar('T')
 R = TypeVar('R')
-
 
 def calc_digit_number(in_number: int) -> int:
     """주어진 정수의 자릿수를 계산합니다."""
@@ -48,16 +49,58 @@ def truncate_string(text: str, max_visual_width: int, ellipsis: str = '...') -> 
             break
     return "".join(truncated_text_chars) + ellipsis
 
+def _scan_worker(dir_to_scan: Path, extensions: Set[str]) -> Tuple[List[Path], List[int], Optional[str]]:
+    """
+    [Worker] 지정된 단일 디렉토리와 그 하위 디렉토리를 재귀적으로 스캔하여
+    조건에 맞는 파일 목록과 파일 이름의 시각적 길이 목록을 반환합니다.
+    오류 발생 시 오류 메시지를 반환합니다.
+    이 함수는 병렬 처리를 위해 별도의 프로세스에서 실행됩니다.
+
+    Args:
+        dir_to_scan (Path): 스캔할 디렉토리 경로.
+        extensions (Set[str]): 허용되는 파일 확장자 집합 (소문자).
+
+    Returns:
+        Tuple[List[Path], List[int], Optional[str]]:
+            - 첫 번째 요소: 찾은 파일 Path 객체 리스트.
+            - 두 번째 요소: 찾은 파일들의 이름 시각적 길이 리스트.
+            - 세 번째 요소: 오류 메시지 (성공 시 None).
+    """
+    local_files: List[Path] = []
+    local_name_lengths: List[int] = []
+    err_msg: Optional[str] = None # 오류 메시지를 저장할 변수 초기화
+
+    try:
+        if not dir_to_scan.is_dir():
+            err_msg = f"스캔 대상이 디렉토리가 아니거나 존재하지 않음: '{dir_to_scan}'"
+            return [], [], err_msg # 디렉토리 오류 시 빈 리스트와 메시지 반환
+
+        # rglob은 비교적 작은 하위 디렉토리 내에서는 충분히 효율적입니다.
+        for p in dir_to_scan.rglob("*"):
+            if p.suffix.lower() in extensions and p.is_file():
+                local_files.append(p)
+                local_name_lengths.append(visual_length(p.name))
+    except Exception as e:
+        # 오류 메시지를 err_msg 변수에 저장합니다.
+        err_msg = f"'{dir_to_scan}' 디렉토리 스캔 중 오류 발생: {e}"
+        # 오류 발생 시, 부분적으로 채워진 리스트 대신 명확하게 빈 리스트를 반환합니다.
+        return [], [], err_msg
+
+    # 오류가 없었으면 err_msg는 None 상태로 반환됩니다.
+    return local_files, local_name_lengths, err_msg
+
+
 def scan_files_and_get_display_width(
     source_dir: Path,
     extensions: set,
     buffer_ratio: float = 0.15,
     min_width: int = 20,
     max_width: int = 50,
-) -> Tuple[List[Path], int]:
+) -> Tuple[Optional[List[Path]], int, str]:
     """
     디렉토리에서 지정한 확장자를 가진 파일들을 검색하고,
     해당 파일 이름의 평균 시각적 길이에 따라 권장 표시 너비를 계산합니다.
+    하위 디렉토리가 많을 경우, 스캔 작업을 병렬로 처리하여 성능을 향상시킵니다.
 
     Parameters:
         source_dir (Path): 검색할 기준 디렉토리 경로.
@@ -67,33 +110,87 @@ def scan_files_and_get_display_width(
         max_width (int): 표시 너비의 최대값 (기본값: 50).
 
     Returns:
-        Tuple[List[Path], int]: 
-            - 조건에 맞는 파일 목록 (Path 객체 리스트)
+        Tuple[Optional[List[Path]], int, str]:
+            - 조건에 맞는 파일 목록 (Path 객체 리스트) 또는 오류 시 None
             - 권장 표시 너비 (int)
+            - 오류 또는 정보 메시지 (str)
     """
-    files = []
-    name_lengths = []
+    all_files: List[Path] = []
+    all_name_lengths: List[int] = []
+    error_messages: List[str] = []
 
-    for p in source_dir.rglob("*"):
-        if p.suffix.lower() in extensions and p.is_file():
-            files.append(p)
-            name_lengths.append(visual_length(p.name))
+    # 1. 최상위 디렉토리의 파일들을 먼저 스캔합니다.
+    try:
+        if not source_dir.is_dir():
+            err_msg = f"스캔 대상이 디렉토리가 아니거나 존재하지 않음: '{source_dir}'"
+            logger.error(err_msg)
+            return None, min_width, err_msg
+        
+        for p in source_dir.glob("*"):
+            if p.is_file() and p.suffix.lower() in extensions:
+                all_files.append(p)
+                all_name_lengths.append(visual_length(p.name))
+    except OSError as e:
+        err_msg = f"'{source_dir}'의 파일 스캔 중 오류 발생: {e}"
+        logger.error(err_msg)
+        error_messages.append(err_msg)
+        # 오류가 발생했더라도 스캔이 불가능하지 않다면 계속 진행합니다.
 
-    if name_lengths:
-        avg_length = sum(name_lengths) / len(name_lengths)
+    # 2. os.scandir를 사용하여 1단계 하위 디렉토리 목록을 효율적으로 가져옵니다.
+    sub_dirs: List[Path] = []
+    try:
+        sub_dirs = [Path(entry.path) for entry in os.scandir(source_dir) if entry.is_dir()]
+    except OSError as e:
+        err_msg = f"'{source_dir}'의 하위 디렉토리 목록 스캔 중 오류 발생: {e}"
+        logger.error(err_msg)
+        error_messages.append(err_msg)
+
+    if sub_dirs:
+        logger.info(f"{len(sub_dirs)}개의 하위 디렉토리에 대해 병렬 스캔을 시작합니다...")
+        
+        # 3. ProcessPoolExecutor를 사용하여 각 하위 디렉토리를 병렬로 스캔합니다.
+        with ProcessPoolExecutor() as executor:
+            future_to_dir = {executor.submit(_scan_worker, sub_dir, extensions): sub_dir for sub_dir in sub_dirs}
+            
+            # tqdm으로 진행 상황을 표시하며 완료되는 작업부터 결과를 집계합니다.
+            with tqdm(total=len(sub_dirs), desc="하위 폴더 스캔 중", unit="폴더", file=sys.stdout) as pbar:
+                for future in as_completed(future_to_dir):
+                    sub_dir_path = future_to_dir[future]
+                    try:
+                        files, name_lengths, err_msg = future.result()
+                        if err_msg:
+                            logger.warning(f"워커 오류: {err_msg}")
+                            error_messages.append(err_msg)
+                        
+                        # 워커가 오류를 반환했더라도 빈 리스트를 반환하므로, extend는 안전합니다.
+                        all_files.extend(files)
+                        all_name_lengths.extend(name_lengths)
+                    except Exception as exc:
+                        err_msg = f"'{sub_dir_path}' 디렉토리 처리 중 예외 발생: {exc}"
+                        logger.error(err_msg, exc_info=True)
+                        error_messages.append(err_msg)
+                    
+                    pbar.update(1)
+
+    # 4. 최종 표시 너비 계산
+    if all_name_lengths:
+        avg_length = sum(all_name_lengths) / len(all_name_lengths)
         display_width = int(avg_length * (1 + buffer_ratio))
         display_width = max(min_width, min(display_width, max_width))
     else:
+        # 파일이 하나도 없을 경우 최소 너비로 설정
         display_width = min_width
 
-    return files, display_width
+    # 5. 최종 결과 반환
+    final_message = "; ".join(error_messages) if error_messages else "스캔 완료"
+    return all_files, display_width, final_message
 
 
 def create_dynamic_description_func(
     prefix: str,
     width: int,
     item_to_name_func: Callable[[Any], str] = lambda item: getattr(item, 'name', str(item))
-) -> Callable[[Any], str]:
+    ) -> Callable[[Any], str]:
     """
     tqdm 진행 표시줄의 설명을 동적으로 생성하는 함수를 반환하는 팩토리 함수입니다.
 
@@ -174,7 +271,6 @@ def _worker_init_tqdm():
     """Initializer for ProcessPoolExecutor workers to make the global logger tqdm-aware."""
     # 각 워커 프로세스는 자신만의 전역 로거 인스턴스를 가집니다.
     # 여기서 해당 로거를 임포트하고 설정해야 합니다.
-    from my_utils.config_utils.SimpleLogger import logger
     if hasattr(logger, 'set_tqdm_aware'):
         logger.set_tqdm_aware(True)
 
