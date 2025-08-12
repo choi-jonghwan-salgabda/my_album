@@ -74,6 +74,7 @@ class SimpleLogger:
         self._writer_thread = None               # 비동기 쓰기 스레드 객체
         self._file_handle = None                 # 파일 핸들 (비동기 쓰기 스레드에서 사용)
         self._initialized = False                # 로거가 독립 실행 모드로 초기화되었는지 여부
+        self._mp_log_queue = None                # 멀티프로세싱 로그 큐
         self._tqdm_aware = False                 # tqdm 호환 출력 모드 활성화 여부
 
         # --- DiskSpaceMonitor 기능 통합 ---
@@ -167,7 +168,8 @@ class SimpleLogger:
         pretty_print=None, 
         async_file_writing=None, 
         console_min_level='WARNING', 
-        file_min_level=None
+        file_min_level=None,
+        mp_log_queue=None
         ):
         """
         로거 설정을 변경합니다. 각 인자는 None이 아닌 경우에만 해당 설정을 업데이트합니다.
@@ -179,6 +181,16 @@ class SimpleLogger:
             pretty_print (bool, optional): 딕셔너리/리스트를 예쁘게 출력할지 여부.
             async_file_writing (bool, optional): 비동기 파일 기록 사용 여부.
         """
+        # 멀티프로세싱 큐가 제공되면, 해당 큐를 사용하도록 설정하고 다른 출력은 비활성화합니다.
+        # 이는 워커 프로세스에서 로거를 초기화할 때 사용됩니다.
+        if mp_log_queue is not None:
+            self._mp_log_queue = mp_log_queue
+            # 워커에서는 직접 파일/콘솔에 쓰지 않도록 설정합니다.
+            self._logger_path = None
+            self._async_file_writing_enabled = False
+            self._console_min_level = "CRITICAL" # 사실상 비활성화
+            return
+
         # 변경될 수 있는 새로운 경로 임시 저장 (async 설정에 영향 줄 수 있음)
         new_logger_path = logger_path if logger_path is not None else self._logger_path
 
@@ -561,6 +573,15 @@ class SimpleLogger:
                 print(f"오류: 동기 모드에서 로그 파일 '{self._logger_path}'에 쓰기 실패: {e}")
 
     def log(self, message, level="INFO"):
+        # 멀티프로세싱 큐가 설정된 경우, 로그 레코드를 큐로 보내고 처리를 중단합니다.
+        # 리스너 프로세스가 실제 로깅을 담당하게 됩니다.
+        if hasattr(self, '_mp_log_queue') and self._mp_log_queue is not None:
+            try:
+                self._mp_log_queue.put((level, message))
+            except Exception as e:
+                print(f"FATAL: 로그 메시지를 큐에 넣는 데 실패했습니다: {e}", file=sys.stderr)
+            return
+
         level_str = self._validate_level(level)
         level_int = self.LOG_LEVELS[level_str]
 

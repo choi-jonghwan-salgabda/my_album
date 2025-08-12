@@ -119,6 +119,15 @@ def get_original_filename(path: Path) -> str:
     """
     파일명에서 일반적인 버전 관리 또는 복사본 패턴을 제거하여 원본 파일명을 추정합니다.
     
+    Parameters:
+        path (Path): 분석할 파일 경로
+
+    Returns:
+        str: 정제된 원본 파일명
+    """
+    """
+    파일명에서 일반적인 버전 관리 또는 복사본 패턴을 제거하여 원본 파일명을 추정합니다.
+    
     예시:
         'photo (1).jpg'      → 'photo.jpg'
         'image_v2.png'       → 'image.png'
@@ -143,28 +152,35 @@ def get_original_filename(path: Path) -> str:
     # 파일명에 포함될 수 있는 NULL 바이트(\0)나 기타 제어 문자를 제거하여
     # "ValueError: embedded null byte" 오류를 방지합니다.
     # path.stem과 path.suffix가 이러한 문자를 포함할 수 있습니다.
+    # 파일명에 포함될 수 있는 NULL 바이트나 기타 제어 문자를 제거하여 오류를 방지합니다.
     stem = path.stem.replace('\0', '')
     suffix = path.suffix.replace('\0', '')
 
-    stem = re.sub(r'\s*\(\d+\)$', '', stem)
-    # 2. '-숫자' 또는 '_숫자' 형태 제거: 예) 'image-1', 'file_3' → 'image', 'file'
-    stem = re.sub(r'[-_]\d+$', '', stem)
-    # 3. '_v숫자' 형태 제거: 예) 'photo_v2' → 'photo'
-    stem = re.sub(r'[_]v\d+$', '', stem)
-    # 4. '-Copy' 또는 '_Copy' 제거 (대소문자 무시): 예) 'file-Copy' → 'file'
-    stem = re.sub(r'[-_][Cc]opy$', '', stem)
-    # 5. '-복사본' 제거 (대소문자 무시): 예) 'file-복사본' → 'file'
-    stem = re.sub(r'[-_]복사본$', '', stem)
-    # 6. '-사본' 제거 (대소문자 무시): 예) 'file-복사본' → 'file'
-    stem = re.sub(r'[-_]사본$', '', stem)
-    # 7. '사본 -' 제거 (대소문자 무시): 예) 'file-복사본' → 'file'
-    stem = re.sub(r'사본[ -_]$', '', stem)
-    # 8. '일괄편집 -' 제거 (대소문자 무시): 예) 'file-복사본' → 'file'
-    stem = re.sub(r'일괄편집[ -_]$', '', stem)
-    # 8. '포맷변환 -' 제거 (대소문자 무시): 예) 'file-복사본' → 'file'
-    stem = re.sub(r'포맷변환[ -_]$', '', stem)
-    
-    # 결과 반환: 정리된 이름 + 확장자
+    # 제거할 패턴을 리스트로 정의하여 한 번에 처리합니다.
+    # 각 정규식은 파일명(stem)의 시작(`^`) 또는 끝(`$`)에서 일치하는지 확인합니다.
+    patterns_to_remove = [
+        # 일반적인 복사본/버전 패턴
+        r'\s*\(\d+\)$',       # ' (숫자)' 형태 제거 (예: 'photo (1)')
+        r'[-_]\d+$',          # '-숫자' 또는 '_숫자' 형태 제거 (예: 'photo-1')
+        r'[_]v\d+$',          # '_v'와 숫자 형태 제거 (예: 'photo_v2')
+        r'[-_][Cc]opy$',      # '-Copy' 또는 '_Copy' 제거 (대소문자 무시)
+        r'[-_]복사본$',         # '-복사본' 형태 제거
+        r'[-_]사본$',          # '-사본' 형태 제거
+        
+        # 접두사 패턴 (문자열 시작 '^'에 일치하도록 수정됨)
+        r'^사본[ -_]',         # '사본 -', '사본_', '사본 ' 형태 제거
+        r'^일괄편집[ -_]',      # '일괄편집 -', '일괄편집_' 형태 제거
+        r'^포맷변환[ -_]',      # '포맷변환 -', '포맷변환_' 형태 제거
+        r'^\[복원\][ -_]',       # '[복원] -' 등 복원 접두사
+        
+        # photos.lst 파일에서 발견된 패턴
+        r'^\$',               # 파일명 시작에 붙는 '$' 제거
+    ]
+
+    for pattern in patterns_to_remove:
+        stem = re.sub(pattern, '', stem)
+        
+    # 결과 반환: 정리된 이름 + 확장자. strip()으로 양 끝 공백 제거
     return stem.strip() + suffix
 
 def get_unique_path(directory: Path, filename: str) -> Path:

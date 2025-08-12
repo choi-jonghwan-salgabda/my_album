@@ -45,8 +45,15 @@
 import sys
 import copy
 from pathlib import Path
+import re
 from datetime import datetime
-from typing import Optional
+from typing import Optional, List, Dict, Any, Tuple
+
+import concurrent.futures
+import multiprocessing
+import threading
+import functools
+from tqdm import tqdm
 
 # 프로젝트 공용 유틸리티 임포트
 try:
@@ -66,8 +73,104 @@ DEFAULT_STATUS_TEMPLATE = {
     "files_processed":        {"value": 0, "msg": "선별되어 이동/복사된 대표 파일 수"},
     "files_archived":         {"value": 0, "msg": "보관 처리된 나머지 중복 파일 수"},
     "empty_hash_dirs_skipped":{"value": 0, "msg": "이미지 파일이 없어 건너뛴 해시 디렉토리 수"},
+    "selection_ties":         {"value": 0, "msg": "대표 파일 선정 시 동점이 발생한 그룹 수"},
     "file_op_errors":         {"value": 0, "msg": "파일 처리 중 발생한 오류 수"},
 }
+
+def log_listener_process(queue: multiprocessing.Queue):
+    """
+    [병렬 처리] 멀티프로세싱 로그 리스너.
+
+    여러 워커 프로세스에서 발생하는 로그 메시지를 중앙에서 처리하기 위한 전담 프로세스(또는 스레드)입니다.
+    공유된 `log_queue`에서 로그 레코드(레벨, 메시지)를 계속 가져와, 메인 프로세스의 `logger` 인스턴스를
+    사용하여 파일 및 콘솔에 순차적으로 기록합니다.
+
+    이유: 각 워커 프로세스가 직접 하나의 로그 파일에 쓰려고 하면 파일 잠금 문제(Race Condition)가
+    발생할 수 있습니다. 하나의 전담 리스너가 모든 로그를 처리함으로써 이 문제를 해결합니다.
+    """
+    while True:
+        try:
+            record = queue.get()
+            if record is None:  # 종료 신호
+                break
+            level, message = record
+            logger.log(level=level, message=message)
+        except (KeyboardInterrupt, SystemExit):
+            break
+        except Exception:
+            import traceback
+            print(f"로그 리스너 오류:\n{traceback.format_exc()}", file=sys.stderr)
+
+def init_worker(queue: multiprocessing.Queue):
+    """
+    [병렬 처리] 각 워커 프로세스를 초기화합니다.
+
+    `ProcessPoolExecutor`가 새로운 워커 프로세스를 생성할 때마다 호출되는 함수입니다.
+    각 워커 프로세스 내의 전역 `logger` 인스턴스를 설정하여, 모든 로그 메시지(예: logger.info)가
+    파일이나 콘솔에 직접 기록되지 않고, 대신 공유 `log_queue`로 보내지도록 재구성합니다.
+    """
+    logger.setup(mp_log_queue=queue)
+
+def _process_one_hash_dir_parallel(args: Tuple[Path, Path, Optional[Path], set, str, bool]) -> Dict[str, int]:
+    """
+    [병렬 워커] 단일 해시 디렉토리를 처리하고 결과를 딕셔너리로 반환합니다.
+    이 함수는 ProcessPoolExecutor의 워커 프로세스에서 실행됩니다.
+    """
+    hash_dir, destination_dir, archive_dir, allowed_extensions, action, dry_run = args
+    
+    worker_status = {
+        "files_processed": 0,
+        "files_archived": 0,
+        "empty_hash_dirs_skipped": 0,
+        "file_op_errors": 0,
+    }
+    
+    action_func = safe_move if action == 'move' else safe_copy
+    action_verb = "이동" if action == 'move' else "복사"
+    log_prefix = "(Dry Run) " if dry_run else ""
+    
+    # 경로 생성 시 'embedded null byte' 오류를 방지하기 위해 디렉토리 이름에서 NULL 바이트를 제거합니다.
+    safe_hash_dir_name = hash_dir.name.replace('\0', '')
+
+    try:
+        image_files = [f for f in hash_dir.rglob("*") if f.is_file() and f.suffix.lower() in allowed_extensions]
+        if not image_files:
+            logger.debug(f"'{safe_hash_dir_name}' 디렉토리에 이미지 파일이 없어 건너뜁니다.")
+            worker_status["empty_hash_dirs_skipped"] = 1
+            return worker_status
+        
+        best_file = min(image_files, key=get_file_score)
+        # 파일명에 포함될 수 있는 NULL 바이트를 제거합니다.
+        safe_best_file_name = best_file.name.replace('\0', '')
+        logger.debug(f"'{safe_hash_dir_name}' 그룹의 대표 파일로 '{safe_best_file_name}' 선택됨.")
+        
+        dest_subdir = destination_dir / safe_hash_dir_name
+        dest_file_path = dest_subdir / safe_best_file_name
+        if not dry_run:
+            dest_subdir.mkdir(parents=True, exist_ok=True)
+        
+        if not dest_file_path.exists():
+            logger.info(f"{log_prefix}{action_verb} 예정: '{best_file}' → '{dest_file_path}'")
+            if not dry_run:
+                # safe_move/copy 함수 내부에서도 NULL 바이트를 처리하지만, 경로 생성 단계에서부터 방지하는 것이 안전합니다.
+                action_func(str(best_file), str(dest_file_path))
+            worker_status["files_processed"] = 1
+        else:
+            logger.info(f"건너뜀: 대상 파일 이미 존재 → '{dest_file_path}'")
+        
+        if archive_dir:
+            for other_file in [f for f in image_files if f != best_file]:
+                # 파일명에 포함될 수 있는 NULL 바이트를 제거합니다.
+                safe_other_file_name = other_file.name.replace('\0', '')
+                archive_path = get_unique_path(archive_dir, safe_other_file_name)
+                logger.info(f"{log_prefix}보관({action_verb}) 예정: '{other_file}' → '{archive_path}'")
+                if not dry_run:
+                    action_func(str(other_file), str(archive_path))
+                worker_status["files_archived"] += 1
+    except Exception as e:
+        worker_status["file_op_errors"] += 1
+    return worker_status
+
 
 def select_and_process_originals_logic(
     source_dir: Path, 
@@ -75,8 +178,10 @@ def select_and_process_originals_logic(
     archive_dir: Optional[Path], 
     allowed_extensions: set[str], 
     action: str = 'move', 
-    dry_run: bool = False
-    ):
+    dry_run: bool = False,
+    parallel: bool = False,
+    max_workers: Optional[int] = None
+):
     """
     소스 디렉토리의 각 해시 하위 디렉토리에서 대표 원본 파일을 선택하여
     대상 디렉토리로 이동/복사하는 핵심 로직.
@@ -88,101 +193,91 @@ def select_and_process_originals_logic(
         allowed_extensions (set[str]): 처리할 이미지 파일 확장자 집합.
         action (str): 'move' 또는 'copy'.
         dry_run (bool): True이면 실제 파일 작업을 수행하지 않음.
+        parallel (bool): 병렬 처리 활성화 여부.
+        max_workers (int, optional): 병렬 처리 시 사용할 최대 워커 수.
 
     Returns:
         dict: 처리 통계 딕셔너리.
     """
     status = copy.deepcopy(DEFAULT_STATUS_TEMPLATE)
-    hash_dirs = [d for d in source_dir.iterdir() if d.is_dir()]
-    status["hash_dirs_scanned"]["value"] = len(hash_dirs)
-    
-    if not hash_dirs:
-        logger.info("처리할 해시 디렉토리가 없습니다.")
-        return status
-    
-    # 파일 처리 함수와 로그용 동사를 루프 전에 한 번만 결정
-    action_func = safe_move if action == 'move' else safe_copy
-    action_verb = "이동" if action == 'move' else "복사"
-    log_prefix = "(Dry Run) " if dry_run else ""
-    
-    # 진행률 표시줄의 디렉토리명 길이를 동적으로 계산합니다.
-    # 평균 이름 길이를 계산하여 너무 길거나 짧지 않게 조절합니다.
-    dir_name_lengths = [visual_length(d.name) for d in hash_dirs]
-    avg_name_len = sum(dir_name_lengths) / len(dir_name_lengths) if dir_name_lengths else 30
-    desc_width = max(20, min(int(avg_name_len * 1.2), 40))
-    
-    def process_one_hash_dir(hash_dir: Path, idx: int):
-        nonlocal status
+
+    # parallel과 max_workers 인자를 함수 내부에서 사용하기 위해 로직을 수정합니다.
+    # 이 부분은 이미 올바르게 구현되어 있으나, 함수 시그니처가 맞지 않아 오류가 발생했습니다.
+    # 이제 시그니처가 수정되었으므로 아래 코드는 정상 동작합니다.
+    manager = None
+    log_queue = None
+    listener_thread = None
+    initializer = None
+    if parallel:
+        manager = multiprocessing.Manager()
+        log_queue = manager.Queue()
+        listener_thread = threading.Thread(target=log_listener_process, args=(log_queue,))
+        # --- 데몬 스레드 설정 ---
+        # 메인 프로그램이 종료될 때 이 스레드가 실행 중이더라도 강제 종료되도록 설정합니다.
+        # 이를 통해 '로그 리스너 스레드가 시간 내에 종료되지 않았습니다' 경고 후 프로그램이 멈추는 현상을 방지합니다.
+        listener_thread.daemon = True
+        listener_thread.start()
+        initializer = functools.partial(init_worker, log_queue)
+
+    try:
+        hash_dirs = [d for d in source_dir.iterdir() if d.is_dir()]
+        status["hash_dirs_scanned"]["value"] = len(hash_dirs)
         
-        image_files = [
-            f for f in hash_dir.rglob("*")
-            if f.is_file() and f.suffix.lower() in allowed_extensions
+        if not hash_dirs:
+            logger.info("처리할 해시 디렉토리가 없습니다.")
+            return status
+
+        processing_args = [
+            (d, destination_dir, archive_dir, allowed_extensions, action, dry_run)
+            for d in hash_dirs
         ]
-        if not image_files:
-            logger.debug(f"'{hash_dir.name}' 디렉토리에 이미지 파일이 없어 건너뜁니다.")
-            status["empty_hash_dirs_skipped"]["value"] += 1
-            return
+
+        group_results = []
+        if parallel:
+            logger.info(f"병렬 모드로 작업을 시작합니다 (최대 워커 수: {max_workers or '기본값'}).")
+            with concurrent.futures.ProcessPoolExecutor(max_workers=max_workers, initializer=initializer) as executor:
+                results_iterator = executor.map(_process_one_hash_dir_parallel, processing_args)
+                group_results = list(tqdm(results_iterator, total=len(hash_dirs), desc="대표 원본 정리 중 (병렬)", unit="폴더"))
+        else:
+            logger.info("순차 모드로 작업을 시작합니다.")
+            for args_tuple in tqdm(processing_args, desc="대표 원본 정리 중 (순차)", unit="폴더"):
+                group_results.append(_process_one_hash_dir_parallel(args_tuple))
+
+        for worker_status in group_results:
+            for key, value in worker_status.items():
+                if key in status:
+                    status[key]["value"] += value
         
-        def get_file_score(p: Path):
-            is_priority_file = 1 if p.name.startswith('$') else 0
-            cleaned_name = get_original_filename(p)
-            cleaned_stem = Path(cleaned_name).stem
-            cleaned_name_lower = cleaned_name.lower()
-            return (
-                is_priority_file,
-                p.stat().st_ctime,
-                sum(c in ('_', '-') for c in cleaned_name_lower),
-                sum(c.isdigit() for c in cleaned_stem),
-                len(cleaned_name),
-            )
-        
-        best_file = min(image_files, key=get_file_score)
-        logger.debug(f"'{hash_dir.name}' 그룹의 대표 파일로 '{best_file.name}' 선택됨.")
-        
-        dest_subdir = destination_dir / hash_dir.name
-        dest_file_path = dest_subdir / best_file.name
-        if not dry_run:
-            dest_subdir.mkdir(parents=True, exist_ok=True)
-        
-        try:
-            if not dest_file_path.exists():
-                logger.info(f"{log_prefix}{action_verb} 예정: '{best_file}' → '{dest_file_path}'")
-                if not dry_run:
-                    action_func(str(best_file), str(dest_file_path))
-                status["files_processed"]["value"] += 1
+        return status
+
+    finally:
+        if parallel and listener_thread:
+            logger.info("로그 리스너 스레드 종료 신호 전송...")
+            if log_queue:
+                log_queue.put(None)
+            listener_thread.join(timeout=5)
+            if listener_thread.is_alive():
+                logger.warning("로그 리스너 스레드가 시간 내에 종료되지 않았습니다.")
             else:
-                logger.info(f"건너뜀: 대상 파일 이미 존재 → '{dest_file_path}'")
-        except (DiskFullError, OSError, Exception) as e:
-            logger.error(f"파일 {action_verb} 실패: '{best_file}' → '{dest_file_path}'. 오류: {e}")
-            status["file_op_errors"]["value"] += 1
-        
-        if archive_dir:
-            for other_file in [f for f in image_files if f != best_file]:
-                try:
-                    archive_path = get_unique_path(archive_dir, other_file.name)
-                    logger.info(f"{log_prefix}보관({action_verb}) 예정: '{other_file}' → '{archive_path}'")
-                    if not dry_run:
-                        action_func(str(other_file), str(archive_path))
-                    status["files_archived"]["value"] += 1
-                except (DiskFullError, OSError, Exception) as e:
-                    logger.error(f"보관 실패: '{other_file}' → '{archive_dir}'. 오류: {e}")
-                    status["file_op_errors"]["value"] += 1
-    
-    with_progress_bar(
-        items=hash_dirs,
-        task_func=process_one_hash_dir,
-        desc="대표 원본 정리 중",
-        unit="폴더",
-        description_func=lambda d: f"처리 중: {truncate_string(d.name, desc_width):<{desc_width}}"
-    )
-    
-    return status
+                logger.info("로그 리스너 스레드가 성공적으로 종료되었습니다.")
 
 if __name__ == "__main__":
-# def run_main():
     """스크립트의 메인 실행 함수."""
     # 이 스크립트는 source-dir과 destination-dir을 필수로 요구합니다.
-    parsed_args = get_argument(required_args=['-src', '-dst'])
+    supported_args_for_script = [
+        'source_dir', 
+        'destination_dir', 
+        'quarantine_dir', 
+        'log_mode',
+        'dry_run', 
+        'action', 
+        'parallel', 
+        'max_workers'
+    ]
+    parsed_args = get_argument(
+        required_args=['-src', '-dst'],
+        supported_args=supported_args_for_script
+    )
 
     script_name = Path(__file__).stem
     if hasattr(logger, 'setup'):
@@ -219,6 +314,7 @@ if __name__ == "__main__":
     destination_dir = Path(parsed_args.destination_dir).expanduser().resolve()
     action_mode = getattr(parsed_args, 'action', 'move')
     dry_run_mode = getattr(parsed_args, 'dry_run', False)
+    parallel_mode = getattr(parsed_args, 'parallel', False)
     
     # 나머지 중복 파일을 보관할 디렉토리 경로 결정 (--quarantine-dir 인자 사용)
     quarantine_dir = None
@@ -248,7 +344,9 @@ if __name__ == "__main__":
             archive_dir=quarantine_dir, # 'archive_dir' 인자로 전달
             allowed_extensions=allowed_extensions,
             action=action_mode,
-            dry_run=dry_run_mode
+            dry_run=dry_run_mode,
+            parallel=parallel_mode,
+            max_workers=parsed_args.max_workers
         )
 
         # 최종 통계 출력
@@ -274,6 +372,3 @@ if __name__ == "__main__":
         logger.info(f"애플리케이션 ({script_name}) 종료{ ' (Dry Run 모드)' if dry_run_mode else ''}")
         if hasattr(logger, "shutdown"):
             logger.shutdown()
-
-# if __name__ == "__main__":
-#     run_main()
