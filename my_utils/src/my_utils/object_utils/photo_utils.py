@@ -4,6 +4,7 @@ import sys
 import hashlib
 import json
 import io
+import warnings
 from pathlib import Path
 from typing import List, Dict, Any, Union, Tuple, Optional
 import dlib
@@ -42,8 +43,14 @@ def is_image_valid_debug(
     """
     path_info = f"'{img_path_or_stream.name}'" if isinstance(img_path_or_stream, Path) else "a stream object"
     try:
-        with Image.open(img_path_or_stream) as img:
-            img.load()
+        with warnings.catch_warnings():
+            # Pillow의 TiffImagePlugin 등에서 발생하는 'Truncated File Read' 경고를 무시합니다.
+            # 이 경고는 파일이 손상되었을 수 있음을 나타내지만, 스크립트는 이미
+            # UnidentifiedImageError와 같은 예외를 통해 손상된 파일을 처리하고 있습니다.
+            # tqdm 진행률 표시줄이 깨지는 것을 방지하기 위해 경고를 숨깁니다.
+            warnings.filterwarnings("ignore", "Truncated File Read")
+            with Image.open(img_path_or_stream) as img:
+                img.load()
         return True, ""
     except UnidentifiedImageError:
         return False, f"❌ 이미지 형식 인식 실패: {path_info}"
@@ -230,7 +237,7 @@ def rotate_image_if_needed(image_path_str: str) -> bool:
         elif orientation_value == 8: # Rotated 90 degrees CCW (반시계 방향 90도 회전)
             rotated_img = img.rotate(90, expand=True)
         else:
-            logger.warning(f"이미지 '{image_path_str}'의 Orientation 값({orientation_value})을 알 수 없습니다. 회전하지 않습니다.")
+            logger.debug(f"이미지 '{image_path_str}'의 Orientation 값({orientation_value})을 알 수 없습니다. 회전하지 않습니다.")
             img.close()
             return True # 알 수 없는 값이면 회전하지 않음, 성공으로 간주
 
@@ -243,7 +250,7 @@ def rotate_image_if_needed(image_path_str: str) -> bool:
             # 필요하다면, 저장 후 EXIF를 수정하는 로직을 추가할 수 있습니다.
             rotated_img.save(image_path_str)
             rotated_img.close()
-            logger.info(f"이미지 '{image_path_str}'를 EXIF 정보에 따라 회전하고 저장했습니다.")
+            logger.debug(f"이미지 '{image_path_str}'를 EXIF 정보에 따라 회전하고 저장했습니다.")
         
         img.close() # 원본 이미지 객체 닫기
         return True

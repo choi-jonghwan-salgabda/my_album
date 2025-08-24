@@ -43,7 +43,7 @@ LOG_LEVELS = {
     "DEBUG": 10,    # 디버깅 목적으로 사용되는 상세 정보
     "INFO": 20,     # 일반 정보성 메시지
     "WARNING": 30,  # 경고 메시지 (잠재적 문제)
-    "CRT_VIEW": 35,  # 경고 메시지 (잠재적 문제)
+    "CONSOLE": 35,  # 경고 메시지 (잠재적 문제)
     "ERROR": 40,    # 오류 메시지 (기능 수행 불가)
     "CRITICAL": 50  # 심각한 오류 메시지 (애플리케이션 중단 가능)
 }
@@ -126,56 +126,40 @@ class SimpleLogger: # pragma: no cover
         return self._file_min_level
 
     def _apply_standalone_config(self):
-        current_script_path = os.path.realpath(__file__)
-        current_directory = os.path.dirname(current_script_path)
-
         """
-        독립 실행 모드일 때 로거 설정을 적용합니다.
-        'logging.yaml' 파일이 현재 스크립트 디렉토리에 있으면 해당 설정을 로드하고,
-        없으면 기본 설정을 사용합니다.
+        독립 실행 모드일 때 로거의 기본 설정을 적용합니다.
+        이 메서드는 메인 스크립트에서 logger.setup()이 명시적으로 호출되기 전에
+        로거가 사용될 경우를 대비한 안전장치(fallback) 역할을 합니다.
+
+        - 로그 디렉토리: 현재 작업 디렉토리 아래의 'logs' 폴더.
+        - 로그 파일명: 'standalone_SimpleLogger_YYMMDD.log' 형식.
+        - 로그 레벨: 파일에는 DEBUG 이상, 콘솔에는 WARNING 이상.
         """
-        # 기본 로그 디렉토리 및 레벨 설정
-        log_dir = Path(current_directory).parent.parent
-        log_level = self._file_min_level  # ✅ 올바르게 참조
-        log_format = "%(asctime)s - %(levelname)-6s - %(funcName)-20s (configger_standalone) - %(message)s"
+        # 1. 로그 디렉토리를 현재 작업 디렉토리(CWD) 기준으로 설정합니다.
+        log_dir = Path.cwd() / 'logs'
 
-        # 로깅 설정 파일 경로
-        cfg_yaml_file_name = "logging.yaml"
-        cfg_path = os.path.join(current_directory, cfg_yaml_file_name)
+        # 2. 로그 디렉토리가 없으면 생성합니다.
+        try:
+            log_dir.mkdir(parents=True, exist_ok=True)
+        except OSError as e:
+            print(f"오류: 독립 실행용 로그 디렉토리 '{log_dir}' 생성 실패: {e}")
+            log_path = None
+        else:
+            # 3. 로그 파일 경로를 설정합니다.
+            script_name = Path(__file__).stem
+            date_str = datetime.now().strftime("%y%m%d_%H%M%S") # 시, 분, 초(S)까지 추가하여 고유성 보장
+            log_path = log_dir / f'standalone_{script_name}_{date_str}.log'
 
-        if os.path.exists(cfg_path):
-            # 설정 파일이 존재하면 로드
-            try:
-                with open(cfg_path, "r", encoding="utf-8") as f:
-                    config_yaml = yaml.safe_load(f) or {}
-                log_cfg = config_yaml.get("logging", {})
-
-                # 파일에서 설정 값 가져오기 (없으면 기본값 사용)
-                log_dir = log_cfg.get("log_dir", log_dir)
-                self._file_min_level = log_cfg.get("level", log_level)
-                log_format = log_cfg.get("log_format", log_format)
-            except Exception as e:
-                print(f"오류: configger용 로깅 구성 파일 '{cfg_path}' 읽기 실패 - {e}")
-
-        # 로그 디렉토리가 없으면 생성
-        if  not os.path.exists(log_dir):
-            os.makedirs(log_dir, exist_ok=True)
-
-        # 로그 파일 경로 설정
-        script_name = os.path.splitext(os.path.basename(current_script_path))[0]
-        date_str = datetime.now().strftime("%y%m%d")
-        log_path = os.path.join(log_dir, f'{script_name}_{date_str}.log')
-
-        # 로거 설정 적용
+        # 4. 로거 설정을 적용합니다.
         self.setup(
             logger_path=log_path,
-            console_min_level='WARNING',  # 콘솔엔 WARNING 이상만
-            file_min_level=self._file_min_level,
+            console_min_level='WARNING',  # 콘솔에는 경고 이상만 표시
+            file_min_level='DEBUG',       # 파일에는 모든 디버그 정보 기록
             include_function_name=True,
             pretty_print=True,
             async_file_writing=False
         )
-        print(f"독립 실행용 로깅 설정 완료: {log_path}")
+        print(f"독립 실행용 로깅 설정 완료. 로그 파일: {log_path if log_path else '비활성화됨'}")
         self._initialized = True # 독립 실행 설정 완료 플래그
 
     def setup(self, 
@@ -437,15 +421,6 @@ class SimpleLogger: # pragma: no cover
         else:
             print(msg)  # 기본값
 
-    # def set_tqdm_aware(self, aware: bool):
-    #     """
-    #     tqdm 진행률 바와 호환되는 출력 모드를 설정/해제합니다.
-    #     True로 설정하면 print 대신 tqdm.write()를 사용합니다.
-    #     """
-    #     self._tqdm_aware = aware
-    #     if aware:
-    #         self.debug("tqdm 호환 출력 모드가 활성화되었습니다.")
-
     def get_config(self):
         """
         현재 로거의 주요 설정 값들을 딕셔너리 형태로 반환합니다.
@@ -700,9 +675,9 @@ class SimpleLogger: # pragma: no cover
         """WARNING 레벨의 로그를 기록합니다."""
         self.log(message, level="WARNING")
 
-    def crt_view(self, message):
-        """CRT_VIEW 레벨의 로그를 기록합니다."""
-        self.log(message, level="CRT_VIEW")
+    def console(self, message):
+        """CONSOLE 레벨의 로그를 기록합니다."""
+        self.log(message, level="CONSOLE")
 
     def critical(self, message):
         """CRITICAL 레벨의 로그를 기록합니다."""
@@ -795,7 +770,8 @@ class SimpleLogger: # pragma: no cover
                 except Exception as e:
                     # shutil.disk_usage() 등에서 발생할 수 있는 다른 예외들은 로깅합니다.
                     self.error(f"디스크 공간 사전 검사 중 예상치 못한 오류 발생: {e}")
-    # --- 통합 완료 ---
+    
+# --- 통합 완료 ---
 
 # === 공유 로거 인스턴스 ===
 # 이 logger 인스턴스를 다른 모듈에서 import하여 사용합니다.

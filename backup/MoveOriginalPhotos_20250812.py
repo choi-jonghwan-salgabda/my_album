@@ -45,7 +45,6 @@
 import sys
 import copy
 from pathlib import Path
-import io
 import re
 from datetime import datetime
 from typing import Optional, List, Dict, Any, Tuple
@@ -54,7 +53,6 @@ import concurrent.futures
 import multiprocessing
 import threading
 import functools
-import time
 from tqdm import tqdm
 
 # 프로젝트 공용 유틸리티 임포트
@@ -64,55 +62,10 @@ try:
     from my_utils.config_utils.configger import configger
     from my_utils.config_utils.file_utils import safe_move, safe_copy, DiskFullError, get_original_filename, get_unique_path
     from my_utils.config_utils.display_utils import calc_digit_number, visual_length, truncate_string, with_progress_bar
-    from my_utils.object_utils.photo_utils import get_exif_date_taken
 except ImportError as e:
     # logger가 설정되기 전이므로 print 사용
     print(f"치명적 오류: my_utils를 임포트할 수 없습니다. PYTHONPATH 및 의존성을 확인해주세요: {e}")
     sys.exit(1)
-
-# EXIF 날짜가 없는 파일을 정렬 시 가장 뒤로 보내기 위한 값
-MAX_DATETIME = datetime.max
-
-def get_file_score(file_path: Path) -> tuple:
-    """
-    파일의 '원본성'을 평가하여 점수(튜플)를 반환합니다. 점수가 낮을수록 원본에 가깝습니다.
-
-    평가 기준 (우선순위 순):
-    1. EXIF 촬영 날짜: 오래된 날짜일수록 점수가 낮습니다. (가장 중요)
-       - EXIF 날짜가 없는 파일은 있는 파일보다 항상 높은 점수를 받습니다.
-    2. 파일 수정 시간(mtime): 오래된 시간일수록 점수가 낮습니다. (ctime은 복사 시 변경될 수 있어 mtime으로 대체)
-    3. 파일명 특수문자 수: '_', '-'의 개수가 적을수록 점수가 낮습니다.
-    4. 파일명 숫자 수: 숫자가 적을수록 점수가 낮습니다.
-    5. 파일명 길이: 짧을수록 점수가 낮습니다.
-    """
-    try:
-        # 파일을 한 번만 읽어 메모리 내에서 EXIF 처리
-        with open(file_path, 'rb') as f:
-            file_content = io.BytesIO(f.read())
-        date_str, _ = get_exif_date_taken(file_content)
-        # 날짜 문자열이 있으면 datetime 객체로, 없으면 MAX_DATETIME으로 설정
-        exif_date = datetime.strptime(date_str, "%Y:%m:%d %H:%M:%S") if date_str else MAX_DATETIME
-    except (IOError, ValueError, TypeError):
-        # 파일 읽기/EXIF 파싱 오류 시
-        exif_date = MAX_DATETIME
-
-    try:
-        # ctime(생성 또는 메타데이터 변경 시간)은 파일 복사 시 현재 시간으로 변경될 수 있습니다.
-        # 원본성을 더 잘 나타내는 mtime(수정 시간)을 사용합니다.
-        # shutil.copy2는 mtime을 보존합니다.
-        mtime = file_path.stat().st_mtime
-    except FileNotFoundError:
-        mtime = float('inf') # 파일이 없으면 가장 높은 점수
-
-    clean_name = get_original_filename(file_path)
-    stem = Path(clean_name).stem
-    
-    special_chars = stem.count('_') + stem.count('-')
-    num_digits = sum(c.isdigit() for c in stem)
-    name_len = len(stem)
-
-    # 점수를 튜플로 반환하여 다중 기준으로 정렬
-    return (exif_date, mtime, special_chars, num_digits, name_len)
 
 # 처리 상태를 기록하기 위한 기본 템플릿
 DEFAULT_STATUS_TEMPLATE = {
@@ -169,7 +122,6 @@ def _process_one_hash_dir_parallel(args: Tuple[Path, Path, Optional[Path], set, 
         "files_processed": 0,
         "files_archived": 0,
         "empty_hash_dirs_skipped": 0,
-        "selection_ties": 0,
         "file_op_errors": 0,
     }
     
@@ -311,17 +263,6 @@ def select_and_process_originals_logic(
 
 if __name__ == "__main__":
     """스크립트의 메인 실행 함수."""
-    script_name = Path(__file__).stem
-
-    # 1단계: 콘솔 전용 임시 로거 설정 (설정 파일/인자 로드 전)
-    # 이 스크립트는 사용자에게 중요한 정보를 'CONSOLE' 레벨로 전달하므로, 해당 레벨을 사용합니다.
-    logger.setup(
-        logger_path=None,  # 파일 로깅은 아직 비활성화
-        console_min_level="CONSOLE",
-        include_function_name=False
-    )
-    logger.console(f"애플리케이션 ({script_name}) 시작. (로거 1/2 단계 초기화)")
-
     # 이 스크립트는 source-dir과 destination-dir을 필수로 요구합니다.
     supported_args_for_script = [
         'source_dir', 
@@ -338,96 +279,32 @@ if __name__ == "__main__":
         supported_args=supported_args_for_script
     )
 
-    # --- 설정 파일 경로 결정 ---
-    if parsed_args.config_path is None:
-        # --config-path가 지정되지 않았을 때 기본 경로를 생성합니다.
-        # root_dir은 arg_utils에서 현재 작업 디렉토리로 기본값이 설정되어 있습니다.
-        # configger가 상대 경로를 root_dir 기준으로 처리하므로, 여기서는 상대 경로를 전달합니다.
-        parsed_args.config_path = '../config/photo_album.yaml'
-        logger.debug(f"--config-path가 지정되지 않아 기본 상대 경로를 사용합니다: '{parsed_args.config_path}'")
+    script_name = Path(__file__).stem
+    if hasattr(logger, 'setup'):
+        date_str = datetime.now().strftime("%y%m%d_%H%M")
+        log_file_name = f"{script_name}_{date_str}.log"
+        full_log_path = Path(parsed_args.log_dir) / log_file_name
+        logger.setup(
+            logger_path=full_log_path,
+            console_min_level="warning", # 콘솔에는 경고 이상만 표시하여 출력 줄임
+            file_min_level=parsed_args.log_level.upper(),
+            include_function_name=True,
+            pretty_print=True
+        )
 
-    # --- 로깅 설정 결정 (우선순위: 명령줄 > YAML > 기본값) ---
-    final_log_dir = None
-    final_file_level = "INFO"
-    final_console_level = "CONSOLE"
-    final_log_mode = "sync"
-    config_manager = None
-
-    try:
-        config_manager = configger(config_path=parsed_args.config_path, root_dir=parsed_args.root_dir)
-        logging_cfg = config_manager.get_config("project.logging") or {}
-        
-        # YAML에서 설정값 가져오기 (기본값 포함)
-        log_dir_from_yaml = logging_cfg.get("log_dir")
-        file_level_from_yaml = logging_cfg.get("file_level", "INFO")
-        console_level_from_yaml = logging_cfg.get("console_level", "CONSOLE")
-        log_mode_from_yaml = logging_cfg.get("log_mode", "sync")
-        
-        # 최종 설정값 결정 (우선순위: 명령줄 > YAML)
-        final_log_dir = parsed_args.log_dir or log_dir_from_yaml
-        final_file_level = parsed_args.log_level or file_level_from_yaml
-        final_console_level = console_level_from_yaml
-        
-        # log_mode는 argparse의 기본값이 'sync'이므로, 사용자가 명시적으로 지정했는지 확인
-        if '--log-mode' in sys.argv or '-lmod' in sys.argv:
-            final_log_mode = parsed_args.log_mode
-        else:
-            final_log_mode = log_mode_from_yaml
-
-    except Exception as e:
-        logger.error(f"Configger 초기화 또는 설정 로드 중 오류 발생: {e}", exc_info=True)
-        # 설정 파일 로드 실패 시, 명령줄 인자만 사용
-        final_log_dir = parsed_args.log_dir
-        final_file_level = parsed_args.log_level or "INFO"
-        final_console_level = "CONSOLE"
-        # 사용자가 명시적으로 지정했는지 확인
-        if '--log-mode' in sys.argv or '-lmod' in sys.argv:
-            final_log_mode = parsed_args.log_mode
-        else:
-            final_log_mode = "sync" # argparse 기본값과 동일하게 설정
-
-    # --- 로거 최종 설정 ---
-    full_log_path = None
-    if final_log_dir:
-        try:
-            final_log_dir_path = Path(final_log_dir).expanduser().resolve()
-            final_log_dir_path.mkdir(parents=True, exist_ok=True)
-            
-            date_str = datetime.now().strftime("%y%m%d_%H%M")
-            log_file_name = f"{script_name}_{date_str}.log"
-            full_log_path = final_log_dir_path / log_file_name
-        except Exception as e:
-            logger.error(f"로그 디렉토리 '{final_log_dir}'를 생성하거나 접근할 수 없습니다: {e}", exc_info=True)
-            full_log_path = None
-
-    # 2단계: 파일 로깅을 포함한 전체 로거 설정 (최종 설정값 사용)
-    logger.setup(
-        logger_path=full_log_path, # None이면 파일 로깅 비활성화
-        console_min_level=final_console_level.upper(),
-        file_min_level=final_file_level.upper(),
-        async_file_writing=(final_log_mode == 'async'),
-        include_function_name=True,
-        pretty_print=True
-    )
-    logger.console(f"애플리케이션 ({script_name}) 시작. (로거 2/2 단계 초기화 완료)")
-    if full_log_path:
-        logger.info(f"로그 파일 위치: {full_log_path}")
-    else:
-        logger.info("파일 로깅이 비활성화되었습니다. (로그 디렉토리가 지정되지 않음)")
+    logger.info(f"애플리케이션 ({script_name}) 시작")
     logger.info(f"명령줄 인자: {vars(parsed_args)}")
-    logger.info(f"최종 로그 설정: 파일 레벨='{final_file_level.upper()}', 콘솔 레벨='{final_console_level.upper()}', 모드='{final_log_mode}'")
 
     # 설정 파일에서 허용 확장자 로드
     allowed_extensions = set()
     try:
-        if config_manager is None:
-            raise RuntimeError("설정 관리자(configger)를 초기화하지 못했습니다.")
-        processing_cfg = config_manager.get_config("processing") or {}
-        extensions_from_config = processing_cfg.get("supported_image_extensions", [])
+        config_manager = configger(root_dir=parsed_args.root_dir, config_path=parsed_args.config_path)
+        logger.info("Configger 초기화 완료.")
+        extensions_from_config = config_manager.get_value("processing.supported_image_extensions", default=[])
         if extensions_from_config:
             allowed_extensions = {ext.lower() for ext in extensions_from_config}
     except Exception as e:
-        logger.error(f"Configger 설정 로드 중 오류 발생: {e}", exc_info=True)
+        logger.error(f"Configger 초기화 또는 설정 로드 중 오류 발생: {e}", exc_info=True)
 
     if not allowed_extensions:
         logger.warning("설정 파일에서 허용 확장자를 찾지 못했거나 로드 중 오류가 발생하여, 기본 이미지 확장자를 사용합니다.")
@@ -435,9 +312,9 @@ if __name__ == "__main__":
 
     source_dir = Path(parsed_args.source_dir).expanduser().resolve()
     destination_dir = Path(parsed_args.destination_dir).expanduser().resolve()
-    action_mode = parsed_args.action
-    dry_run_mode = parsed_args.dry_run
-    parallel_mode = parsed_args.parallel
+    action_mode = getattr(parsed_args, 'action', 'move')
+    dry_run_mode = getattr(parsed_args, 'dry_run', False)
+    parallel_mode = getattr(parsed_args, 'parallel', False)
     
     # 나머지 중복 파일을 보관할 디렉토리 경로 결정 (--quarantine-dir 인자 사용)
     quarantine_dir = None
@@ -461,11 +338,6 @@ if __name__ == "__main__":
             if quarantine_dir:
                 quarantine_dir.mkdir(parents=True, exist_ok=True)
 
-        # 메인 로직 함수 호출
-        logger.console("+++++++++++++++++++++++++++++++++++++")
-        logger.console("--- 대표 원본 사진 정리 시작 ---")
-        logger.console("-------------------------------------")
-        start_time = time.time()
         final_status = select_and_process_originals_logic(
             source_dir=source_dir,
             destination_dir=destination_dir,
@@ -476,14 +348,9 @@ if __name__ == "__main__":
             parallel=parallel_mode,
             max_workers=parsed_args.max_workers
         )
-        end_time = time.time()
-        elapsed_time = end_time - start_time
 
         # 최종 통계 출력
-        logger.console("-------------------------------------")
-        logger.console("--- 대표 원본 사진 정리 마침 ---")
-        logger.console("+++++++++++++++++++++++++++++++++++++")
-        logger.console("--- 대표 원본 사진 정리 통계 ---")
+        logger.warning("--- 대표 원본 사진 정리 통계 ---")
         max_visual_msg_len = max(visual_length(v["msg"]) for v in DEFAULT_STATUS_TEMPLATE.values()) if DEFAULT_STATUS_TEMPLATE else 20
         max_val_for_width = max((s_item["value"] for s_item in final_status.values()), default=0)
         digit_width_stats = calc_digit_number(max_val_for_width)
@@ -492,13 +359,8 @@ if __name__ == "__main__":
             msg = DEFAULT_STATUS_TEMPLATE.get(key, {}).get("msg", key.replace("_", " ").capitalize())
             value = data["value"]
             padding = max(0, int(max_visual_msg_len - visual_length(msg)))
-            logger.console(f"{msg}{'-' * padding} : {value:>{digit_width_stats}}")
-
-        elapsed_label = "총 소요 시간"
-        elapsed_str = time.strftime("%H:%M:%S", time.gmtime(elapsed_time))
-        padding = max(0, int(max_visual_msg_len - visual_length(elapsed_label)))
-        logger.console(f"{elapsed_label}{'-' * padding} : {elapsed_str:>{digit_width_stats}}")
-        logger.console("------------------------------------")
+            logger.warning(f"{msg}{'-' * padding} : {value:>{digit_width_stats}}")
+        logger.warning("------------------------------------")
 
     except KeyboardInterrupt:
         # select_and_process_originals_logic 내부에서 처리되지만, 만약을 위해 여기에도 둠
@@ -507,6 +369,6 @@ if __name__ == "__main__":
         logger.error(f"애플리케이션 실행 중 최상위 오류 발생: {e}", exc_info=True)
         sys.exit(1)
     finally:
-        logger.console(f"애플리케이션 ({script_name}) 종료{ ' (Dry Run 모드)' if dry_run_mode else ''}")
+        logger.info(f"애플리케이션 ({script_name}) 종료{ ' (Dry Run 모드)' if dry_run_mode else ''}")
         if hasattr(logger, "shutdown"):
             logger.shutdown()

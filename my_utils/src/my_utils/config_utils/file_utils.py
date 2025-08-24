@@ -235,7 +235,9 @@ def safe_move(src: str, dst: str):
                 file_size = src_path.stat().st_size
                 logger.disk_pre_write_check(dst_path, file_size)
 
-        shutil.move(src, dst)
+        # shutil.move는 다른 파일 시스템으로 이동 시 파일을 복사하는데,
+        # copy_function으로 shutil.copy2를 명시하여 메타데이터(수정 시간 등)가 보존되도록 합니다.
+        shutil.move(src, dst, copy_function=shutil.copy2)
     except FileNotFoundError:
         logger.error(f"Source file for move not found: {src}")
         raise
@@ -263,6 +265,8 @@ def safe_copy(src: str, dst: str):
         if hasattr(logger, 'disk_pre_write_check'):
             logger.disk_pre_write_check(dst_path, file_size)
 
+        # shutil.copy2는 파일 내용과 함께 메타데이터(수정 시간, 권한 등)를 보존합니다.
+        # 생성 시간은 OS에 따라 보존되지 않을 수 있습니다.
         shutil.copy2(src, dst)
     except FileNotFoundError:
         logger.error(f"Source file for copy not found: {src}")

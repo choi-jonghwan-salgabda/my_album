@@ -26,12 +26,17 @@ class configger:
     arg1 : root_dir -> 입력으로 프로젝트의 기준이되는 을 받는다.
     arg2 : config_path -> config를 구성하는 yaml파일.
     """
-    def __init__(self, root_dir:str, config_path: str):
+    def __init__(self, config_path: str, root_dir: Optional[str] = None):
         logger.debug(f"           root_dir='{root_dir}'")
         logger.debug(f"        config_path='{config_path}'")
 
         # root_dir 처리: Path 객체로 만들고 사용자 홈 디렉토리 기준 절대 경로로 확장
-        self.root_dir = Path(root_dir).expanduser().resolve()
+        # root_dir이 제공되지 않으면(None) 현재 작업 디렉토리를 기본값으로 사용합니다.
+        if root_dir is None:
+            self.root_dir = Path.cwd()
+            logger.debug(f"root_dir이 제공되지 않아 현재 작업 디렉토리를 기본값으로 사용합니다: {self.root_dir}")
+        else:
+            self.root_dir = Path(root_dir).expanduser().resolve()
 
         # config_path 처리: 절대 경로이면 그대로, 상대 경로이면 root_dir과 결합하여 절대 경로 Path 객체 생성
         if os.path.isabs(config_path):
@@ -291,6 +296,217 @@ class configger:
             logger.error(f"값 조회 중 예외 발생 for path '{key_path}': {e}")
             return None # 예외 발생 시 실패
 
+    def _load_yaml(self) -> dict:
+        # 이전과 동일 (파일 로드 및 기본 예외 처리)
+        """설정 파일 내용을 YAML 형식으로 로드합니다."""
+        try:
+            with open(self.config_path, "r", encoding="utf-8") as f:
+                return yaml.safe_load(f)
+        except FileNotFoundError:
+            logger.error(f"설정 파일을 찾을 수 없습니다: {self.config_path}")
+            sys.exit(1)
+        except yaml.YAMLError as e:
+            logger.error(f"설정 파일 구문 오류: {self.config_path} - {e}")
+            sys.exit(1)
+        except Exception as e:
+            logger.error(f"설정 파일 로딩 중 예상치 못한 오류 발생: {e}")
+            sys.exit(1)
+
+    def get_value(self, key: str, default: Any = None, ensure_exists: bool = True) -> Union[Path, Any]:
+        """
+        중첩된 키 이름(ex: 'dataset.raw_image_dir')을 기반으로 Path 객체 또는 값를 반환합니다.
+        """
+        logger.debug(f"Configger 'get_value' 호출")
+        keys = key.split(".")
+        current_level = self.cfg # 현재 탐색 중인 딕셔너리/리스트
+
+        # logger.error(f"values:{self.cfg}, keys:{keys}") # 이 로그는 except 블록 안에서 찍혔으므로 제거 또는 이동
+
+        logger.debug(f"get_value called for key: '{key}', split keys: {keys}")
+
+        try:
+            # 마지막 딕셔너리를 찾는다.
+            for i, k in enumerate(keys):
+                logger.debug(f"  --- get_value 루프 {i}번째 반복 ---")
+                logger.debug(f"  현재 레벨 (타입: {type(current_level)}): {current_level}") # <-- 현재 레벨 딕셔너리/값 출력
+                logger.debug(f"  접근 시도 키: '{k}'") # <-- 현재 접근하려는 키 출력
+
+                if isinstance(current_level, Dict):
+                    # 이 라인(current_level[k])에서 KeyError가 발생할 수 있습니다.
+                    current_level = current_level[k]
+                # 리스트 인덱싱 지원이 필요하다면 여기에 elif isinstance(current_level, List)... 추가
+                else:
+                    # 중간 단계에서 딕셔너리/리스트가 아닌데 아직 최종 키가 아닌 경우
+                    if i < len(keys) - 1:
+                         logger.error(f"경로 탐색 실패: 키 '{key}'의 중간 경로 '{k}'가 딕셔너리나 리스트가 아닙니다. (현재 타입: {type(current_level)})")
+                         raise TypeError(f"Intermediate key '{k}' for path '{key}' leads to non-container type ({type(current_level)}).")
+                    # 최종 키라면, current_level이 최종 값 그대로입니다.
+
+                logger.debug(f"    접근 성공: 키 '{k}'. 새로운 현재 값/레벨 (타입: {type(current_level)}): {current_level}")
+
+            # 루프가 끝까지 돌면 current_level이 최종 값입니다.
+            final_value = current_level
+            logger.debug(f"키 탐색 완료: 최종 값 '{key}' -> {final_value}")
+
+            # Path 객체 변환 로직 (필요하다면 추가 - 현재 config는 이미 Path 객체를 포함하는 것으로 보임)
+            # ensure_exists 로직 (get_value에서는 제거하고 get_path에서 처리 권장)
+
+
+            return final_value # 최종 값 반환
+
+        except (KeyError, TypeError) as e:
+            # current_level[k] 접근 실패 시 이 블록으로 옵니다.
+            # logger.error(f"get_value 내부 오류: {e}", exc_info=True) # 중복 로깅 방지
+            if default is not None:
+                logger.warning(f"키 '{key}' 탐색 실패. 기본값 반환: {default}")
+                return default
+            else:
+                logger.warning(f"키 '{key}' 탐색 실패 (기본값 제공되지 않음). None 반환. 키 경로: {keys}")
+                return None
+
+        except Exception as e:
+             logger.error(f"get_value 중 예상치 못한 오류 발생: {e}", exc_info=True)
+             if default is not None:
+                 logger.warning(f"키 '{key}'에 대한 예상치 못한 오류 발생. 기본값 반환: {default}")
+                 return default
+             else:
+                 raise
+
+    def get_path(self, key: str, default: Any = None, ensure_exists: bool = True) -> Union[Path, Any]:
+        """
+        설정에서 경로 키에 해당하는 Path 객체를 직접 반환합니다.
+        get_value를 사용하여 값을 가져오고, ensure_exists=True일 경우,
+        키 이름이 '_dir'로 끝나면 해당 디렉토리를, '_path'로 끝나면 부모 디렉토리를 생성 시도합니다.
+        """
+        # # 마지막 마침표의 위치를 찾습니다.
+        # last_dot_index = key.rfind('.')
+        # key_base = full_string[:last_dot_index]
+        # last_key = full_string[last_dot_index + 1:]
+        # last_cfg = self.cfg.get_config(key_base)
+        # return last_cfg.get(last_key, None)
+
+        logger.debug(f"Configger 'get_path' 호출")
+        logger.debug(f"get_path called for key: '{key}'")
+
+        raw_value = None
+        try:
+            # get_value를 호출하여 원시 값을 가져옵니다.
+            # get_value 내부의 ensure_exists는 False로 하여, get_path에서 존재 유무를 최종 결정합니다.
+            raw_value = self.get_value(key, default=None, ensure_exists=False)
+        except (KeyError, TypeError) as e:
+            if default is not None:
+                logger.warning(f"키 '{key}'를 가져오는 중 오류 발생 (get_path): {e}. 기본값 반환: {default}")
+                return default
+            logger.error(f"키 '{key}'를 가져오는 중 오류 발생 (get_path): {e}. 기본값이 제공되지 않았습니다.")
+            raise
+
+        if raw_value is None:
+            if default is not None:
+                logger.debug(f"get_path: 키 '{key}'를 찾을 수 없거나 값이 None입니다. get_path의 기본값 '{default}' 반환.")
+                return default
+            else: # 기본값이 없으면 오류를 발생시키거나 None을 반환할 수 있습니다.
+                  # 여기서는 None을 반환하고, ensure_exists가 True면 아래에서 오류 발생 가능.
+                if ensure_exists: # 키 자체가 없는데 경로 생성을 시도하면 안됨
+                    raise KeyError(f"경로 키 '{key}'를 찾을 수 없으며 ensure_exists=True입니다.")
+                return None
+
+        path_obj: Optional[Path] = None # 타입 힌트 명시
+        if isinstance(raw_value, Path):
+            path_obj = raw_value
+        elif isinstance(raw_value, str):
+            if not raw_value.strip(): # 빈 문자열 또는 공백만 있는 문자열 처리
+                logger.warning(f"경로 키 '{key}'의 값이 빈 문자열입니다.")
+                if default is not None: return default
+                if ensure_exists: raise ValueError(f"경로 키 '{key}'의 값이 빈 문자열이고 ensure_exists=True입니다.")
+                return Path() # 빈 Path 객체 반환 또는 None
+            try:
+                # _traverse_resolve_and_normalize_paths 에서 이미 expanduser, normpath 처리됨
+                path_obj = Path(raw_value) 
+                # 만약 _traverse_resolve_and_normalize_paths에서 경로 정규화를 안했다면 여기서 수행
+                # expanded_path_str = os.path.expanduser(raw_value)
+                # normalized_path_str = os.path.normpath(expanded_path_str)
+                # path_obj = Path(normalized_path_str)
+            except Exception as e:
+                logger.error(f"문자열 '{raw_value}'을 Path 객체로 변환 중 오류 (키: '{key}'): {e}")
+                if default is not None: return default
+                raise ValueError(f"유효하지 않은 경로 문자열 (키: '{key}'): '{raw_value}'") from e
+        else:
+            logger.warning(f"경로 키 '{key}'의 값이 문자열이나 Path 객체가 아닙니다 (타입: {type(raw_value)}). 값: '{raw_value}'")
+            return default if default is not None else raw_value
+
+        if path_obj is not None and ensure_exists:
+            try:
+                # 경로의 존재 여부 및 타입(디렉토리/파일)에 따른 생성 로직
+                # 키 이름으로 디렉토리/파일 여부를 "추론"하여 생성 시도
+                if key.endswith("_dir"):
+                    target_dir_to_create = path_obj
+                elif key.endswith("_path"): # 파일 경로로 간주되면 부모 디렉토리 생성
+                    # path_obj가 실제 파일인지 디렉토리인지 알 수 없으므로,
+                    # 부모 디렉토리가 존재하도록 하는 것이 합리적.
+                    target_dir_to_create = path_obj.parent
+                # else: 키가 _dir이나 _path로 끝나지 않으면 자동 생성 안 함.
+
+                if target_dir_to_create:
+                    if not target_dir_to_create.exists():
+                        logger.debug(f"디렉토리 '{target_dir_to_create}' (키: '{key}')가 존재하지 않아 생성합니다.")
+                        target_dir_to_create.mkdir(parents=True, exist_ok=True)
+                        logger.debug(f"디렉토리 '{target_dir_to_create}' 생성 완료.")
+                    elif not target_dir_to_create.is_dir():
+                        # 이미 존재하는데 디렉토리가 아닌 경우 오류
+                        logger.error(f"경로 '{target_dir_to_create}' (키: '{key}')는 존재하지만 디렉토리가 아닙니다.")
+                        raise NotADirectoryError(f"경로 '{target_dir_to_create}' (키: '{key}')는 존재하지만 디렉토리가 아닙니다.")
+                    # else: 이미 디렉토리로 존재하면 아무것도 안 함.
+            
+            except OSError as e:
+                logger.warning(f"디렉토리 '{target_dir_to_create}' (키: '{key}') 생성 실패 (OSError): {e}. 권한을 확인하세요.")
+                raise # ensure_exists가 True이므로 오류를 다시 발생시켜 호출자가 알 수 있도록 함
+            except Exception as e:
+                logger.error(f"디렉토리 확인/생성 중 예기치 않은 오류 발생 (키: '{key}', 경로 객체: '{path_obj}'): {e}")
+                raise # 예기치 않은 오류도 다시 발생
+
+        return path_obj
+
+    def get_config(self, key: str) -> Any | None: # 반환 타입을 Any | None으로 변경
+        """
+        주어진 점(.)으로 구분된 키 문자열에 해당하는 중첩된 설정 딕셔너리 또는 값을 가져옵니다.
+        키가 존재하지 않으면 None을 반환합니다.
+        """
+        logger.debug(f"Configger 'get_config' 호출")
+        keys = key.split(".")
+        cur_cfg = self.cfg
+        logger.debug(f"시작: key='{key}', split keys: {keys}")
+
+        try:
+            for i, key_name in enumerate(keys):
+                logger.debug(f"순번: {i}, '{key_name}'")
+                if not isinstance(cur_cfg, dict):
+                    # 현재 레벨이 딕셔너리가 아닌데 계속 접근하려고 하면 오류
+                    logger.warning(f"키 경로 '{key}'의 '{key_name}' 접근 중: 이전 레벨이 딕셔너리가 아닙니다 (타입: {type(cur_cfg).__name__}).")
+                    return None # 딕셔너리가 아닌 곳에서 더 이상 내려갈 수 없음
+
+                # 따옴표 없이 key_name 변수 사용, 기본값 None 사용 권장
+                # 마지막 키가 아니라면 다음 레벨은 딕셔너리일 것으로 예상하고 기본값을 {} 대신 None으로 설정
+                # 마지막 키라면 어떤 값이든 될 수 있으므로 기본값은 None
+                next_cfg = cur_cfg.get(key_name)
+
+                if next_cfg is None and i < len(keys) - 1:
+                    # 중간 경로에 해당하는 키가 없으면 나머지 키는 찾을 수 없음
+                    logger.warning(f"키 경로 '{key}'의 '{key_name}'를 찾을 수 없습니다.")
+                    return None
+
+                logger.debug(f"next_cfg: {next_cfg}")
+                cur_cfg = next_cfg
+
+            # 루프 완료 후 최종 값 반환
+            # 최종 값이 None일 수 있습니다 (키가 존재하지 않았거나 값이 실제로 None인 경우)
+            return cur_cfg
+
+        except Exception as e:
+            # 예상치 못한 다른 오류 발생 시
+            logger.error(f"키 경로 '{key}' 값 가져오는 중 예상치 못한 오류 발생: {e}")
+            # 필요에 따라 sys.exit(1) 호출
+            return None
+
     # # 쓰이지 않음
     # def _get_parent_from_key_path(self, data, key_path_list):
     #     """
@@ -325,22 +541,6 @@ class configger:
     #     except Exception as e:
     #         logger.error(f"부모 객체 조회 중 예외 발생 for path '{'.'.join(map(str, key_path_list))}': {e}")
     #         return None
-
-    def _load_yaml(self) -> dict:
-        # 이전과 동일 (파일 로드 및 기본 예외 처리)
-        """설정 파일 내용을 YAML 형식으로 로드합니다."""
-        try:
-            with open(self.config_path, "r", encoding="utf-8") as f:
-                return yaml.safe_load(f)
-        except FileNotFoundError:
-            logger.error(f"설정 파일을 찾을 수 없습니다: {self.config_path}")
-            sys.exit(1)
-        except yaml.YAMLError as e:
-            logger.error(f"설정 파일 구문 오류: {self.config_path} - {e}")
-            sys.exit(1)
-        except Exception as e:
-            logger.error(f"설정 파일 로딩 중 예상치 못한 오류 발생: {e}")
-            sys.exit(1)
 
     # def _resolve_single_value(self, value: Any, context: dict) -> Any: # value 타입을 Any로 변경하는 것이 더 안전합니다.
     #     """단일 값에서 플레이스홀더 (${...})를 context 또는 환경 변수를 사용하여 치환합니다."""
@@ -470,163 +670,10 @@ class configger:
     #     # 최종 결과를 반환합니다.
     #     return final_resolved_config # final_resolved_config 변수 반환
 
-    def get_value(self, key: str, default: Any = None, ensure_exists: bool = True) -> Union[Path, Any]:
-        """
-        중첩된 키 이름(ex: 'dataset.raw_image_dir')을 기반으로 Path 객체 또는 값를 반환합니다.
-        """
-        logger.debug(f"Configger 'get_value' 호출")
-        keys = key.split(".")
-        current_level = self.cfg # 현재 탐색 중인 딕셔너리/리스트
-
-        # logger.error(f"values:{self.cfg}, keys:{keys}") # 이 로그는 except 블록 안에서 찍혔으므로 제거 또는 이동
-
-        logger.debug(f"get_value called for key: '{key}', split keys: {keys}")
-
-        try:
-            # 마지막 딕셔너리를 찾는다.
-            for i, k in enumerate(keys):
-                logger.debug(f"  --- get_value 루프 {i}번째 반복 ---")
-                logger.debug(f"  현재 레벨 (타입: {type(current_level)}): {current_level}") # <-- 현재 레벨 딕셔너리/값 출력
-                logger.debug(f"  접근 시도 키: '{k}'") # <-- 현재 접근하려는 키 출력
-
-                if isinstance(current_level, Dict):
-                    # 이 라인(current_level[k])에서 KeyError가 발생할 수 있습니다.
-                    current_level = current_level[k]
-                # 리스트 인덱싱 지원이 필요하다면 여기에 elif isinstance(current_level, List)... 추가
-                else:
-                    # 중간 단계에서 딕셔너리/리스트가 아닌데 아직 최종 키가 아닌 경우
-                    if i < len(keys) - 1:
-                         logger.error(f"경로 탐색 실패: 키 '{key}'의 중간 경로 '{k}'가 딕셔너리나 리스트가 아닙니다. (현재 타입: {type(current_level)})")
-                         raise TypeError(f"Intermediate key '{k}' for path '{key}' leads to non-container type ({type(current_level)}).")
-                    # 최종 키라면, current_level이 최종 값 그대로입니다.
-
-                logger.debug(f"    접근 성공: 키 '{k}'. 새로운 현재 값/레벨 (타입: {type(current_level)}): {current_level}")
-
-            # 루프가 끝까지 돌면 current_level이 최종 값입니다.
-            final_value = current_level
-            logger.debug(f"키 탐색 완료: 최종 값 '{key}' -> {final_value}")
-
-            # Path 객체 변환 로직 (필요하다면 추가 - 현재 config는 이미 Path 객체를 포함하는 것으로 보임)
-            # ensure_exists 로직 (get_value에서는 제거하고 get_path에서 처리 권장)
-
-
-            return final_value # 최종 값 반환
-
-        except (KeyError, TypeError) as e:
-            # current_level[k] 접근 실패 시 이 블록으로 옵니다.
-            # logger.error(f"get_value 내부 오류: {e}", exc_info=True) # 중복 로깅 방지
-            if default is not None:
-                logger.warning(f"키 '{key}' 탐색 실패. 기본값 반환: {default}")
-                return default
-            else:
-                logger.warning(f"키 '{key}' 탐색 실패 (기본값 제공되지 않음). None 반환. 키 경로: {keys}")
-                return None
-
-        except Exception as e:
-             logger.error(f"get_value 중 예상치 못한 오류 발생: {e}", exc_info=True)
-             if default is not None:
-                 logger.warning(f"키 '{key}'에 대한 예상치 못한 오류 발생. 기본값 반환: {default}")
-                 return default
-             else:
-                 raise
     # get_path, get_project_config, get_dataset_config 등 나머지 getter 메서드는
     # _load_and_resolve_config가 반환하는 fully_resolved_config 객체에 대해
     # 이전처럼 동일하게 작동할 것입니다.
     # (fully_resolved_config는 raw_config와 동일한 구조를 가지지만, 값이 치환되고 Path 객체로 변환됨)
-
-    def get_path(self, key: str, default: Any = None, ensure_exists: bool = True) -> Union[Path, Any]:
-        """
-        설정에서 경로 키에 해당하는 Path 객체를 직접 반환합니다.
-        get_value를 사용하여 값을 가져오고, ensure_exists=True일 경우,
-        키 이름이 '_dir'로 끝나면 해당 디렉토리를, '_path'로 끝나면 부모 디렉토리를 생성 시도합니다.
-        """
-        # # 마지막 마침표의 위치를 찾습니다.
-        # last_dot_index = key.rfind('.')
-        # key_base = full_string[:last_dot_index]
-        # last_key = full_string[last_dot_index + 1:]
-        # last_cfg = self.cfg.get_config(key_base)
-        # return last_cfg.get(last_key, None)
-
-        logger.debug(f"Configger 'get_path' 호출")
-        logger.debug(f"get_path called for key: '{key}'")
-
-        raw_value = None
-        try:
-            # get_value를 호출하여 원시 값을 가져옵니다.
-            # get_value 내부의 ensure_exists는 False로 하여, get_path에서 존재 유무를 최종 결정합니다.
-            raw_value = self.get_value(key, default=None, ensure_exists=False)
-        except (KeyError, TypeError) as e:
-            if default is not None:
-                logger.warning(f"키 '{key}'를 가져오는 중 오류 발생 (get_path): {e}. 기본값 반환: {default}")
-                return default
-            logger.error(f"키 '{key}'를 가져오는 중 오류 발생 (get_path): {e}. 기본값이 제공되지 않았습니다.")
-            raise
-
-        if raw_value is None:
-            if default is not None:
-                logger.debug(f"get_path: 키 '{key}'를 찾을 수 없거나 값이 None입니다. get_path의 기본값 '{default}' 반환.")
-                return default
-            else: # 기본값이 없으면 오류를 발생시키거나 None을 반환할 수 있습니다.
-                  # 여기서는 None을 반환하고, ensure_exists가 True면 아래에서 오류 발생 가능.
-                if ensure_exists: # 키 자체가 없는데 경로 생성을 시도하면 안됨
-                    raise KeyError(f"경로 키 '{key}'를 찾을 수 없으며 ensure_exists=True입니다.")
-                return None
-
-        path_obj: Optional[Path] = None # 타입 힌트 명시
-        if isinstance(raw_value, Path):
-            path_obj = raw_value
-        elif isinstance(raw_value, str):
-            if not raw_value.strip(): # 빈 문자열 또는 공백만 있는 문자열 처리
-                logger.warning(f"경로 키 '{key}'의 값이 빈 문자열입니다.")
-                if default is not None: return default
-                if ensure_exists: raise ValueError(f"경로 키 '{key}'의 값이 빈 문자열이고 ensure_exists=True입니다.")
-                return Path() # 빈 Path 객체 반환 또는 None
-            try:
-                # _traverse_resolve_and_normalize_paths 에서 이미 expanduser, normpath 처리됨
-                path_obj = Path(raw_value) 
-                # 만약 _traverse_resolve_and_normalize_paths에서 경로 정규화를 안했다면 여기서 수행
-                # expanded_path_str = os.path.expanduser(raw_value)
-                # normalized_path_str = os.path.normpath(expanded_path_str)
-                # path_obj = Path(normalized_path_str)
-            except Exception as e:
-                logger.error(f"문자열 '{raw_value}'을 Path 객체로 변환 중 오류 (키: '{key}'): {e}")
-                if default is not None: return default
-                raise ValueError(f"유효하지 않은 경로 문자열 (키: '{key}'): '{raw_value}'") from e
-        else:
-            logger.warning(f"경로 키 '{key}'의 값이 문자열이나 Path 객체가 아닙니다 (타입: {type(raw_value)}). 값: '{raw_value}'")
-            return default if default is not None else raw_value
-
-        if path_obj is not None and ensure_exists:
-            try:
-                # 경로의 존재 여부 및 타입(디렉토리/파일)에 따른 생성 로직
-                # 키 이름으로 디렉토리/파일 여부를 "추론"하여 생성 시도
-                if key.endswith("_dir"):
-                    target_dir_to_create = path_obj
-                elif key.endswith("_path"): # 파일 경로로 간주되면 부모 디렉토리 생성
-                    # path_obj가 실제 파일인지 디렉토리인지 알 수 없으므로,
-                    # 부모 디렉토리가 존재하도록 하는 것이 합리적.
-                    target_dir_to_create = path_obj.parent
-                # else: 키가 _dir이나 _path로 끝나지 않으면 자동 생성 안 함.
-
-                if target_dir_to_create:
-                    if not target_dir_to_create.exists():
-                        logger.debug(f"디렉토리 '{target_dir_to_create}' (키: '{key}')가 존재하지 않아 생성합니다.")
-                        target_dir_to_create.mkdir(parents=True, exist_ok=True)
-                        logger.debug(f"디렉토리 '{target_dir_to_create}' 생성 완료.")
-                    elif not target_dir_to_create.is_dir():
-                        # 이미 존재하는데 디렉토리가 아닌 경우 오류
-                        logger.error(f"경로 '{target_dir_to_create}' (키: '{key}')는 존재하지만 디렉토리가 아닙니다.")
-                        raise NotADirectoryError(f"경로 '{target_dir_to_create}' (키: '{key}')는 존재하지만 디렉토리가 아닙니다.")
-                    # else: 이미 디렉토리로 존재하면 아무것도 안 함.
-            
-            except OSError as e:
-                logger.warning(f"디렉토리 '{target_dir_to_create}' (키: '{key}') 생성 실패 (OSError): {e}. 권한을 확인하세요.")
-                raise # ensure_exists가 True이므로 오류를 다시 발생시켜 호출자가 알 수 있도록 함
-            except Exception as e:
-                logger.error(f"디렉토리 확인/생성 중 예기치 않은 오류 발생 (키: '{key}', 경로 객체: '{path_obj}'): {e}")
-                raise # 예기치 않은 오류도 다시 발생
-
-        return path_obj
 
     # def get_path_list(self, key: str, default: Optional[List[str]] = None, ensure_exists: bool = True) -> List[str]:
     #     """
@@ -753,46 +800,6 @@ class configger:
     #         logger.error(f"get_value_list: 키 '{key}' 처리 중 오류 발생: {e}", exc_info=True)
     #         return default if default is not None else []
 
-    def get_config(self, key: str) -> Any | None: # 반환 타입을 Any | None으로 변경
-        """
-        주어진 점(.)으로 구분된 키 문자열에 해당하는 중첩된 설정 딕셔너리 또는 값을 가져옵니다.
-        키가 존재하지 않으면 None을 반환합니다.
-        """
-        logger.debug(f"Configger 'get_config' 호출")
-        keys = key.split(".")
-        cur_cfg = self.cfg
-        logger.debug(f"시작: key='{key}', split keys: {keys}")
-
-        try:
-            for i, key_name in enumerate(keys):
-                logger.debug(f"순번: {i}, '{key_name}'")
-                if not isinstance(cur_cfg, dict):
-                    # 현재 레벨이 딕셔너리가 아닌데 계속 접근하려고 하면 오류
-                    logger.warning(f"키 경로 '{key}'의 '{key_name}' 접근 중: 이전 레벨이 딕셔너리가 아닙니다 (타입: {type(cur_cfg).__name__}).")
-                    return None # 딕셔너리가 아닌 곳에서 더 이상 내려갈 수 없음
-
-                # 따옴표 없이 key_name 변수 사용, 기본값 None 사용 권장
-                # 마지막 키가 아니라면 다음 레벨은 딕셔너리일 것으로 예상하고 기본값을 {} 대신 None으로 설정
-                # 마지막 키라면 어떤 값이든 될 수 있으므로 기본값은 None
-                next_cfg = cur_cfg.get(key_name)
-
-                if next_cfg is None and i < len(keys) - 1:
-                    # 중간 경로에 해당하는 키가 없으면 나머지 키는 찾을 수 없음
-                    logger.warning(f"키 경로 '{key}'의 '{key_name}'를 찾을 수 없습니다.")
-                    return None
-
-                logger.debug(f"next_cfg: {next_cfg}")
-                cur_cfg = next_cfg
-
-            # 루프 완료 후 최종 값 반환
-            # 최종 값이 None일 수 있습니다 (키가 존재하지 않았거나 값이 실제로 None인 경우)
-            return cur_cfg
-
-        except Exception as e:
-            # 예상치 못한 다른 오류 발생 시
-            logger.error(f"키 경로 '{key}' 값 가져오는 중 예상치 못한 오류 발생: {e}")
-            # 필요에 따라 sys.exit(1) 호출
-            return None
 
 
 # === 사용 예시 ===

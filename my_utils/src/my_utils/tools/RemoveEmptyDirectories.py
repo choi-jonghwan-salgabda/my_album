@@ -39,6 +39,7 @@ from tqdm import tqdm
 try:
     from my_utils.config_utils.SimpleLogger import logger
     from my_utils.config_utils.arg_utils import get_argument
+    from my_utils.config_utils.configger import configger
     from my_utils.config_utils.file_utils import get_all_dirs
     from my_utils.config_utils.display_utils import calc_digit_number, visual_length, truncate_string, with_progress_bar
 except ImportError as e:
@@ -181,27 +182,115 @@ def remove_empty_directories_logic(
         )
     return status
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     """
     스크립트의 메인 실행 함수입니다.
     명령줄 인자 파싱, 로깅 설정, 핵심 로직 호출 및 최종 통계 출력을 담당합니다.
     """
-    parsed_args = get_argument(required_args=['-tgt'])
     script_name = Path(__file__).stem
 
-    if hasattr(logger, "setup"):
-        date_str = datetime.now().strftime("%y%m%d_%H%M")
-        log_file_name = f"{script_name}_{date_str}.log"
-        full_log_path = Path(parsed_args.log_dir) / log_file_name
-        logger.setup(
-            logger_path=full_log_path,
-            file_min_level=parsed_args.log_level.upper(),
-            include_function_name=True,
-            pretty_print=True
-        )
-    
-    logger.info(f"애플리케이션 ({script_name}) 시작")
-    logger.info(f"명령줄 인자: {vars(parsed_args)}")
+    # 1단계: 콘솔 전용 임시 로거 설정 (설정 파일/인자 로드 전)
+    logger.setup(
+        logger_path=None,
+        console_min_level="CONSOLE",
+        include_function_name=False
+    )
+    logger.console(f"애플리케이션 ({script_name}) 시작. (로거 1/2 단계 초기화)")
+
+    # 이 스크립트가 지원하는 인자 목록을 명시적으로 정의합니다.
+    supported_args_for_script = [
+        'target_dir',
+        'log_mode',
+        'dry_run',
+        'delete_top_if_empty'
+    ]
+    parsed_args = get_argument(
+        required_args=['-tgt'],
+        supported_args=supported_args_for_script
+    )
+
+    # --- 설정 파일 경로 결정 ---
+    if parsed_args.config_path is None:
+        parsed_args.config_path = '../config/photo_album.yaml'
+        logger.debug(f"--config-path가 지정되지 않아 기본 상대 경로를 사용합니다: '{parsed_args.config_path}'")
+
+    # --- 로깅 설정 결정 (YAML vs. 명령줄) ---
+    root_dir_from_yaml = None
+    try:
+        config_manager = configger(config_path=parsed_args.config_path, root_dir=parsed_args.root_dir)
+        logger.debug("Configger 초기화 완료.")
+        
+        project_cfg = config_manager.get_config("project") or {}
+        root_dir_from_yaml = project_cfg.get("root_dir")
+
+        logging_cfg = config_manager.get_config("project.logging") or {}
+        log_dir_from_yaml = logging_cfg.get("log_dir")
+        log_level_from_yaml = logging_cfg.get("file_level", "INFO")
+        console_level_from_yaml = logging_cfg.get("console_level", "CONSOLE")
+        
+        if parsed_args.log_dir:
+            final_log_dir = parsed_args.log_dir
+        elif log_dir_from_yaml:
+            final_log_dir = log_dir_from_yaml
+        elif root_dir_from_yaml:
+            final_log_dir = Path(root_dir_from_yaml) / 'logs'
+        else:
+            final_log_dir = None
+
+        final_log_level = parsed_args.log_level or log_level_from_yaml
+        final_console_level = console_level_from_yaml
+
+    except Exception as e:
+        logger.error(f"Configger 초기화 또는 설정 로드 중 오류 발생: {e}", exc_info=True)
+        final_log_dir = parsed_args.log_dir
+        final_log_level = parsed_args.log_level or "INFO"
+        final_console_level = "CONSOLE"
+        config_manager = None
+
+    if final_log_dir is None:
+        final_root_dir = parsed_args.root_dir or root_dir_from_yaml or Path.cwd()
+        final_log_dir = Path(final_root_dir) / 'logs'
+        logger.console(f"로그 디렉토리가 지정되지 않아 기본 경로를 사용합니다: '{final_log_dir}'")
+
+    try:
+        final_log_dir_path = Path(final_log_dir).expanduser().resolve()
+        final_log_dir_path.mkdir(parents=True, exist_ok=True)
+    except Exception as e:
+        logger.error(f"로그 디렉토리 '{final_log_dir}'를 생성할 수 없습니다: {e}", exc_info=True)
+        sys.exit(1)
+
+    # 2단계: 파일 로깅을 포함한 전체 로거 설정
+    date_str = datetime.now().strftime("%y%m%d_%H%M")
+    log_file_name = f"{script_name}_{date_str}.log"
+    full_log_path = final_log_dir_path / log_file_name
+
+    logger.setup(
+        logger_path=full_log_path,
+        console_min_level=final_console_level.upper(),
+        file_min_level=final_log_level.upper(),
+        include_function_name=True,
+        pretty_print=True
+    )
+    logger.console(f"애플리케이션 ({script_name}) 시작. (로거 2/2 단계 초기화 완료)")
+    logger.console(f"로그 파일 위치: {full_log_path}")
+    logger.console(f"명령줄 인자: {vars(parsed_args)}")
+    logger.console(f"최종 로그 레벨: 파일='{final_log_level.upper()}', 콘솔='{final_console_level.upper()}'")
+
+    # 설정 파일에서 무시할 파일 목록 로드
+    ignore_files_set = {'.DS_Store', 'Thumbs.db'} # 기본값
+    try:
+        if config_manager is None:
+            raise RuntimeError("설정 관리자(configger)를 초기화하지 못했습니다.")
+        processing_cfg = config_manager.get_config("processing") or {}
+        # YAML 설정 파일에서 'ignore_files_in_empty_dirs' 키를 찾아 무시 목록을 확장합니다.
+        # 이 키가 없으면 빈 리스트를 반환하여 기본값만 사용됩니다.
+        files_from_config = processing_cfg.get("ignore_files_in_empty_dirs", [])
+        if files_from_config:
+            ignore_files_set.update(files_from_config)
+            logger.console(f"설정 파일에서 무시할 파일 목록을 로드하여 확장했습니다: {ignore_files_set}")
+    except Exception as e:
+        logger.error(f"Configger에서 무시 파일 목록 로드 중 오류: {e}", exc_info=True)
+        logger.console(f"기본 무시 파일 목록을 사용합니다: {ignore_files_set}")
 
     # 명령줄 인자로부터 경로 및 옵션 설정
     target_dir_str = parsed_args.target_dir # arg_utils에서 필수로 검증되었으므로 None이 아님
@@ -210,8 +299,12 @@ if __name__ == '__main__':
     delete_top_mode = getattr(parsed_args, 'delete_top_if_empty', False)
 
     # 향후 --ignore-files 인자로 받아오도록 확장 가능
-    ignore_files_set = {'.DS_Store', 'Thumbs.db'}
+    # ignore_files_set는 위에서 이미 초기화 및 확장되었습니다.
 
+    # 메인 로직 함수 호출
+    logger.console("+++++++++++++++++++++++++++++++++++++")
+    logger.console("--- 빈 디렉토리 정리 시작 ---")
+    logger.console("-------------------------------------")
     try:
         # 핵심 로직 함수 호출
         status = copy.deepcopy(DEFAULT_STATUS_TEMPLATE)
@@ -223,22 +316,26 @@ if __name__ == '__main__':
             delete_top_if_empty=delete_top_mode
         )
 
-        logger.warning("--- 빈 디렉토리 정리 통계 ---")
+        # 최종 통계 출력
+        logger.console("+++++++++++++++++++++++++++++++++++++")
+        logger.console("--- 빈 디렉토리 정리 마침 ---")
+        logger.console("-------------------------------------")
+        logger.console("--- 빈 디렉토리 정리 통계 ---")
         max_visual_msg_len = max(visual_length(v["msg"]) for v in DEFAULT_STATUS_TEMPLATE.values()) if DEFAULT_STATUS_TEMPLATE else 20
-        max_val_for_width = max(s_item["value"] for s_item in final_status.values()) if final_status else 0
-        digit_width_stats = calc_digit_number(max_val_for_width) if "calc_digit_number" in globals() and callable(calc_digit_number) else 5
+        max_val_for_width = max((s_item["value"] for s_item in final_status.values()), default=0)
+        digit_width_stats = calc_digit_number(max_val_for_width)
         
         for key, data in final_status.items():
             msg = DEFAULT_STATUS_TEMPLATE.get(key, {}).get("msg", key.replace("_", " ").capitalize())
             value = data["value"]
-            padding_spaces = max(0, max_visual_msg_len - visual_length(msg))
-            logger.warning(f"{msg}{'-' * padding_spaces} : {value:>{digit_width_stats}}")
-        logger.warning("------------------------------------")
+            padding = ' ' * (max_visual_msg_len - visual_length(msg))
+            logger.console(f"  {msg}{padding} : {value:>{digit_width_stats}}")
+        logger.console("------------------------------------")
 
     except Exception as e:
         logger.error(f"애플리케이션 실행 중 최상위 오류 발생: {e}", exc_info=True)
         sys.exit(1)
     finally:
-        logger.info(f"애플리케이션 ({script_name}) 종료{ ' (Dry Run 모드)' if dry_run_mode else ''}")
+        logger.console(f"애플리케이션 ({script_name}) 종료{ ' (Dry Run 모드)' if dry_run_mode else ''}")
         if hasattr(logger, "shutdown"):
             logger.shutdown()

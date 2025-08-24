@@ -5,12 +5,15 @@ project:
   root_dir: ${PWD}        # 현재 작업 디렉토리를 root_dir로 설정 꼭 문자열 경로여야함.
   pyproject_toml_path: ${project.root_dir}/pyproject.toml
   README:   ${project.root_dir}/README.md # 올바른 파일명으로 수정
-  log_dir:  ${project.root_dir}/logs
+  logging:
+    log_dir:  ${project.root_dir}/logs
+    console_level: CONSOLE
+    file_level: DEBUG
+    log_mode': async
 
   paths:
     datasets: # 데이터 폴더 - 원본 이미지 처리 정보
-      raw_photo_dir: ~/SambaData/Backup/FastCamp/data/test
-      datasets_dir: ~/SambaData/OwnerData/train/
+      datasets_dir: ~/SambaData/Backup/FastCamp/data/train
       raw_image_dir:            ${project.paths.datasets.datasets_dir}/images # config_loader가 ${변수} 치환을 지원해야 합니다.
       raw_jsons_dir:            ${project.paths.datasets.datasets_dir}/jsons
       json_list_file_path:      ${project.paths.datasets.datasets_dir}/json_files.lst # 대표 JSON 파일 경로
@@ -124,6 +127,14 @@ processing:
   - .gif
   - .webp
   - .heic # 새로운 포맷 추가 예시
+  use_cpu: true
+  max-workers : 4
+
+  # RemoveEmptyDirectories.py가 무시할 파일 목록
+  ignore_files_in_empty_dirs:
+  - .DS_Store
+  - Thumbs.db
+  - .picasa.ini # 예시: picasa 관련 파일도 무시
 
   frame_skip: 1 # 영상 처리 시 프레임 스킵
   output_format: image # 결과 저장 형식

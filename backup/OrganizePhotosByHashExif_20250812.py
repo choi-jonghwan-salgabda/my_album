@@ -71,7 +71,6 @@ from datetime import datetime
 import io
 import copy
 import hashlib
-import time
 import concurrent.futures
 import multiprocessing
 import pprint
@@ -192,21 +191,16 @@ def _process_file_for_parallel(img_path: Path) -> Dict[str, Any]:
         file_stream.seek(0)
         date_str, exif_err_msg = get_exif_date_taken(file_stream)
 
-        # EXIF 날짜 처리 로직 개선
         if date_str:
             # EXIF 날짜를 성공적으로 가져온 경우, 해당 날짜 문자열을 사용합니다.
             final_date_str = date_str
         elif exif_err_msg:
-            # '오류' 또는 '실패'가 포함된 메시지는 실제 손상으로 간주하고 'exif_error'로 분류합니다.
-            if "오류" in exif_err_msg or "실패" in exif_err_msg:
-                logger.warning(f"EXIF 읽기 오류 감지: {exif_err_msg}, 경로:'{img_path}'")
-                final_date_str = "exif_error"
-            else:
-                # 'EXIF 데이터 없음' 또는 '날짜 태그 없음'은 일반적인 경우이므로 DEBUG 레벨로 기록하고 'unknown_date'로 분류합니다.
-                logger.debug(f"EXIF 날짜 정보 없음: {exif_err_msg}, 경로:'{img_path}'")
-                final_date_str = "unknown_date"
+            # EXIF 날짜를 가져오지 못하고 오류 메시지가 있는 경우, 'exif_error'로 분류합니다.
+            logger.warning(f"사진 찍은 날짜 실패: {exif_err_msg}, 경로:'{img_path}'")
+            final_date_str = "exif_error"
         else:
-            # get_exif_date_taken이 (None, None)을 반환하는 예외적인 경우
+            # 그 외의 경우 (예: EXIF 데이터는 있으나 날짜 태그가 전혀 없는 경우) 'unknown_date'로 분류합니다.
+            logger.warning(f"사진 찍은 날짜 실패: 원인 불명, 경로:'{img_path}'")
             final_date_str = "unknown_date"
         
         original_name = get_original_filename(img_path)
@@ -379,7 +373,7 @@ def organize_photos_by_hash_logic(
         if not source_dir.is_dir():
             logger.error(f"소스 디렉토리를 찾을 수 없습니다: {source_dir}")
             return status
-        logger.console(f"소스 디렉토리: {source_dir}")
+        logger.crt_view(f"소스 디렉토리: {source_dir}")
 
         destination_dir.mkdir(parents=True, exist_ok=True)
         logger.info(f"대상 디렉토리: {destination_dir}")
@@ -393,7 +387,7 @@ def organize_photos_by_hash_logic(
         #   - 하위 디렉토리 수가 적고 특정 디렉토리에 파일이 몰려있으면 비효율적일 수 있으므로,
         #     하위 디렉토리 수가 CPU 코어 수에 비해 충분히 많을 때만 병렬 스캔을 사용하고,
         #     그렇지 않으면 더 빠른 단일 스레드 순차 스캔으로 전환합니다.
-        logger.console(f"'{source_dir}'에서 처리할 이미지 파일 목록 스캔을 시작합니다...")
+        logger.crt_view(f"'{source_dir}'에서 처리할 이미지 파일 목록 스캔을 시작합니다...")
 
         all_found_files = []
         visual_width = 40  # 기본 너비
@@ -429,7 +423,7 @@ def organize_photos_by_hash_logic(
         if all_found_files is None:
             logger.error(f"파일 스캔 중 심각한 오류가 발생하여 작업을 중단합니다. 메시지: {scan_message}")
             return status
-        logger.console(f"파일 스캔 결과: {scan_message}")
+        logger.crt_view(f"파일 스캔 결과: {scan_message}")
 
         image_files = []
         # 격리 디렉토리가 소스 디렉토리 내부에 있을 경우, 해당 디렉토리의 파일은 처리 대상에서 제외합니다.
@@ -442,9 +436,9 @@ def organize_photos_by_hash_logic(
 
         image_number = len(image_files)
         status["images_scanned"]["value"] = image_number
-        logger.console(f"{source_dir} 에서 {image_number}개의 이미지 파일을 찾았습니다.")
+        logger.crt_view(f"{source_dir} 에서 {image_number}개의 이미지 파일을 찾았습니다.")
         if not image_files:
-            logger.console("처리할 이미지가 없습니다.")
+            logger.crt_view("처리할 이미지가 없습니다.")
             return status
 
         # ======================================================================================
@@ -453,7 +447,7 @@ def organize_photos_by_hash_logic(
         # - 작업 내용: 스캔된 각 파일에 대해 해시 계산, EXIF 추출 등 CPU/I/O 집약적인 분석을 수행합니다.
         # - 병렬 처리 전략: 파일 단위 분배.
         #   - 각 워커는 개별 파일 하나를 받아 처리합니다. 이 방식은 작업량이 균등하게 분배되어 병렬 처리 효율이 매우 높습니다.
-        logger.console("이미지 정보(해시, EXIF) 수집을 시작합니다...")
+        logger.crt_view("이미지 정보(해시, EXIF) 수집을 시작합니다...")
         results = []
         if parallel:
             with concurrent.futures.ProcessPoolExecutor(max_workers=max_workers, initializer=initializer) as executor:
@@ -508,11 +502,11 @@ def organize_photos_by_hash_logic(
         # - 작업 내용: 성공적으로 분석된 파일 정보들을 해시값 기준으로 그룹화합니다. `defaultdict(list)`를 사용하여
         #   동일한 해시값을 가진 파일 정보들을 하나의 리스트로 묶어, 후속 파일 작업 단계에서 그룹 단위로 처리할 수 있도록 준비합니다.
         from collections import defaultdict
-        logger.console("처리할 파일들을 해시값 기준으로 그룹화합니다...")
+        logger.crt_view("처리할 파일들을 해시값 기준으로 그룹화합니다...")
         grouped_tasks = defaultdict(list)
         for task in successful_tasks:
             grouped_tasks[task['hash']].append(task)
-        logger.console(f"{len(grouped_tasks)}개의 해시 그룹으로 작업을 그룹화했습니다.")
+        logger.crt_view(f"{len(grouped_tasks)}개의 해시 그룹으로 작업을 그룹화했습니다.")
 
         # ======================================================================================
         # Phase 5: 파일 작업 (이동/복사)
@@ -523,7 +517,7 @@ def organize_photos_by_hash_logic(
         #   - 이렇게 하면 동일한 해시 디렉토리를 생성하는 작업이 여러 워커에서 동시에 발생하는 것을
         #     방지하고, 관련된 파일 I/O를 한 워커가 전담하여 처리 흐름을 단순화합니다.
         if grouped_tasks:
-            logger.console(f"파일 이동/복사 작업을 시작합니다...")
+            logger.crt_view(f"파일 이동/복사 작업을 시작합니다...")
             
             # 병렬 처리를 위한 인자 리스트 준비
             processing_args = [
@@ -575,133 +569,51 @@ def organize_photos_by_hash_logic(
 
 if __name__ == "__main__":
     # --- 스크립트 실행 시작점 ---
-    script_name = Path(__file__).stem
- 
-    # 1단계: 콘솔 전용 임시 로거 설정 (설정 파일/인자 로드 전)
-    # 파일 경로나 상세 레벨은 아직 모르므로, 콘솔에만 핵심 정보를 출력하도록 설정합니다.
-    # 이 스크립트는 사용자에게 중요한 정보를 'CONSOLE' 레벨로 전달하므로, 해당 레벨을 사용합니다.
-    logger.setup(
-        logger_path=None,  # 파일 로깅은 아직 비활성화
-        console_min_level="CONSOLE",
-        include_function_name=False
-    )
-    logger.console(f"애플리케이션 ({script_name}) 시작. (로거 1/2 단계 초기화)")
- 
     # -src와 -dst만 필수로 지정하고, -qrt(격리폴더) 등은 선택사항으로 변경합니다.
     # -qrt를 지정하지 않으면 소스 디렉토리 하위에 'quarantine' 폴더가 자동으로 사용됩니다.
     supported_args_for_script = [
         # 이 스크립트가 지원하는 인자 목록을 명시적으로 정의합니다.
-        'source_dir',
-        'destination_dir',
-        'quarantine_dir',
+        'source_dir', 
+        'destination_dir', 
+        'quarantine_dir', 
         'log_mode',
-        'dry_run',
-        'action',
-        'parallel',
+        'dry_run', 
+        'action', 
+        'parallel', 
         'max_workers'
     ]
     parsed_args = get_argument(
         required_args=['-src', '-dst'],
         supported_args=supported_args_for_script
     )
-
-    # --- 설정 파일 경로 결정 ---
-    if parsed_args.config_path is None:
-        # --config-path가 지정되지 않았을 때 기본 경로를 생성합니다.
-        # root_dir은 arg_utils에서 현재 작업 디렉토리로 기본값이 설정되어 있습니다.
-        # configger가 상대 경로를 root_dir 기준으로 처리하므로, 여기서는 상대 경로를 전달합니다.
-        parsed_args.config_path = '../config/photo_album.yaml'
-        logger.debug(f"--config-path가 지정되지 않아 기본 상대 경로를 사용합니다: '{parsed_args.config_path}'")
-
-    # --- 로깅 설정 결정 (우선순위: 명령줄 > YAML > 기본값) ---
-    final_log_dir = None
-    final_file_level = "INFO"
-    final_console_level = "CONSOLE"
-    final_log_mode = "sync"
-    config_manager = None
+    script_name = Path(__file__).stem
+    
+    if hasattr(logger, "setup"):
+        date_str = datetime.now().strftime("%y%m%d_%H%M")
+        log_file_name = f"{script_name}_{date_str}.log"
+        full_log_path = Path(parsed_args.log_dir) / log_file_name
+        # 로거 설정: 콘솔에는 CRT_VIEW 레벨 이상만, 파일에는 사용자가 지정한 레벨 이상을 기록
+        logger.setup(
+            logger_path=full_log_path,
+            console_min_level = "crt_view",
+            file_min_level=parsed_args.log_level.upper(),
+            include_function_name=True,
+            pretty_print=True,
+            async_file_writing=(parsed_args.log_mode == 'async')
+        )
+    
+    logger.crt_view(f"애플리케이션 ({script_name}) 시작")
 
     try:
+        # 설정 파일(YAML) 로드
         config_manager = configger(root_dir=parsed_args.root_dir, config_path=parsed_args.config_path)
-        logging_cfg   = config_manager.get_config("project.logging") or {}
-        
-        # YAML에서 설정값 가져오기 (기본값 포함)
-        log_dir_from_yaml = logging_cfg.get("log_dir")
-        file_level_from_yaml = logging_cfg.get("file_level", "INFO")
-        console_level_from_yaml = logging_cfg.get("console_level", "CONSOLE")
-        log_mode_from_yaml = logging_cfg.get("log_mode", "sync")
-        
-        # 최종 설정값 결정 (우선순위: 명령줄 > YAML)
-        final_log_dir = parsed_args.log_dir or log_dir_from_yaml
-        final_file_level = parsed_args.log_level or file_level_from_yaml
-        final_console_level = console_level_from_yaml
-        
-        # log_mode는 argparse의 기본값이 'sync'이므로, 사용자가 명시적으로 지정했는지 확인
-        if '--log-mode' in sys.argv or '-lmod' in sys.argv:
-            final_log_mode = parsed_args.log_mode
-        else:
-            final_log_mode = log_mode_from_yaml
-
+        logger.debug("Configger 초기화 완료.")
+        # YAML에서 리스트를 가져와 소문자 set으로 변환
+        extensions_from_config = config_manager.get_value("processing.supported_image_extensions", default=[])
+        allowed_extensions = {ext.lower() for ext in extensions_from_config} if extensions_from_config else set()
     except Exception as e:
         logger.error(f"Configger 초기화 또는 설정 로드 중 오류 발생: {e}", exc_info=True)
-        # 설정 파일 로드 실패 시, 명령줄 인자만 사용
-        final_log_dir = parsed_args.log_dir
-        final_file_level = parsed_args.log_level or "INFO"
-        final_console_level = "CONSOLE"
-        # 사용자가 명시적으로 지정했는지 확인
-        if '--log-mode' in sys.argv or '-lmod' in sys.argv:
-            final_log_mode = parsed_args.log_mode
-        else:
-            final_log_mode = "sync" # argparse 기본값과 동일하게 설정
-
-    # --- 로거 최종 설정 ---
-    full_log_path = None
-    if final_log_dir:
-        try:
-            final_log_dir_path = Path(final_log_dir).expanduser().resolve()
-            final_log_dir_path.mkdir(parents=True, exist_ok=True)
-            
-            date_str = datetime.now().strftime("%y%m%d_%H%M")
-            log_file_name = f"{script_name}_{date_str}.log"
-            full_log_path = final_log_dir_path / log_file_name
-        except Exception as e:
-            logger.error(f"로그 디렉토리 '{final_log_dir}'를 생성하거나 접근할 수 없습니다: {e}", exc_info=True)
-            full_log_path = None
-
-    # 2단계: 파일 로깅을 포함한 전체 로거 설정 (최종 설정값 사용)
-    logger.setup(
-        logger_path=full_log_path, # None이면 파일 로깅 비활성화
-        console_min_level=final_console_level.upper(),
-        file_min_level=final_file_level.upper(),
-        async_file_writing=(final_log_mode == 'async'),
-        include_function_name=True,
-        pretty_print=True
-    )
-    logger.console(f"애플리케이션 ({script_name}) 시작. (로거 2/2 단계 초기화 완료)")
-    if full_log_path:
-        logger.info(f"로그 파일 위치: {full_log_path}")
-    else:
-        logger.info("파일 로깅이 비활성화되었습니다. (로그 디렉토리가 지정되지 않음)")
-    logger.info(f"명령줄 인자: {vars(parsed_args)}")
-    logger.info(f"최종 로그 설정: 파일 레벨='{final_file_level.upper()}', 콘솔 레벨='{final_console_level.upper()}', 모드='{final_log_mode}'")
-    
-    # 설정 파일에서 허용 확장자 로드
-    allowed_extensions = set()
-    try:
-        if config_manager is None:
-            raise RuntimeError("설정 관리자(configger)를 초기화하지 못했습니다.")
-        # YAML에서 리스트를 가져와 소문자 set으로 변환
-        processing_cfg = config_manager.get_config("processing") or {}
-        extensions_from_config = processing_cfg.get("supported_image_extensions", [])
-        if extensions_from_config:
-            allowed_extensions = {ext.lower() for ext in extensions_from_config}
-    except Exception as e:
-        logger.error(f"Configger 설정 로드 중 오류 발생: {e}", exc_info=True)
         allowed_extensions = set() # 오류 발생 시 빈 세트로 초기화
-
-    # 설정 파일에서 확장자를 로드하지 못한 경우, 안전을 위해 기본 확장자 집합을 사용합니다.
-    if not allowed_extensions:
-        logger.warning("설정 파일에서 허용 확장자를 찾지 못했거나 로드 중 오류가 발생하여, 기본 이미지 확장자를 사용합니다.")
-        allowed_extensions = {".jpg", ".jpeg", ".png", ".gif", ".bmp", ".tiff", ".webp", ".heic"}
 
     # 명령줄 인자로부터 경로 및 옵션 설정
     input_dir_path = parsed_args.source_dir
@@ -716,11 +628,11 @@ if __name__ == "__main__":
     if parsed_args.quarantine_dir:
         # 사용자가 명시적으로 경로를 지정한 경우
         quarantine_dir = Path(parsed_args.quarantine_dir).expanduser().resolve()
-        logger.console(f"사용자 지정 격리 디렉토리 사용: '{quarantine_dir}'")
+        logger.crt_view(f"사용자 지정 격리 디렉토리 사용: '{quarantine_dir}'")
     else:
         # 기본값: 소스 디렉토리 아래 'quarantine' 폴더
         quarantine_dir = source_dir / 'quarantine'
-        logger.console(f"기본 격리 디렉토리 사용: '{quarantine_dir}'")
+        logger.crt_view(f"기본 격리 디렉토리 사용: '{quarantine_dir}'")
 
     if not dry_run_mode: # 실제 실행 모드일 때만 디렉토리 생성
         quarantine_dir.mkdir(parents=True, exist_ok=True)
@@ -731,10 +643,9 @@ if __name__ == "__main__":
 
     try:
         # 메인 로직 함수 호출
-        logger.console("+++++++++++++++++++++++++++++++++++++")
-        logger.console("--- 해시 기반 정리 처리 작업 시작 ---")
-        logger.console("-------------------------------------")
-        start_time = time.time()
+        logger.crt_view("+++++++++++++++++++++++++++++++++++++")
+        logger.crt_view("--- 해시 기반 정리 처리 작업 시작 ---")
+        logger.crt_view("-------------------------------------")
         # organize_photos_by_hash_logic 함수에 action_mode 전달
         final_status = organize_photos_by_hash_logic(
             source_dir=source_dir,
@@ -746,11 +657,9 @@ if __name__ == "__main__":
             parallel=parsed_args.parallel,
             max_workers=parsed_args.max_workers
         )
-        end_time = time.time()
-        elapsed_time = end_time - start_time
 
         # 최종 통계 출력
-        logger.console("--- 해시 기반 정리 처리 작업 통계 ---")
+        logger.crt_view("--- 해시 기반 정리 처리 작업 통계 ---")
         # Get all messages and find the maximum visual length for alignment
         all_msgs = [v.get("msg", k) for k, v in DEFAULT_STATUS_TEMPLATE.items()]
         max_visual_msg_len = max(visual_length(msg) for msg in all_msgs) if all_msgs else 20
@@ -764,15 +673,10 @@ if __name__ == "__main__":
             msg = DEFAULT_STATUS_TEMPLATE.get(key, {}).get("msg", key.replace("_", " ").capitalize())
             value = data["value"]
             padding = ' ' * (max_visual_msg_len - visual_length(msg))
-            logger.console(f"  {msg}{padding} : {value:>{digit_width_stats}}")
-
-        elapsed_label = "총 소요 시간"
-        elapsed_str = time.strftime("%H:%M:%S", time.gmtime(elapsed_time))
-        padding = ' ' * (max_visual_msg_len - visual_length(elapsed_label))
-        logger.console(f"  {elapsed_label}{padding} : {elapsed_str:>{digit_width_stats}}")
-        logger.console("-------------------------------------")
-        logger.console("--- 해시 기반 정리 처리 작업 끝 ----")
-        logger.console("+++++++++++++++++++++++++++++++++++++")
+            logger.crt_view(f"  {msg}{padding} : {value:>{digit_width_stats}}")
+        logger.crt_view("-------------------------------------")
+        logger.crt_view("--- 해시 기반 정리 처리 작업 끝 ----")
+        logger.crt_view("+++++++++++++++++++++++++++++++++++++")
 
     except KeyboardInterrupt:
         logger.warning("\n사용자에 의해 작업이 중단되었습니다.")
@@ -780,6 +684,6 @@ if __name__ == "__main__":
         logger.error(f"애플리케이션 실행 중 최상위 오류 발생: {e}", exc_info=True)
         sys.exit(1)
     finally:
-        logger.console(f"애플리케이션 ({script_name}) 종료{ ' (Dry Run 모드)' if dry_run_mode else ''}")
+        logger.crt_view(f"애플리케이션 ({script_name}) 종료{ ' (Dry Run 모드)' if dry_run_mode else ''}")
         if hasattr(logger, "shutdown"):
             logger.shutdown()

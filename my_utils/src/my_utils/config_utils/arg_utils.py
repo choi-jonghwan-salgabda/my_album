@@ -67,25 +67,8 @@ def get_argument(required_args: list[str] = None, supported_args: list[str] = No
         # default: 사용자 입력이 없을 때 사용할 기본값 지정
         '--root-dir', '--root_dir', '-root',
         type=str,
-        default=curr_dir,
+        default=None,
         help='프로젝트의 루트 디렉토리. (기본값: 현재 작업 디렉토리)'
-    )
-    parser.add_argument(
-        # --log-dir, --rlog_dir, -log → 하나의 인자 log_dir로 매핑됨
-        # default: 사용자 입력이 없을 때 사용할 기본값 지정
-        '--log-dir', '--log_dir', '-log',
-        type=str,
-        default=(Path(curr_dir) / 'logs').expanduser().resolve(),
-        help='로그 파일을 저장할 디렉토리.'
-    )
-    parser.add_argument(
-        # --log-level, --log_level, -lvl → 하나의 인자 log_level로 매핑됨
-        # default: 사용자 입력이 없을 때 사용할 기본값 지정
-        '--log-level', '--log_level', '-lvl',
-        type=str,
-        default='debug',
-        choices=["debug", "info", "warning", "error", "critical"],
-        help='로깅 레벨. (기본값: warning)'
     )
     parser.add_argument(
         # --config-path, --config_path, -cfg → 하나의 인자 config_path로 매핑됨
@@ -94,6 +77,23 @@ def get_argument(required_args: list[str] = None, supported_args: list[str] = No
         type=str,
         default=(Path(curr_dir) / '../config' / 'photo_album.yaml').expanduser().resolve(),
         help='설정 파일(YAML)의 경로.'
+    )
+    parser.add_argument(
+        # --log-dir, --rlog_dir, -log → 하나의 인자 log_dir로 매핑됨
+        # default: 사용자 입력이 없을 때 사용할 기본값 지정
+        '--log-dir', '--log_dir', '-log',
+        type=str,
+        default=None,
+        help='로그 파일을 저장할 디렉토리.'
+    )
+    parser.add_argument(
+        # --log-level, --log_level, -lvl → 하나의 인자 log_level로 매핑됨
+        # default: 사용자 입력이 없을 때 사용할 기본값 지정
+        '--log-level', '--log_level', '-lvl',
+        type=str,
+        default=None,
+        choices=["debug", "info", "warning", "error", "critical"],
+        help='파일에 기록할 로그 레벨. (지정하지 않으면 YAML 설정 또는 스크립트 기본값을 따름)'
     )
     parser.add_argument(
         '--log-mode', '--log_mode', '-lmod',
@@ -225,9 +225,6 @@ def get_argument(required_args: list[str] = None, supported_args: list[str] = No
 
     if missing_args:
         parser.error(f"다음 필수 인자가 누락되었습니다: {', '.join(missing_args)}")
-
-    # 로그 디렉토리 생성은 계속 유지합니다.
-    Path(args.log_dir).mkdir(parents=True, exist_ok=True)
 
     # --- 파싱된 인자 출력 ---
     print("+++++++++ 파싱된 인자 +++++++++++++++++++++++++++++")

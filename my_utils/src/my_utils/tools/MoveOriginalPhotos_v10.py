@@ -54,7 +54,6 @@ import concurrent.futures
 import multiprocessing
 import threading
 import functools
-import time
 from tqdm import tqdm
 
 # 프로젝트 공용 유틸리티 임포트
@@ -80,7 +79,7 @@ def get_file_score(file_path: Path) -> tuple:
     평가 기준 (우선순위 순):
     1. EXIF 촬영 날짜: 오래된 날짜일수록 점수가 낮습니다. (가장 중요)
        - EXIF 날짜가 없는 파일은 있는 파일보다 항상 높은 점수를 받습니다.
-    2. 파일 수정 시간(mtime): 오래된 시간일수록 점수가 낮습니다. (ctime은 복사 시 변경될 수 있어 mtime으로 대체)
+    2. 파일 생성 시간(ctime): 오래된 시간일수록 점수가 낮습니다.
     3. 파일명 특수문자 수: '_', '-'의 개수가 적을수록 점수가 낮습니다.
     4. 파일명 숫자 수: 숫자가 적을수록 점수가 낮습니다.
     5. 파일명 길이: 짧을수록 점수가 낮습니다.
@@ -97,12 +96,9 @@ def get_file_score(file_path: Path) -> tuple:
         exif_date = MAX_DATETIME
 
     try:
-        # ctime(생성 또는 메타데이터 변경 시간)은 파일 복사 시 현재 시간으로 변경될 수 있습니다.
-        # 원본성을 더 잘 나타내는 mtime(수정 시간)을 사용합니다.
-        # shutil.copy2는 mtime을 보존합니다.
-        mtime = file_path.stat().st_mtime
+        ctime = file_path.stat().st_ctime
     except FileNotFoundError:
-        mtime = float('inf') # 파일이 없으면 가장 높은 점수
+        ctime = float('inf') # 파일이 없으면 가장 높은 점수
 
     clean_name = get_original_filename(file_path)
     stem = Path(clean_name).stem
@@ -112,7 +108,7 @@ def get_file_score(file_path: Path) -> tuple:
     name_len = len(stem)
 
     # 점수를 튜플로 반환하여 다중 기준으로 정렬
-    return (exif_date, mtime, special_chars, num_digits, name_len)
+    return (exif_date, ctime, special_chars, num_digits, name_len)
 
 # 처리 상태를 기록하기 위한 기본 템플릿
 DEFAULT_STATUS_TEMPLATE = {
@@ -346,76 +342,75 @@ if __name__ == "__main__":
         parsed_args.config_path = '../config/photo_album.yaml'
         logger.debug(f"--config-path가 지정되지 않아 기본 상대 경로를 사용합니다: '{parsed_args.config_path}'")
 
-    # --- 로깅 설정 결정 (우선순위: 명령줄 > YAML > 기본값) ---
-    final_log_dir = None
-    final_file_level = "INFO"
-    final_console_level = "CONSOLE"
-    final_log_mode = "sync"
-    config_manager = None
-
+    # --- 로깅 설정 결정 (YAML vs. 명령줄) ---
+    # 1. YAML 설정 로드
+    root_dir_from_yaml = None # NameError 방지를 위해 None으로 초기화
     try:
+        # configger가 root_dir=None일 경우 자동으로 현재 작업 디렉토리를 사용하도록 수정되었습니다.
         config_manager = configger(config_path=parsed_args.config_path, root_dir=parsed_args.root_dir)
+        logger.debug("Configger 초기화 완료.")
+        
+        # 2. YAML에서 로그 및 경로 설정 가져오기
+        project_cfg = config_manager.get_config("project") or {}
+        root_dir_from_yaml = project_cfg.get("root_dir")
+
         logging_cfg = config_manager.get_config("project.logging") or {}
-        
-        # YAML에서 설정값 가져오기 (기본값 포함)
         log_dir_from_yaml = logging_cfg.get("log_dir")
-        file_level_from_yaml = logging_cfg.get("file_level", "INFO")
+        log_level_from_yaml = logging_cfg.get("file_level", "INFO")
         console_level_from_yaml = logging_cfg.get("console_level", "CONSOLE")
-        log_mode_from_yaml = logging_cfg.get("log_mode", "sync")
         
-        # 최종 설정값 결정 (우선순위: 명령줄 > YAML)
-        final_log_dir = parsed_args.log_dir or log_dir_from_yaml
-        final_file_level = parsed_args.log_level or file_level_from_yaml
-        final_console_level = console_level_from_yaml
-        
-        # log_mode는 argparse의 기본값이 'sync'이므로, 사용자가 명시적으로 지정했는지 확인
-        if '--log-mode' in sys.argv or '-lmod' in sys.argv:
-            final_log_mode = parsed_args.log_mode
+        # 3. 최종 로그 설정 결정 (우선순위: 명령줄 > YAML > 기본값)
+        # 로그 디렉토리 결정
+        if parsed_args.log_dir:
+            final_log_dir = parsed_args.log_dir
+        elif log_dir_from_yaml:
+            final_log_dir = log_dir_from_yaml
+        elif root_dir_from_yaml:
+            final_log_dir = Path(root_dir_from_yaml) / 'logs'
         else:
-            final_log_mode = log_mode_from_yaml
+            final_log_dir = None # 아래에서 최종 fallback 처리
+
+        # 로그 레벨 결정
+        final_log_level = parsed_args.log_level or log_level_from_yaml
+        final_console_level = console_level_from_yaml
 
     except Exception as e:
         logger.error(f"Configger 초기화 또는 설정 로드 중 오류 발생: {e}", exc_info=True)
-        # 설정 파일 로드 실패 시, 명령줄 인자만 사용
-        final_log_dir = parsed_args.log_dir
-        final_file_level = parsed_args.log_level or "INFO"
+        # 설정 파일 로드 실패 시 안전한 기본값 사용
+        final_log_dir = parsed_args.log_dir # YAML이 없으므로 명령줄 인자만 고려
+        final_log_level = parsed_args.log_level or "INFO"
         final_console_level = "CONSOLE"
-        # 사용자가 명시적으로 지정했는지 확인
-        if '--log-mode' in sys.argv or '-lmod' in sys.argv:
-            final_log_mode = parsed_args.log_mode
-        else:
-            final_log_mode = "sync" # argparse 기본값과 동일하게 설정
+        config_manager = None # config_manager 사용 불가 표시
 
-    # --- 로거 최종 설정 ---
-    full_log_path = None
-    if final_log_dir:
-        try:
-            final_log_dir_path = Path(final_log_dir).expanduser().resolve()
-            final_log_dir_path.mkdir(parents=True, exist_ok=True)
-            
-            date_str = datetime.now().strftime("%y%m%d_%H%M")
-            log_file_name = f"{script_name}_{date_str}.log"
-            full_log_path = final_log_dir_path / log_file_name
-        except Exception as e:
-            logger.error(f"로그 디렉토리 '{final_log_dir}'를 생성하거나 접근할 수 없습니다: {e}", exc_info=True)
-            full_log_path = None
+    # 최종 로그 디렉토리 경로 결정 및 생성
+    if final_log_dir is None:
+        final_root_dir = parsed_args.root_dir or root_dir_from_yaml or Path.cwd()
+        final_log_dir = Path(final_root_dir) / 'logs'
+        logger.info(f"로그 디렉토리가 지정되지 않아 기본 경로를 사용합니다: '{final_log_dir}'")
+
+    try:
+        final_log_dir_path = Path(final_log_dir).expanduser().resolve()
+        final_log_dir_path.mkdir(parents=True, exist_ok=True)
+    except Exception as e:
+        logger.error(f"로그 디렉토리 '{final_log_dir}'를 생성할 수 없습니다: {e}", exc_info=True)
+        sys.exit(1)
 
     # 2단계: 파일 로깅을 포함한 전체 로거 설정 (최종 설정값 사용)
+    date_str = datetime.now().strftime("%y%m%d_%H%M")
+    log_file_name = f"{script_name}_{date_str}.log"
+    full_log_path = final_log_dir_path / log_file_name
+
     logger.setup(
-        logger_path=full_log_path, # None이면 파일 로깅 비활성화
+        logger_path=full_log_path,
         console_min_level=final_console_level.upper(),
-        file_min_level=final_file_level.upper(),
-        async_file_writing=(final_log_mode == 'async'),
+        file_min_level=final_log_level.upper(),
         include_function_name=True,
         pretty_print=True
     )
     logger.console(f"애플리케이션 ({script_name}) 시작. (로거 2/2 단계 초기화 완료)")
-    if full_log_path:
-        logger.info(f"로그 파일 위치: {full_log_path}")
-    else:
-        logger.info("파일 로깅이 비활성화되었습니다. (로그 디렉토리가 지정되지 않음)")
+    logger.info(f"로그 파일 위치: {full_log_path}")
     logger.info(f"명령줄 인자: {vars(parsed_args)}")
-    logger.info(f"최종 로그 설정: 파일 레벨='{final_file_level.upper()}', 콘솔 레벨='{final_console_level.upper()}', 모드='{final_log_mode}'")
+    logger.info(f"최종 로그 레벨: 파일='{final_log_level.upper()}', 콘솔='{final_console_level.upper()}'")
 
     # 설정 파일에서 허용 확장자 로드
     allowed_extensions = set()
@@ -465,7 +460,6 @@ if __name__ == "__main__":
         logger.console("+++++++++++++++++++++++++++++++++++++")
         logger.console("--- 대표 원본 사진 정리 시작 ---")
         logger.console("-------------------------------------")
-        start_time = time.time()
         final_status = select_and_process_originals_logic(
             source_dir=source_dir,
             destination_dir=destination_dir,
@@ -476,8 +470,6 @@ if __name__ == "__main__":
             parallel=parallel_mode,
             max_workers=parsed_args.max_workers
         )
-        end_time = time.time()
-        elapsed_time = end_time - start_time
 
         # 최종 통계 출력
         logger.console("-------------------------------------")
@@ -493,11 +485,6 @@ if __name__ == "__main__":
             value = data["value"]
             padding = max(0, int(max_visual_msg_len - visual_length(msg)))
             logger.console(f"{msg}{'-' * padding} : {value:>{digit_width_stats}}")
-
-        elapsed_label = "총 소요 시간"
-        elapsed_str = time.strftime("%H:%M:%S", time.gmtime(elapsed_time))
-        padding = max(0, int(max_visual_msg_len - visual_length(elapsed_label)))
-        logger.console(f"{elapsed_label}{'-' * padding} : {elapsed_str:>{digit_width_stats}}")
         logger.console("------------------------------------")
 
     except KeyboardInterrupt:

@@ -1,0 +1,19 @@
+my_album/
+  ├── data/
+  │   ├── raw_photos/
+  │   ├── faces_cropped/        # 얼굴 잘린 이미지
+  │   ├── embeddings_custom.npy # 나만의 모델 인덱싱 벡터
+  │   ├── embeddings_pretrained.npy # 기존 모델로 추출한 벡터
+  │   ├── labels.json           # clusterID -> 이름
+  │   └── relations.json        # 이름 -> 관계
+  ├── models/
+  │   ├── custom_face_embedder.pth
+  │   └── pretrained_face_recognition_model.pth
+  ├── indexing/
+  │   ├── index_custom.py       # 내 모델 기반 인덱싱
+  │   └── index_pretrained.py   # 이름 매칭 전용 인덱싱
+  ├── webapp/
+  │   ├── search_by_name.py
+  │   ├── search_by_photo.py
+  │   └── album_view.html
+  └── config.yaml
